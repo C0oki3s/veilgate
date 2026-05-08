@@ -1,0 +1,80 @@
+[Unit]
+Description=VeilGate — tarpit + deception proxy for AI pentest agents
+Documentation=https://github.com/C0oki3s/veilgate
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=veilgate
+Group=veilgate
+
+ExecStart=/usr/local/bin/veilgate -config /etc/veilgate/veilgate.yaml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+KillSignal=SIGTERM
+
+# --- Sandboxing ----------------------------------------------------------
+# Hardened per the systemd sandboxing guide:
+# https://wiki.archlinux.org/title/Systemd/Sandboxing
+# https://www.ctrl.blog/entry/systemd-service-hardening.html
+# Run `systemd-analyze security veilgate.service` after install to verify.
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+
+# Filesystem write access — only the data + log directories.
+ReadWritePaths=/var/lib/veilgate /var/log/veilgate
+
+# Networking — only IPv4/IPv6 + unix sockets.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=any
+# Allow inbound on the proxy/metrics ports plus outbound to the upstream.
+# Operators with a different upstream IP range should adjust this list.
+IPAddressAllow=127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+IPAddressAllow=::1/128 fc00::/7 fe80::/10
+# When you want VeilGate to reach the public internet (e.g. for ACME or
+# upstream over HTTPS) replace IPAddressDeny=any with explicit allows.
+
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+# Capabilities — none. If you need to bind to ports < 1024 without
+# running as root, uncomment the AmbientCapabilities line below and
+# `setcap 'cap_net_bind_service=+ep' /usr/local/bin/veilgate`.
+CapabilityBoundingSet=
+# AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Syscall filter — `@system-service` is the documented "boring server"
+# allowlist. Add @network-io implicitly already covered.
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @mount @reboot
+SystemCallArchitectures=native
+
+# Resource limits — sane defaults; tune to your traffic.
+LimitNOFILE=65536
+LimitNPROC=512
+TasksMax=256
+
+# Logging.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=veilgate
+
+[Install]
+WantedBy=multi-user.target

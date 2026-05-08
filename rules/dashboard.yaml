@@ -1,0 +1,231 @@
+# dashboard.yaml — Prometheus console / dashboard configuration.
+#
+# Everything the dashboard renders is driven from this file so operators
+# can customise metric names, graph labels, quick-search tags, colours,
+# and the refresh cadence without a rebuild. Hot-reloaded by the watcher.
+
+# Auto-refresh interval in seconds for the live console.
+refresh_seconds: 10
+
+# Maximum number of recent events kept in the in-memory ring buffer
+# and rendered in the events table.
+max_events: 200
+
+# How many data-points to keep in rolling time-series charts.
+max_history_points: 60
+
+# Page-reload interval in seconds (fetches fresh event rows from server).
+page_reload_seconds: 60
+
+# Chart.js CDN URL — change to a local copy for air-gapped deploys.
+chartjs_cdn: "https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+
+# Colour palette — CSS custom properties injected into the dashboard.
+colours:
+  bg: "#0e0e10"
+  bg2: "#1a1a1e"
+  bg3: "#222228"
+  fg: "#e5e5e5"
+  muted: "#888"
+  accent: "#7db8ff"
+  red: "#ff6666"
+  yellow: "#ffcc55"
+  green: "#66cc88"
+  border: "#333"
+
+# Summary stat cards shown at the top. Each references a Prometheus metric.
+stat_cards:
+  - id: stat-total
+    title: "Requests"
+    metric: "veilgate_requests_total"
+    aggregate: "sum_all_labels"
+    label: "total requests scored"
+
+  - id: stat-tarpit
+    title: "Tarpitted"
+    metric: "veilgate_requests_total"
+    filter:
+      decision: "tarpit"
+    colour: "red"
+    label: "diverted to tarpit"
+
+  - id: stat-cost
+    title: "Attacker Cost Burned"
+    metric: "veilgate_attacker_cost_usd_total"
+    format: "usd"
+    colour: "green"
+    label: "estimated USD wasted"
+
+# IP Rotation detection panel.
+ip_rotation:
+  title: "IP Rotation Detection"
+  metric: "veilgate_fleet_rotation_fires_total"
+  tiers:
+    - id: stat-fleet-high
+      label_key: "tier"
+      label_value: "high"
+      display: "high-tier fires (25+ IPs)"
+      colour: "red"
+
+    - id: stat-fleet-mid
+      label_key: "tier"
+      label_value: "mid"
+      display: "mid-tier fires (8+ IPs)"
+      colour: "yellow"
+
+    - id: stat-fleet-low
+      label_key: "tier"
+      label_value: "low"
+      display: "low-tier fires (3+ IPs)"
+      colour: ""
+
+# Public IP rotation panel.
+public_ip_rotation:
+  title: "Public IP Rotation"
+  metric: "veilgate_public_ip_requests_total"
+  items:
+    - id: stat-public-rotating
+      label_key: "rotating"
+      label_value: "yes"
+      display: "public IPs in rotation"
+      colour: "red"
+
+    - id: stat-public-solo
+      label_key: "rotating"
+      label_value: "no"
+      display: "public IPs (not rotating)"
+      colour: ""
+
+# Cardinality gauges.
+cardinality:
+  clients_metric: "veilgate_tracked_clients"
+  fingerprints_metric: "veilgate_fleet_fingerprints"
+
+# Quick-search tags for the PromQL search bar.
+search_tags:
+  - query: "veilgate_requests_total"
+    label: "requests_total"
+  - query: "veilgate_fleet_rotation_fires_total"
+    label: "fleet_rotation"
+  - query: "veilgate_public_ip_rotation"
+    label: "public_ip_rotation"
+  - query: "veilgate_ip_reputation_hits_total"
+    label: "ip_reputation"
+  - query: "veilgate_score"
+    label: "score"
+  - query: "veilgate_signal_hits_total"
+    label: "signal_hits"
+  - query: "veilgate_tool_family_hits_total"
+    label: "tool_family"
+  - query: "veilgate_ua_rotation"
+    label: "ua_rotation"
+  - query: "veilgate_ml_score"
+    label: "ml_score"
+  - query: "veilgate_tracked_clients"
+    label: "tracked_clients"
+  - query: "veilgate_fleet_fingerprints"
+    label: "fleet_fingerprints"
+  - query: "veilgate_tarpit"
+    label: "tarpit"
+  - query: "veilgate_attacker_cost"
+    label: "attacker_cost"
+  - query: "veilgate_public_ip_requests"
+    label: "public_ip_requests"
+  - query: "veilgate_public_ip_rotation_events_total"
+    label: "public_ip_rotation_events"
+
+# Graphs — each becomes a Chart.js panel on the dashboard.
+graphs:
+  - id: chart-score
+    title: "Score Distribution"
+    type: "bar"
+    metric: "veilgate_score_bucket"
+    bucket_labels: ["10","20","30","40","50","60","70","80","90","100"]
+    colours: ["#66cc88","#66cc88","#66cc88","#ffcc55","#ffcc55","#ffcc55","#ff9955","#ff6666","#ff6666","#ff6666"]
+
+  - id: chart-decisions
+    title: "Decisions"
+    type: "doughnut"
+    metric: "veilgate_requests_total"
+    label_key: "decision"
+    series:
+      - value: "real"
+        colour: "#888"
+      - value: "observe"
+        colour: "#7db8ff"
+      - value: "tarpit"
+        colour: "#ff6666"
+      - value: "challenge"
+        colour: "#ffcc55"
+
+  - id: chart-signals
+    title: "Signal Hits"
+    type: "horizontal_bar"
+    metric: "veilgate_signal_hits_total"
+    label_key: "signal"
+    colour: "#7db8ff"
+    max_items: 15
+
+  - id: chart-ip-rep
+    title: "IP Reputation Categories"
+    type: "doughnut"
+    metric: "veilgate_ip_reputation_hits_total"
+    label_key: "category"
+    colours: ["#ff6666","#ff9955","#ffcc55","#7db8ff","#66cc88"]
+
+  - id: chart-tools
+    title: "Tool Family Detections"
+    type: "horizontal_bar"
+    metric: "veilgate_tool_family_hits_total"
+    label_key: "family"
+    colour: "#ff9955"
+    max_items: 10
+
+  - id: chart-fleet
+    title: "Fleet Rotation (time series)"
+    type: "line"
+    metric: "veilgate_fleet_rotation_fires_total"
+    label_key: "tier"
+    series:
+      - value: "high"
+        colour: "#ff6666"
+        fill_colour: "rgba(255,102,102,0.1)"
+      - value: "mid"
+        colour: "#ffcc55"
+        fill_colour: "rgba(255,204,85,0.1)"
+      - value: "low"
+        colour: "#888"
+        fill_colour: "rgba(136,136,136,0.1)"
+
+  - id: chart-public-ip
+    title: "Public IP Rotation (time series)"
+    type: "line"
+    metric: "veilgate_public_ip_requests_total"
+    label_key: "rotating"
+    series:
+      - value: "yes"
+        colour: "#ff6666"
+        fill_colour: "rgba(255,102,102,0.1)"
+      - value: "mid"
+        colour: "#ffcc55"
+        fill_colour: "rgba(255,204,85,0.1)"
+      - value: "no"
+        colour: "#66cc88"
+        fill_colour: "rgba(102,204,136,0.1)"
+
+  - id: chart-cardinality
+    title: "Cardinality (time series)"
+    type: "line"
+    metric: "multi"
+    series:
+      - metric: "veilgate_tracked_clients"
+        label: "Clients"
+        colour: "#7db8ff"
+      - metric: "veilgate_fleet_fingerprints"
+        label: "Fingerprints"
+        colour: "#ff9955"
+
+# Score thresholds for table row highlighting.
+score_thresholds:
+  high: 70
+  medium: 40

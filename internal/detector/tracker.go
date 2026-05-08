@@ -1,0 +1,206 @@
+package detector
+
+import (
+	"sync"
+	"time"
+)
+
+// ClientEvent is one observed request from a client.
+type ClientEvent struct {
+	Timestamp time.Time
+	Path      string
+	Query     string // raw URL query (without leading '?'), empty when none
+	Method    string
+	Status    int
+	UserAgent string
+	JA4       string // TLS fingerprint, optional
+	// SecFetchDest mirrors the Sec-Fetch-Dest header value when present
+	// ("document" / "image" / "script" / "empty" / …). Used by the
+	// request-graph-topology signal to compute the ratio of subresource
+	// fetches per HTML fetch.
+	SecFetchDest string
+	// HasCookie is true when the request carried any Cookie header.
+	// Used by the cookie-ecology signal — clients that never send
+	// cookies despite a Set-Cookie having gone out look library-shaped.
+	HasCookie bool
+	// ToolStage is "recon" | "probe" | "exploit" | "" — tagged by the
+	// scorer using the same path patterns as the toolchain signal. We
+	// cache it on the event so a follow-up cross-request signal (HMM
+	// over the stage sequence) doesn't re-tokenize the path on every
+	// request.
+	ToolStage string
+}
+
+// ClientState tracks rolling behavior for a single client (IP).
+type ClientState struct {
+	mu           sync.Mutex
+	Events       []ClientEvent
+	HoneypotHits int
+	Score        int
+	FirstSeen    time.Time
+	LastSeen     time.Time
+	// UniqueUAs is the set of distinct User-Agent strings seen from
+	// this client inside the rolling window. Used for ua_rotation
+	// detection — dirsearch -H / ffuf with a UA pool is the canonical
+	// attacker that shuffles UAs while keeping IP stable.
+	UniqueUAs map[string]time.Time
+
+	// LastStatus is the response status code from the immediately-
+	// preceding request, or 0 when none. Set by Tracker.RecordStatus
+	// after the proxy finishes writing the response. The
+	// failure-recovery signal compares this to the *next* request's
+	// shape: a real user that hits a 401 retries the same shape with
+	// credentials; an LLM agent often retries with a *different* path
+	// or parameter set.
+	LastStatus int
+	// LastNon200Path is the path of the last request that returned a
+	// 4xx/5xx response. Used together with LastStatus to detect
+	// shape-change retries.
+	LastNon200Path   string
+	LastNon200Method string
+
+	// CookiesSent / RequestsTotal track the cookie-ecology ratio.
+	// Reset on the same window evictions as Events.
+	CookiesSent    int
+	RequestsTotal  int
+
+	// SubresourceFetches / DocumentFetches feed the request-graph
+	// topology signal. Real browsers post a tree-shaped pattern of
+	// document followed by many subresource fetches; agents tend
+	// toward a flat list of independent document fetches.
+	DocumentFetches    int
+	SubresourceFetches int
+}
+
+// Tracker holds per-client state across the process.
+type Tracker struct {
+	mu       sync.RWMutex
+	clients  map[string]*ClientState
+	window   time.Duration
+	maxHist  int
+}
+
+func NewTracker(windowSeconds int) *Tracker {
+	return &Tracker{
+		clients: make(map[string]*ClientState),
+		window:  time.Duration(windowSeconds) * time.Second,
+		maxHist: 200,
+	}
+}
+
+// Record adds an event for a client and returns the updated state.
+func (t *Tracker) Record(clientID string, evt ClientEvent) *ClientState {
+	t.mu.Lock()
+	st, ok := t.clients[clientID]
+	if !ok {
+		st = &ClientState{
+			FirstSeen: evt.Timestamp,
+			UniqueUAs: make(map[string]time.Time),
+		}
+		t.clients[clientID] = st
+	}
+	t.mu.Unlock()
+
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	st.LastSeen = evt.Timestamp
+	st.Events = append(st.Events, evt)
+	st.RequestsTotal++
+	if evt.HasCookie {
+		st.CookiesSent++
+	}
+	switch evt.SecFetchDest {
+	case "document":
+		st.DocumentFetches++
+	case "":
+		// no info — typical for libraries; ignore for the topology ratio.
+	default:
+		st.SubresourceFetches++
+	}
+
+	if st.UniqueUAs == nil {
+		st.UniqueUAs = make(map[string]time.Time)
+	}
+	// Record the UA fingerprint for this request (empty UA counts as
+	// its own distinct bucket — rotators often mix real UAs with gaps).
+	st.UniqueUAs[evt.UserAgent] = evt.Timestamp
+
+	// Evict events outside the rolling window.
+	cutoff := evt.Timestamp.Add(-t.window)
+	i := 0
+	for ; i < len(st.Events); i++ {
+		if st.Events[i].Timestamp.After(cutoff) {
+			break
+		}
+	}
+	if i > 0 {
+		st.Events = st.Events[i:]
+	}
+	if len(st.Events) > t.maxHist {
+		st.Events = st.Events[len(st.Events)-t.maxHist:]
+	}
+	// Evict stale UA entries on the same window cutoff so the set
+	// reflects *current* rotation, not all-time distinct UAs.
+	for ua, ts := range st.UniqueUAs {
+		if ts.Before(cutoff) {
+			delete(st.UniqueUAs, ua)
+		}
+	}
+	return st
+}
+
+// Get returns the state for a client without modifying it.
+func (t *Tracker) Get(clientID string) *ClientState {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.clients[clientID]
+}
+
+// RecordStatus annotates the previous request's response status. Called
+// from the proxy after WriteHeader. Lets the failure-recovery signal
+// compare a 401/403/404 response with the next request's shape.
+func (t *Tracker) RecordStatus(clientID string, status int, path, method string) {
+	if t == nil {
+		return
+	}
+	t.mu.RLock()
+	st := t.clients[clientID]
+	t.mu.RUnlock()
+	if st == nil {
+		return
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.LastStatus = status
+	if status >= 400 {
+		st.LastNon200Path = path
+		st.LastNon200Method = method
+	}
+	if len(st.Events) > 0 {
+		st.Events[len(st.Events)-1].Status = status
+	}
+}
+
+// Len returns the number of client IPs currently tracked. Used by the
+// periodic metrics publisher to feed the client-cardinality gauge.
+func (t *Tracker) Len() int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return len(t.clients)
+}
+
+// GC removes stale clients. Call periodically.
+func (t *Tracker) GC(maxIdle time.Duration) {
+	now := time.Now()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for id, st := range t.clients {
+		st.mu.Lock()
+		idle := now.Sub(st.LastSeen)
+		st.mu.Unlock()
+		if idle > maxIdle {
+			delete(t.clients, id)
+		}
+	}
+}

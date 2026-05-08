@@ -1,0 +1,15 @@
+# Auto-managed by the ML miner — do not hand-edit the `candidates:` list.
+#
+# The miner writes candidate rules here when P(agent|feature) and support
+# thresholds (rules/ml.yaml -> miner) are both met. The detector merges
+# active entries into its live rule set on reload, so accepting a
+# candidate is as simple as flipping `active: true` and saving.
+#
+# Candidates are keyed by (feature, bucket). A candidate is one of:
+#   feature: ua_token         bucket: <token>
+#   feature: header_set_id    bucket: <hash>
+#   feature: path_ngram       bucket: <ngram>
+#   feature: ja4_prefix       bucket: <10 hex chars>
+#   feature: timing_bucket    bucket: <bucket index>
+#   feature: method           bucket: <METHOD>
+candidates: []

@@ -1,0 +1,69 @@
+listen: ":8080"
+upstream: "http://localhost:3000"
+
+# Modes:
+#   observe   - score but never divert. Use this for week 1 to tune thresholds.
+#   challenge - serve JS/PoW challenge to medium-score clients.
+#   tarpit    - divert high-score clients to the shadow app.
+mode: "observe"
+
+# External rule files. Leave empty to use the embedded defaults shipped with
+# the binary. Point at the repo's ./rules dir to edit signals without a rebuild.
+# Files consumed: detector.yaml, tls_fingerprints.yaml, payloads.yaml
+rules_dir: "./rules"
+
+# Capture: legacy JSONL firehose. Superseded by `persist:` below — leave
+# `capture.enabled: false` unless you're running a non-SQLite collection
+# pipeline and still need the old firehose format.
+capture:
+  enabled: false
+  path: "./data/requests.jsonl"
+  max_mb: 100
+
+# Persist: SQLite event store. Feeds the online ML classifier, and the
+# miner reads `features_rollup` to propose new detector rules.
+#
+# Trim runs every 6 hours; rows older than `retention_days` are dumped to
+# `dump_path` as gzipped CSV (one file per trim pass) before deletion.
+# Set `dump_path: ""` to skip the CSV dump and just trim.
+persist:
+  enabled: true
+  path: "./data/events.db"
+  retention_days: 30
+  queue_size: 4096
+  dump_path: "./data/dumps"
+  cache_size_kb: 65536  # 64 MB SQLite page cache
+
+# TLS: enable to get JA3/JA4 TLS fingerprinting as an additional signal.
+# When enabled, VeilGate terminates TLS itself so it can see the ClientHello.
+# Generate a self-signed cert for testing with:
+#   openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost"
+tls:
+  enabled: false
+  cert_file: "cert.pem"
+  key_file: "key.pem"
+
+detector:
+  score_tarpit_threshold: 70
+  score_challenge_threshold: 40
+  window_seconds: 90
+  trusted_ips: []   # exact IPs to never score. Do NOT add 127.0.0.1 when smoke-testing tools from localhost.
+  # Comma-separated CIDR list of proxies whose X-Forwarded-For we respect.
+  # Leave empty to only trust the direct RemoteAddr (stops XFF header injection).
+  trusted_proxies: []
+  honeypot_paths:
+    - "/admin-panel-v2"
+    - "/api/internal/debug"
+    - "/.git/config"
+    - "/.env.backup"
+    - "/wp-admin-old"
+    - "/phpmyadmin-backup"
+    - "/api/v3/legacy-auth"
+
+tarpit:
+  min_latency_ms: 500
+  max_latency_ms: 3000
+  max_body_bytes: 102400
+
+metrics:
+  listen: ":9090"

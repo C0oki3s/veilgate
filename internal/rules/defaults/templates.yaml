@@ -1,0 +1,137 @@
+# Tarpit response templates. Each entry is a text/template body with a
+# fixed variable set:
+#   {{.Company}} {{.Version}} {{.Stack}} {{.AdminUser}} {{.AdminPass}}
+#   {{.Seed}} {{.Visits}} {{.Path}} {{.Query}} {{.TicketID}} {{.Slug}}
+# Extra helper functions (registered in internal/tarpit/renderer.go):
+#   seed_mod N     -> .Seed % N
+#   sanitize s     -> HTML-escape + truncate
+#   hex64 n        -> printf "%x" (uint64 n)
+#   rand_int max salt -> deterministic int in [0, max)
+#   rand_pick list salt -> deterministic element from a YAML list
+#   users_list n   -> renders a fake JSON user list of length n
+#
+# Keep bodies free of anything you wouldn't want to edit live — these
+# files hot-reload through internal/rules/watcher.go.
+templates:
+  login_page:
+    status: 200
+    content_type: "text/html; charset=utf-8"
+    headers:
+      Server: "{{.Version}}"
+      X-Powered-By: "{{.Stack}}"
+      Set-Cookie: 'SESSIONID={{hex64 .Seed}}; Path=/; HttpOnly'
+    body: |
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+      <title>{{.Company}} - Admin Login</title>
+      <meta name="generator" content="InternalPortal v2.4.1">
+      </head>
+      <body>
+      <!-- TODO: migrate auth from /api/v3/legacy-auth before Dec 2026 -->
+      <!-- DEBUG: SESSION_KEY env var not loaded, using fallback -->
+      <h1>{{.Company}} Administrative Portal</h1>
+      <form method="POST" action="/login">
+        <input name="username" placeholder="username" required>
+        <input type="password" name="password" placeholder="password" required>
+        <input type="hidden" name="csrf" value="a7f3c9d2e8b1">
+        <button type="submit">Sign in</button>
+      </form>
+      <p><a href="/admin-panel-v2">Legacy admin</a> | <a href="/api/internal/debug">Debug</a></p>
+      </body></html>
+
+  admin_dashboard:
+    status: 200
+    content_type: "text/html; charset=utf-8"
+    headers:
+      Server: "{{.Version}}"
+      X-Powered-By: "{{.Stack}}"
+    body: |
+      <!DOCTYPE html>
+      <html><head><title>Admin - {{.Company}}</title></head>
+      <body>
+      <h1>Welcome, {{.AdminUser}}</h1>
+      <!-- API_TOKEN=sk_live_{{hex64 .Seed}} (rotate quarterly - last rotated 2024-11) -->
+      <ul>
+        <li><a href="/api/internal/users">User management</a></li>
+        <li><a href="/api/internal/db-console">Database console</a></li>
+        <li><a href="/api/internal/debug">Debug panel</a></li>
+        <li><a href="/backup/daily-2026-04-16.sql">Latest backup</a></li>
+      </ul>
+      <p>Active sessions: {{add 10 (mod .Visits 50)}}</p>
+      </body></html>
+
+  sql_error:
+    status: 500
+    content_type: "application/json"
+    headers:
+      Server: "{{.Version}}"
+    body: |
+      {
+        "error": "Database error",
+        "detail": "You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '{{sanitize .Query}}' at line 1",
+        "query_snippet": "SELECT * FROM users WHERE id={{sanitize .Query}}",
+        "stack": [
+          "db/mysql.go:142 executeQuery",
+          "api/users.go:88 GetUserByID",
+          "middleware/auth.go:31 authenticate"
+        ]
+      }
+
+  users_list:
+    status: 200
+    content_type: "application/json"
+    headers:
+      Server: "{{.Version}}"
+    body: |
+      {{users_list (add 20 (rand_int 30 "count"))}}
+
+  generic_not_found:
+    status: 404
+    content_type: "text/html; charset=utf-8"
+    headers:
+      Server: "{{.Version}}"
+    body: |
+      <!DOCTYPE html>
+      <html><head><title>404 Not Found</title></head>
+      <body>
+      <h1>Not Found</h1>
+      <p>The requested URL {{sanitize .Path}} was not found on this server.</p>
+      <!-- Did you mean /api/v3/legacy-auth or /admin-panel-v2? -->
+      <hr>
+      <address>{{.Version}} Server at localhost</address>
+      </body></html>
+
+  git_config:
+    status: 200
+    content_type: "text/plain"
+    body: |
+      [core]
+      	repositoryformatversion = 0
+      	filemode = true
+      	bare = false
+      	logallrefupdates = true
+      [remote "origin"]
+      	url = https://github.com/{{.Slug}}/internal-api.git
+      	fetch = +refs/heads/*:refs/remotes/origin/*
+      [branch "main"]
+      	remote = origin
+      	merge = refs/heads/main
+      [user]
+      	email = devops@{{.Slug}}.local
+      	name = CI Bot
+
+  env_backup:
+    status: 200
+    content_type: "text/plain"
+    body: |
+      DATABASE_URL=postgres://dbuser:dbpass@db.internal:5432/production
+      REDIS_URL=redis://cache.internal:6379
+      API_KEY=sk_live_{{hex64 .Seed}}
+      JWT_SECRET={{hex64 (mul .Seed 7)}}
+      STRIPE_KEY=pk_test_{{hex64 (mul .Seed 13)}}
+      SMTP_HOST=smtp.{{.Slug}}.local
+      SMTP_USER=noreply@{{.Slug}}.local
+      SMTP_PASS={{.AdminPass}}
+      # DEPRECATED - DO NOT USE
+      LEGACY_AUTH_URL=/api/v3/legacy-auth

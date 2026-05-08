@@ -1,0 +1,41 @@
+# What paths we treat as honeypots, what patterns we treat as SQL-injection
+# attempts, and any other "vulnerability triggers" the tarpit subsystem
+# uses to decide which template to render.
+#
+# Actual response bodies live in rules/templates.yaml.
+
+# A hit on any of these paths is the highest-confidence single detector
+# signal. These are promoted into detector.Score automatically.
+honeypot_paths:
+  - /admin-panel-v2
+  - /api/internal/debug
+  - /.git/config
+  - /.env.backup
+  - /wp-admin-old
+  - /phpmyadmin-backup
+
+# Substrings scanned (case-insensitive) against the URL path + raw query.
+# A hit routes the request to templates.sql_error.
+sql_injection_patterns:
+  - "'"
+  - "\""
+  - "--"
+  - "union"
+  - "select"
+  - "or 1=1"
+  - "or+1=1"
+  - "or%201=1"
+  - "'or'1'='1"
+  - "/*"
+  - "*/"
+
+# Optional: pointer paths that the `git_config` and `env_backup` templates
+# should match on. Used by injection_strategy routes as an `include_paths`
+# list so operators can add new vuln-lure paths without editing code.
+fake_git_paths:
+  - "/.git/config"
+  - "/.git/HEAD"
+fake_env_paths:
+  - "/.env"
+  - "/.env.backup"
+  - "/.env.prod"

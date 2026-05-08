@@ -1,0 +1,122 @@
+# ip_reputation.yaml — public-IP and IP-rotation detection rules.
+#
+# Edit this file without rebuilding: it is hot-reloaded.
+#
+# Categories contain CIDR blocks OR literal IPs. When a client IP falls
+# inside any entry in a category, the `ip_reputation` signal fires with
+# that category's `points`. First-matching category wins, so put the
+# strongest signal (tor_exits) above broader ones (cloud).
+#
+# The fleet_rotation + ua_rotation sections below do NOT use CIDRs — they
+# observe *behaviour*: "how many distinct IPs share one fingerprint?" and
+# "how many distinct UAs came from one IP?".
+
+categories:
+  # Tor exit nodes — almost always adversarial against a real app. Keep
+  # current by running `curl https://check.torproject.org/exit-addresses`
+  # and pasting. Blank list is fine if you don't care about Tor.
+  - name: tor_exit
+    points: 35
+    cidrs: []
+
+  # Known commercial anonymiser / residential-proxy ranges. Populate
+  # from lists like https://github.com/X4BNet/lists_vpn (expressvpn, nord,
+  # mullvad, oxylabs, brightdata, smartproxy, soax, etc).
+  - name: anonymizer
+    points: 30
+    cidrs: []
+
+  # Datacentre / cloud ranges — traffic that CLAIMS to be a browser but
+  # comes from AWS/GCP/Azure/DO/OVH is ~never a real user. We ship tiny
+  # seed lists; expand via cloud providers' published ranges.
+  - name: cloud
+    points: 20
+    cidrs:
+      # AWS us-east-1 well-known EC2 prefix (tiny subset, extend from https://ip-ranges.amazonaws.com/ip-ranges.json)
+      - 3.80.0.0/12
+      - 18.204.0.0/14
+      - 52.0.0.0/11
+      - 54.80.0.0/12
+      # GCP (tiny subset, extend from https://www.gstatic.com/ipranges/cloud.json)
+      - 34.64.0.0/10
+      - 35.184.0.0/13
+      # Azure (tiny subset, extend from ServiceTags_Public_*.json)
+      - 20.0.0.0/11
+      - 40.64.0.0/10
+      # DigitalOcean (extend from https://www.digitalocean.com/geo/google.csv)
+      - 104.131.0.0/16
+      - 138.68.0.0/16
+      - 159.89.0.0/16
+      - 167.99.0.0/16
+      - 165.22.0.0/16
+      # Linode/Akamai cloud
+      - 45.33.0.0/16
+      - 45.79.0.0/16
+      - 66.175.208.0/20
+      - 96.126.96.0/19
+      # Hetzner
+      - 5.9.0.0/16
+      - 88.198.0.0/16
+      - 136.243.0.0/16
+      # OVH
+      - 51.68.0.0/16
+      - 51.75.0.0/16
+      - 51.89.0.0/16
+      # Contabo
+      - 62.171.128.0/17
+      - 144.91.64.0/18
+      - 173.249.0.0/17
+      - 207.180.192.0/18
+
+  # Local / RFC1918 — these should NEVER hit a public veilgate. When they
+  # do, it's either a misconfigured trusted_proxies list or an attacker
+  # writing a fake XFF header. Score moderately and investigate.
+  - name: rfc1918_leak
+    points: 15
+    cidrs:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 169.254.0.0/16   # link-local
+      - 100.64.0.0/10    # CGNAT
+
+# fleet_rotation — fires on EACH client IP that belongs to a group of
+# distinct IPs which all share one behavioural fingerprint inside
+# window_seconds. Fingerprint = JA4 prefix | UA family tokens |
+# header-bitmap. Catches commercial proxy pools (BrightData, Oxylabs),
+# botnet-style rotators, and AI agents walking through a VPN list.
+fleet_rotation:
+  enabled: true
+  window_seconds: 600
+  # max unique fingerprints to track — keeps memory bounded.
+  max_fingerprints: 20000
+  tiers:
+    - distinct_ips: 25
+      points: 40
+    - distinct_ips: 8
+      points: 25
+    - distinct_ips: 3
+      points: 12
+
+# ua_rotation — one client IP shuffling through a UA pool (dirsearch -H,
+# ffuf -H pool, nuclei with custom header templates). The signal fires
+# once the client has shown `distinct_uas_for_fire` different UAs inside
+# the tracker's configured window (detector.window_seconds).
+ua_rotation:
+  enabled: true
+  distinct_uas_for_fire: 4
+  points: 25
+
+# private_cidrs — CIDR ranges considered private / non-routable.
+# An IP that does NOT match any of these is classified as "public".
+# Used by the public-IP rotation detection cross-signal.
+private_cidrs:
+  - 10.0.0.0/8        # RFC1918
+  - 172.16.0.0/12     # RFC1918
+  - 192.168.0.0/16    # RFC1918
+  - 169.254.0.0/16    # link-local
+  - 100.64.0.0/10     # CGNAT (RFC6598)
+  - 127.0.0.0/8       # loopback
+  - "::1/128"          # IPv6 loopback
+  - fc00::/7           # IPv6 ULA
+  - fe80::/10          # IPv6 link-local

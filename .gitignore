@@ -1,0 +1,35 @@
+# Build output
+/veilgate
+/veilgate.exe
+*.test
+*.out
+coverage.out
+
+# Local runtime data
+/tmp/
+*.log
+data/*.db
+data/*.db-*
+data/dumps/
+
+# Local caches and editor/tool state
+.gocache/
+.claude/
+.DS_Store
+.idea/
+.vscode/
+vendor/
+
+# Deployment examples not supported for the current OSS surface.
+# Keep Linux/systemd deployment tracked; ignore the rest.
+Dockerfile
+.goreleaser.yaml
+deployments/aws/
+deployments/demo-site/
+deployments/grafana/
+deployments/helm/
+deployments/k8s/
+deployments/macos/
+deployments/packaging/
+deployments/windows/
+deployments/docker-compose*.yml

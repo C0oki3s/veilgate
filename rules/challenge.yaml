@@ -1,0 +1,49 @@
+# Proof-of-work challenge page. Served when the detector score lands in
+# the "ambiguous" band (between challenge and tarpit thresholds).
+# Previously hardcoded in internal/challenge/challenge.go.
+#
+# Variables available in html_template:
+#   {{.Challenge}}  the hex nonce to hash
+#   {{.Target}}     the hex prefix the solver must hit (difficulty zeros)
+#
+# Verify endpoint enforces the PoW server-side using signed challenge
+# metadata (challenge + ts + sig), so clients must submit a valid solve.
+difficulty: 4
+token_ttl_minutes: 30
+cookie_name: veilgate_pow
+status_code: 503           # 503 keeps polite scanners quiet
+content_type: "text/html; charset=utf-8"
+verify_path: /__veilgate/verify
+cookie_path: /
+
+html_template: |
+  <!DOCTYPE html>
+  <html><head><title>Verification</title></head>
+  <body>
+  <p>Verifying your browser...</p>
+  <script>
+  (async function() {
+    const challenge = "{{.Challenge}}";
+    const target = "{{.Target}}";
+    let nonce = 0;
+    while (true) {
+      const h = await crypto.subtle.digest("SHA-256",
+        new TextEncoder().encode(challenge + ":" + nonce));
+      const hex = Array.from(new Uint8Array(h))
+        .map(b => b.toString(16).padStart(2, "0")).join("");
+      if (hex.startsWith(target)) break;
+      nonce++;
+    }
+    await fetch("{{.VerifyPath}}", {
+      method: "POST",
+      body: JSON.stringify({
+        challenge,
+        nonce,
+        ts: "{{.ChallengeTS}}",
+        sig: "{{.ChallengeSig}}"
+      })
+    });
+    location.reload();
+  })();
+  </script>
+  </body></html>

@@ -1,0 +1,741 @@
+# Auto-managed by the ML miner. Flip `active: true` on entries you want
+# promoted into detector evaluation. Everything else is regenerated each tick.
+candidates:
+    - feature: ua_token
+      bucket: mozilla
+      posterior: 0.999969512195122
+      support: 32798
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: method
+      bucket: GET
+      posterior: 0.9999654039093583
+      support: 28903
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: gecko
+      posterior: 0.9999622826537925
+      support: 26511
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: timing_bucket
+      bucket: le_0.1
+      posterior: 0.9999588443493291
+      support: 24296
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: safari
+      posterior: 0.9999464352670202
+      support: 18667
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: applewebkit
+      posterior: 0.9999426309448683
+      support: 17429
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: khtml
+      posterior: 0.9999426046031108
+      support: 17421
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: like
+      posterior: 0.9999426046031108
+      support: 17421
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: header_set_id
+      bucket: d1cdddfb
+      posterior: 0.9999412248736335
+      support: 17012
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: linux
+      posterior: 0.9999331148418166
+      support: 14949
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: chrome
+      posterior: 0.9998928188638799
+      support: 9328
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: firefox
+      posterior: 0.9998904349731565
+      support: 9125
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: timing_bucket
+      bucket: first
+      posterior: 0.9998853736817973
+      support: 8722
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: os
+      posterior: 0.9998785818358427
+      support: 8234
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: mac
+      posterior: 0.9998785818358427
+      support: 8234
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: x86_64
+      posterior: 0.9998755909430207
+      support: 8036
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: intel
+      posterior: 0.9998619165976249
+      support: 7240
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: macintosh
+      posterior: 0.9998603351955307
+      support: 7158
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: i686
+      posterior: 0.9998597672135745
+      support: 7129
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: version
+      posterior: 0.9998408656906429
+      support: 6282
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: nikto
+      posterior: 0.9998403575989783
+      support: 6262
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: evasions:none
+      posterior: 0.9998403575989783
+      support: 6262
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: header_set_id
+      bucket: c5acfc4e
+      posterior: 0.9998395636130274
+      support: 6231
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: method
+      bucket: POST
+      posterior: 0.9997605937275557
+      support: 4175
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: "10_15_7"
+      posterior: 0.9997258771929824
+      support: 3646
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: windows
+      posterior: 0.9996951219512196
+      support: 3278
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: nt
+      posterior: 0.9996840442338073
+      support: 3163
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: header_set_id
+      bucket: 98e24c94
+      posterior: 0.9996652159357214
+      support: 2985
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: /
+      posterior: 0.9996546961325967
+      support: 2894
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: x11
+      posterior: 0.999599679743795
+      support: 2496
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: header_set_id
+      bucket: 8251f4c3
+      posterior: 0.999558693733451
+      support: 2264
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: wp-content
+      posterior: 0.9995098039215686
+      support: 2038
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: x64
+      posterior: 0.9994780793319415
+      support: 1914
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: win64
+      posterior: 0.9994780793319415
+      support: 1914
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: zz
+      posterior: 0.9994734070563455
+      support: 1897
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: ..
+      posterior: 0.9994706193753309
+      support: 1887
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: plugins
+      posterior: 0.9994199535962877
+      support: 1722
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: debian
+      posterior: 0.999412455934195
+      support: 1700
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: ubuntu
+      posterior: 0.9993920972644377
+      support: 1643
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: wp-content/plugins
+      posterior: 0.9993674889310563
+      support: 1579
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: fedora
+      posterior: 0.9993597951344431
+      support: 1560
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: knoppix
+      posterior: 0.9993585631815266
+      support: 1557
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: ../..
+      posterior: 0.9993416721527321
+      support: 1517
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: ss
+      posterior: 0.9993373094764745
+      support: 1507
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: centos
+      posterior: 0.9993297587131368
+      support: 1490
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: index.php
+      posterior: 0.9993247805536799
+      support: 1479
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: kubuntu
+      posterior: 0.9993031358885017
+      support: 1433
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: api
+      posterior: 0.999290780141844
+      support: 1408
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: ../../..
+      posterior: 0.9992125984251968
+      support: 1268
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: "13_2"
+      posterior: 0.998995983935743
+      support: 994
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: header_set_id
+      bucket: 5e9b52d9
+      posterior: 0.998960498960499
+      support: 960
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: login
+      posterior: 0.9989572471324296
+      support: 957
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: html
+      posterior: 0.9989023051591658
+      support: 909
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: edge
+      posterior: 0.9988532110091743
+      support: 870
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: manager
+      posterior: 0.9988425925925926
+      support: 862
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: admin
+      posterior: 0.9988358556461001
+      support: 857
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: manager/html
+      posterior: 0.9987819732034104
+      support: 819
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: readme.txt
+      posterior: 0.9987577639751553
+      support: 803
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:109.0
+      posterior: 0.9987163029525032
+      support: 777
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: "10_15_6"
+      posterior: 0.9986772486772487
+      support: 754
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: v1
+      posterior: 0.9986376021798365
+      support: 732
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: mobile
+      posterior: 0.9986091794158554
+      support: 717
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: "15e148"
+      posterior: 0.9986091794158554
+      support: 717
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: header_set_id
+      bucket: 0c410d09
+      posterior: 0.9985994397759104
+      support: 712
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: ""
+      posterior: 0.9985754985754985
+      support: 700
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:133.0
+      posterior: 0.9984350547730829
+      support: 637
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:132.0
+      posterior: 0.9983660130718954
+      support: 610
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:134.0
+      posterior: 0.9982788296041308
+      support: 579
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:128.0
+      posterior: 0.9982638888888888
+      support: 574
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:120.0
+      posterior: 0.9981378026070763
+      support: 535
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:127.0
+      posterior: 0.9981132075471698
+      support: 528
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:122.0
+      posterior: 0.9980392156862745
+      support: 508
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:126.0
+      posterior: 0.9980314960629921
+      support: 506
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:123.0
+      posterior: 0.9979550102249489
+      support: 487
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: wp-admin
+      posterior: 0.9978991596638656
+      support: 474
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:124.0
+      posterior: 0.9978586723768736
+      support: 465
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: .
+      posterior: 0.9978354978354979
+      support: 460
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:125.0
+      posterior: 0.9978260869565218
+      support: 458
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:121.0
+      posterior: 0.9978165938864629
+      support: 456
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: cgi-bin
+      posterior: 0.9977272727272727
+      support: 438
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: ./.
+      posterior: 0.9976190476190476
+      support: 418
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: ././.
+      posterior: 0.9975490196078431
+      support: 406
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: users
+      posterior: 0.9975308641975309
+      support: 403
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: header_set_id
+      bucket: "45021479"
+      posterior: 0.9974226804123711
+      support: 386
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: auth
+      posterior: 0.9974093264248705
+      support: 384
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: wp-admin/admin-ajax.php
+      posterior: 0.9972677595628415
+      support: 364
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: admin-ajax.php
+      posterior: 0.9972677595628415
+      support: 364
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:131.0
+      posterior: 0.9970760233918129
+      support: 340
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: <empty>
+      posterior: 0.9969879518072289
+      support: 330
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: uploads
+      posterior: 0.9969418960244648
+      support: 325
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: modules
+      posterior: 0.9968454258675079
+      support: 315
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: includes
+      posterior: 0.9968152866242038
+      support: 312
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: api/v1
+      posterior: 0.9967845659163987
+      support: 309
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: wp-content/uploads
+      posterior: 0.9967741935483871
+      support: 308
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:130.0
+      posterior: 0.9966887417218543
+      support: 300
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: etc
+      posterior: 0.9965156794425087
+      support: 285
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: config
+      posterior: 0.9964285714285714
+      support: 278
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: passwd
+      posterior: 0.9964028776978417
+      support: 276
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: "10_13_6"
+      posterior: 0.9963235294117647
+      support: 270
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:135.0
+      posterior: 0.9963235294117647
+      support: 270
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: header_set_id
+      bucket: da39a3ee
+      posterior: 0.9962962962962963
+      support: 268
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: rv:129.0
+      posterior: 0.9962121212121212
+      support: 262
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: json
+      posterior: 0.9961538461538462
+      support: 258
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: v4
+      posterior: 0.99609375
+      support: 254
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: login.php
+      posterior: 0.9957983193277311
+      support: 236
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: wp-json
+      posterior: 0.9956521739130435
+      support: 228
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: bin
+      posterior: 0.9956521739130435
+      support: 228
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: search
+      posterior: 0.9955555555555555
+      support: 223
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: web
+      posterior: 0.9955357142857143
+      support: 222
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: etc/passwd
+      posterior: 0.995475113122172
+      support: 219
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: cros
+      posterior: 0.9954128440366973
+      support: 216
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: api/v4
+      posterior: 0.9953271028037384
+      support: 212
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: php
+      posterior: 0.995260663507109
+      support: 209
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: ua_token
+      bucket: test:map_codes
+      posterior: 0.9951923076923077
+      support: 206
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: header_set_id
+      bucket: ebae2ee4
+      posterior: 0.9951923076923077
+      support: 206
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: nuclei.svg
+      posterior: 0.9951456310679612
+      support: 204
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: v4/users
+      posterior: 0.995049504950495
+      support: 200
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: json/image-comments
+      posterior: 0.995049504950495
+      support: 200
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: image-comments
+      posterior: 0.995049504950495
+      support: 200
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: wp-content/uploads/contest-gallery
+      posterior: 0.995049504950495
+      support: 200
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: uploads/contest-gallery
+      posterior: 0.995049504950495
+      support: 200
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: api/v4/users
+      posterior: 0.995049504950495
+      support: 200
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
+    - feature: path_ngram
+      bucket: contest-gallery
+      posterior: 0.995049504950495
+      support: 200
+      active: false
+      proposed_at: "2026-04-22T20:22:19Z"
