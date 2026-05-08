@@ -22,7 +22,6 @@ vendor/
 
 # Deployment examples not supported for the current OSS surface.
 # Keep Linux/systemd deployment tracked; ignore the rest.
-Dockerfile
 .goreleaser.yaml
 deployments/aws/
 deployments/demo-site/
