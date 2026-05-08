@@ -15,10 +15,12 @@ data/dumps/
 # Local caches and editor/tool state
 .gocache/
 .claude/
+SKILL.md
 .DS_Store
 .idea/
 .vscode/
 vendor/
+SKILL.md
 
 # Deployment examples not supported for the current OSS surface.
 # Keep Linux/systemd deployment tracked; ignore the rest.
