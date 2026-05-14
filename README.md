@@ -17,7 +17,7 @@ tokens, and attention on believable dead ends.
 
 ## What It Does
 
-- Reverse proxy with `observe`, `challenge`, and `tarpit` modes.
+- Reverse proxy with `observe`, `challenge`, `tarpit`, and threshold-driven `auto` modes.
 - Detection signals for suspicious user agents, sparse browser headers,
   honeypot paths, timing regularity, scanner paths, SQLi/XSS/OOB markers,
   IP/UA rotation, cookie behavior, request graph shape, JA3/JA4 TLS fingerprints,
@@ -60,6 +60,7 @@ baseline normal traffic before enabling challenge or tarpit behavior.
 | `observe` | Initial rollout and tuning | Scores and records traffic, always forwards upstream |
 | `challenge` | You are comfortable interrupting suspicious clients | Medium-score traffic gets proof of work |
 | `tarpit` | You are ready to deceive high-confidence agents | High-score traffic receives the fake app |
+| `auto` | You want thresholds to drive enforcement per request | Forward below threshold, challenge middle scores, tarpit high scores |
 
 Recommended rollout:
 

@@ -333,6 +333,14 @@ func (s *Server) decide(score int) Decision {
 			return DecisionChallenge
 		}
 		return DecisionReal
+	case "auto":
+		if score >= s.cfg.Detector.ScoreTarpitThreshold {
+			return DecisionTarpit
+		}
+		if score >= s.cfg.Detector.ScoreChallengeThreshold {
+			return DecisionChallenge
+		}
+		return DecisionReal
 	}
 	return DecisionReal
 }

@@ -22,6 +22,12 @@ SKILL.md
 vendor/
 SKILL.md
 
+# Local/private docs
+docs/BUSINESS_CASE.md
+docs/ENGINEERING_GAPS.md
+docs/landing.md
+docs/why-veilgate.md
+
 # Deployment examples not supported for the current OSS surface.
 # Keep Linux/systemd deployment tracked; ignore the rest.
 .goreleaser.yaml

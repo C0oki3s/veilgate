@@ -23,7 +23,7 @@ rules_dir: "./rules"
 | --- | --- | --- | --- |
 | `listen` | string | `:8080` | Proxy listener. HTTPS when `tls.enabled` is true. |
 | `upstream` | string | none | Real app URL for clean traffic. |
-| `mode` | string | `observe` | One of `observe`, `challenge`, `tarpit`. |
+| `mode` | string | `observe` | One of `observe`, `challenge`, `tarpit`, `auto`. |
 | `rules_dir` | string | empty | Directory containing editable YAML rules. |
 
 ## Modes
@@ -33,6 +33,7 @@ rules_dir: "./rules"
 | `observe` | Score and record traffic, always proxy upstream. |
 | `challenge` | Medium-score traffic gets proof of work; high-score traffic is still proxied. |
 | `tarpit` | Medium-score traffic gets proof of work; high-score traffic enters the fake app. |
+| `auto` | Scores below threshold are proxied, middle scores get proof of work, and high scores enter the fake app. |
 
 Use `observe` before enabling user-facing enforcement.
 
@@ -67,7 +68,7 @@ detector:
 | Field | Notes |
 | --- | --- |
 | `score_challenge_threshold` | Requests at or above this score may be challenged. |
-| `score_tarpit_threshold` | Requests at or above this score may be tarpitted in `tarpit` mode. |
+| `score_tarpit_threshold` | Requests at or above this score may be tarpitted in `tarpit` or `auto` mode. |
 | `window_seconds` | Rolling window for per-client behavior. |
 | `trusted_ips` | Exact client IDs that bypass scoring. Keep this short. |
 | `trusted_proxies` | CIDRs whose `X-Forwarded-For` may be trusted. Empty is safest. |

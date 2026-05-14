@@ -10,7 +10,7 @@ import (
 type Config struct {
 	Listen    string          `yaml:"listen"`
 	Upstream  string          `yaml:"upstream"`
-	Mode      string          `yaml:"mode"` // "observe", "challenge", "tarpit"
+	Mode      string          `yaml:"mode"`      // "observe", "challenge", "tarpit", "auto"
 	RulesDir  string          `yaml:"rules_dir"` // override for detector/tls/payload YAMLs
 	TLS       TLSConfig       `yaml:"tls"`
 	Detector  DetectorConfig  `yaml:"detector"`
@@ -24,13 +24,13 @@ type Config struct {
 // PersistConfig is the SQLite event store. When enabled, takes the place
 // of the JSONL capture path — an operator usually runs one or the other.
 type PersistConfig struct {
-	Enabled        bool   `yaml:"enabled"`
-	Path           string `yaml:"path"`            // e.g. /var/lib/veilgate/events.db
-	RetentionDays  int    `yaml:"retention_days"`  // Trim rows older than this; 0 disables
-	FlushEvery     int    `yaml:"flush_every_ms"`  // batch-commit interval; 0 uses default
-	QueueSize      int    `yaml:"queue_size"`      // channel buffer; 0 uses default
-	DumpPath       string `yaml:"dump_path"`       // directory for rotated CSV.gz; empty disables
-	CacheSizeKB    int    `yaml:"cache_size_kb"`   // SQLite page cache; 0 uses default (64 MB)
+	Enabled       bool   `yaml:"enabled"`
+	Path          string `yaml:"path"`           // e.g. /var/lib/veilgate/events.db
+	RetentionDays int    `yaml:"retention_days"` // Trim rows older than this; 0 disables
+	FlushEvery    int    `yaml:"flush_every_ms"` // batch-commit interval; 0 uses default
+	QueueSize     int    `yaml:"queue_size"`     // channel buffer; 0 uses default
+	DumpPath      string `yaml:"dump_path"`      // directory for rotated CSV.gz; empty disables
+	CacheSizeKB   int    `yaml:"cache_size_kb"`  // SQLite page cache; 0 uses default (64 MB)
 }
 
 // CaptureConfig controls JSONL logging of every request's score + signals.

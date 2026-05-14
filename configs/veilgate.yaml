@@ -5,6 +5,7 @@ upstream: "http://localhost:3000"
 #   observe   - score but never divert. Use this for week 1 to tune thresholds.
 #   challenge - serve JS/PoW challenge to medium-score clients.
 #   tarpit    - divert high-score clients to the shadow app.
+#   auto      - below challenge -> upstream; middle band -> challenge; high score -> tarpit.
 mode: "observe"
 
 # External rule files. Leave empty to use the embedded defaults shipped with
