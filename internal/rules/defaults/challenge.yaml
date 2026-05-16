@@ -16,6 +16,28 @@ content_type: "text/html; charset=utf-8"
 verify_path: /__veilgate/verify
 cookie_path: /
 
+# Cookie scope. Leave cookie_domain empty for single-origin deployments
+# (the historical default — cookie is host-only). For multi-subdomain
+# setups (app.example.com + api.example.com), set cookie_domain to the
+# parent (".example.com") so the cookie travels across subdomains, and
+# use cookie_same_site: "lax" so cross-subdomain navigations carry it.
+cookie_domain: ""
+cookie_same_site: "strict"   # strict | lax | none
+
+# Token header transport for cross-origin SPAs. When set, veilgate
+# accepts the token value from this request header in addition to the
+# cookie. SPAs that can't rely on cookies (cross-origin, no
+# credentials) read the token from the JSON body of /__veilgate/verify
+# and attach it on every API call.
+token_header_name: "X-Veilgate-Token"
+
+# SPA-aware response: when true, requests that look like XHR/fetch
+# (Sec-Fetch-Dest=empty, X-Requested-With=XMLHttpRequest, or
+# Accept lacking text/html) receive a 401 + JSON challenge hint
+# instead of the 503 HTML challenge page. Document navigations still
+# get the HTML page so users can solve the PoW transparently.
+spa_aware_response: true
+
 html_template: |
   <!DOCTYPE html>
   <html><head><title>Verification</title></head>

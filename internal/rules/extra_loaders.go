@@ -112,6 +112,31 @@ type ChallengeRules struct {
 	VerifyPath      string `yaml:"verify_path"`
 	CookiePath      string `yaml:"cookie_path"`
 	HTMLTemplate    string `yaml:"html_template"`
+
+	// Cookie scope. Empty CookieDomain leaves the cookie host-only
+	// (the historical default — appropriate when veilgate is the
+	// single origin). Setting it to ".example.com" issues a
+	// parent-domain cookie that travels across subdomains, which is
+	// what multi-subdomain deployments (app.example.com +
+	// api.example.com) need. SameSite controls cross-site send
+	// behaviour; "strict" is the historical default, "lax" is the
+	// right pick for cross-subdomain deployments where the SPA
+	// originates the request.
+	CookieDomain   string `yaml:"cookie_domain"`
+	CookieSameSite string `yaml:"cookie_same_site"`
+
+	// Token header transport. When non-empty, the same token value
+	// minted into the Set-Cookie is also accepted from this header.
+	// Lets cross-origin SPA fetches authenticate without depending
+	// on the browser's cookie SameSite/credentials story.
+	TokenHeaderName string `yaml:"token_header_name"`
+
+	// SPAAwareResponse, when true, makes the challenge handler
+	// inspect the inbound request and return a 401 + JSON body
+	// (with WWW-Authenticate hint) for XHR/fetch contexts instead
+	// of the 503 HTML page. The HTML page is still served for
+	// top-level document navigations.
+	SPAAwareResponse bool `yaml:"spa_aware_response"`
 }
 
 // ML is the parsed ml.yaml.

@@ -65,14 +65,36 @@ func (h *Handler) SetRules(holder *rules.Holder[rules.ChallengeRules]) {
 	h.rules = holder
 }
 
-// Passed returns true if the request carries a valid solved-challenge cookie.
+// Passed returns true if the request carries a valid solved-challenge
+// token. The token is accepted from either the configured cookie OR
+// the configured header (X-Veilgate-Token by default). Header
+// transport exists so cross-origin SPA fetches — which can't rely on
+// cookies — can still authenticate by reading the token from the
+// verify response body and attaching it on every API call.
 func (h *Handler) Passed(r *http.Request) bool {
 	cr := h.rules.Load()
-	c, err := r.Cookie(cr.CookieName)
-	if err != nil {
-		return false
+	// Try cookie first (historical, same-origin path).
+	if c, err := r.Cookie(cr.CookieName); err == nil {
+		if h.validToken(c.Value, cr) {
+			return true
+		}
 	}
-	parts := strings.SplitN(c.Value, ".", 2)
+	// Then try header transport (cross-origin SPA path).
+	if name := strings.TrimSpace(cr.TokenHeaderName); name != "" {
+		if v := strings.TrimSpace(r.Header.Get(name)); v != "" {
+			if h.validToken(v, cr) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// validToken parses and validates a token of the form
+// "<RFC3339 ts>.<HMAC-SHA256(secret, ts)>". Same shape regardless of
+// whether the value arrived as a cookie or as a header.
+func (h *Handler) validToken(value string, cr *rules.ChallengeRules) bool {
+	parts := strings.SplitN(value, ".", 2)
 	if len(parts) != 2 {
 		return false
 	}
@@ -109,6 +131,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serveChallenge(w http.ResponseWriter, r *http.Request, cr *rules.ChallengeRules) {
+	// SPA-aware path: when the request is an XHR/fetch rather than a
+	// top-level document navigation, returning HTML is useless — the
+	// SPA's JS can't execute the embedded <script>. Return a
+	// structured 401 + JSON hint instead so the SPA can route the
+	// user (or itself) through a separate challenge interstitial.
+	if cr.SPAAwareResponse && isXHROrFetch(r) {
+		h.serveSPAChallenge(w, r, cr)
+		return
+	}
+
 	challenge, err := newChallengeNonce()
 	if err != nil {
 		http.Error(w, "challenge seed failed", http.StatusInternalServerError)
@@ -151,6 +183,77 @@ func (h *Handler) serveChallenge(w http.ResponseWriter, r *http.Request, cr *rul
 	_, _ = w.Write(buf.Bytes())
 }
 
+// serveSPAChallenge returns a structured 401 JSON response for
+// XHR/fetch contexts where serving HTML would be useless. The SPA
+// reads the response, runs its own challenge flow (operator-defined
+// — e.g., redirect the user to a sign-in page, or open a separate
+// challenge URL the operator hosts), obtains a token through that
+// flow, then attaches it as the configured token header on
+// subsequent requests.
+//
+// We intentionally do NOT prescribe where the SPA must go to solve
+// the challenge — that's an operator decision. Returning a generic
+// "challenge_required" hint lets the SPA route the user through
+// whatever interstitial / sign-in flow the operator already has.
+func (h *Handler) serveSPAChallenge(w http.ResponseWriter, r *http.Request, cr *rules.ChallengeRules) {
+	hdrName := cr.TokenHeaderName
+	if hdrName == "" {
+		hdrName = "X-Veilgate-Token"
+	}
+
+	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Expose-Headers", "WWW-Authenticate")
+		w.Header().Set("Vary", "Origin")
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate",
+		`Veilgate-Challenge realm="`+r.Host+`"`)
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error":        "challenge_required",
+		"token_header": hdrName,
+		"retry_after":  1,
+	})
+}
+
+// isXHROrFetch returns true when the request is most likely an SPA
+// XHR/fetch call rather than a top-level document navigation. We use
+// three signals — any one is enough.
+//
+// Sec-Fetch-Dest is the most reliable (set by all modern browsers on
+// every request, indicates the destination role: document, script,
+// image, empty for fetch, etc.). X-Requested-With is the legacy XHR
+// hint still set by jQuery and friends. Accept lacking text/html is a
+// weak signal that the caller isn't expecting an HTML page back.
+func isXHROrFetch(r *http.Request) bool {
+	dest := strings.ToLower(r.Header.Get("Sec-Fetch-Dest"))
+	switch dest {
+	case "document", "iframe", "frame":
+		return false
+	case "empty", "object", "embed":
+		// "empty" is the value Chrome/Firefox set on fetch() and
+		// XMLHttpRequest from JS.
+		return true
+	}
+	if strings.EqualFold(r.Header.Get("X-Requested-With"), "XMLHttpRequest") {
+		return true
+	}
+	// Last-resort sniff: if the client lists JSON but not HTML in its
+	// Accept, it's almost certainly an API consumer. Plain "*/*" is
+	// ambiguous and we don't trigger on it.
+	accept := strings.ToLower(r.Header.Get("Accept"))
+	if accept != "" && !strings.Contains(accept, "text/html") &&
+		(strings.Contains(accept, "application/json") ||
+			strings.Contains(accept, "application/xml")) {
+		return true
+	}
+	return false
+}
+
 func (h *Handler) verify(w http.ResponseWriter, r *http.Request, cr *rules.ChallengeRules) {
 	ok, code := h.verifyPOW(r, cr)
 	if !ok {
@@ -159,6 +262,7 @@ func (h *Handler) verify(w http.ResponseWriter, r *http.Request, cr *rules.Chall
 	}
 	ts := time.Now().Format(time.RFC3339)
 	mac := h.sign(ts)
+	tokenValue := ts + "." + mac
 	ttl := time.Duration(cr.TokenTTLMinutes) * time.Minute
 	if ttl <= 0 {
 		ttl = 30 * time.Minute
@@ -169,14 +273,49 @@ func (h *Handler) verify(w http.ResponseWriter, r *http.Request, cr *rules.Chall
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     cr.CookieName,
-		Value:    ts + "." + mac,
+		Value:    tokenValue,
 		Path:     cookiePath,
+		Domain:   strings.TrimSpace(cr.CookieDomain),
 		HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
-		SameSite: http.SameSiteStrictMode,
+		SameSite: parseSameSite(cr.CookieSameSite),
 		Expires:  time.Now().Add(ttl),
 	})
-	w.WriteHeader(http.StatusNoContent)
+
+	// CORS for cross-origin SPAs reading the token from the response
+	// body. Echo the Origin header (not "*") because the request may
+	// be credentialed.
+	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Vary", "Origin")
+	}
+
+	// Return token in body too so cross-origin SPAs that can't
+	// receive cookies can grab it and attach as a header on
+	// subsequent requests.
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"token":      tokenValue,
+		"expires_in": int(ttl.Seconds()),
+		"header":     cr.TokenHeaderName,
+	})
+}
+
+// parseSameSite maps the operator-supplied string to a SameSite mode.
+// Unknown / empty values fall back to Strict (the historical default).
+func parseSameSite(v string) http.SameSite {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "lax":
+		return http.SameSiteLaxMode
+	case "none":
+		return http.SameSiteNoneMode
+	case "strict", "":
+		return http.SameSiteStrictMode
+	default:
+		return http.SameSiteStrictMode
+	}
 }
 
 func (h *Handler) verifyPOW(r *http.Request, cr *rules.ChallengeRules) (bool, int) {
