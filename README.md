@@ -22,13 +22,41 @@ tokens, and attention on believable dead ends.
   honeypot paths, timing regularity, scanner paths, SQLi/XSS/OOB markers,
   IP/UA rotation, cookie behavior, request graph shape, JA3/JA4 TLS fingerprints,
   HTTP/2 fingerprints, canary replay, and online ML scoring.
+- Browser proof-of-work challenge with both **cookie** and **`X-Veilgate-Token`
+  header** transports so cross-origin SPAs can solve and reattach the token
+  on subsequent API calls. The 401 challenge response is SPA-aware: it returns
+  HTML for top-level navigations and JSON (with the PoW metadata to solve
+  inline) for `fetch` / `XHR` contexts.
+- Operator-issued **HMAC verifier chain** for server-to-server clients that
+  cannot solve the PoW (see [docs/how-to/server-to-server-hmac.md](docs/how-to/server-to-server-hmac.md)).
 - Shadow application responses with stable per-client fake profiles.
 - Prompt-injection and decoy payload injection for tarpit responses.
 - SQLite persistence for events, feature rollups, audit logs, and canaries.
 - Prometheus metrics and a lightweight dashboard on the metrics listener.
-- Hot-reloadable YAML rule files.
+- Hot-reloadable YAML rule files, fed by the separate
+  [veilgate-rules](https://github.com/C0oki3s/veilgate-rules) community repository.
 
 ## Quick Start
+
+### Option 1 — Docker (recommended)
+
+The published image lives on the GitHub Container Registry and ships every
+release from CI. No Go toolchain required.
+
+```bash
+# Pull the latest image (tag :latest, or pin to a release tag e.g. :v1.2.0)
+docker pull ghcr.io/c0oki3s/veilgate:latest
+
+# Run with your config + rules mounted in
+docker run -d --name veilgate \
+  -p 8080:8080 -p 9090:9090 \
+  -e VEILGATE_SECRET=change-me \
+  -v "$(pwd)/configs/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro" \
+  -v "$(pwd)/rules:/rules:ro" \
+  ghcr.io/c0oki3s/veilgate:latest
+```
+
+### Option 2 — Build from source
 
 Prerequisite: Go `1.25.10` or newer.
 
@@ -90,6 +118,44 @@ metrics:
 ```
 
 Full reference: [Configuration reference](docs/reference/config-reference.md).
+
+## Rules
+
+VeilGate ships with embedded default rules that cover most attacker tooling
+(nikto, nuclei, sqlmap, dirsearch, WPScan, httpx, katana, …) so the binary
+works out of the box. For longer-term maintenance, rules live in two places:
+
+- **`rules/` in this repository** — the embedded defaults plus any local
+  overrides you check in. Edit and commit these like any other policy file;
+  the file watcher hot-reloads them at runtime (`payloads.yaml` is the one
+  file that still requires a restart).
+- **[veilgate-rules](https://github.com/C0oki3s/veilgate-rules)** — the
+  community-maintained rule pack. Versioned with semver tags and distributed
+  as GitHub release archives, the same way Nuclei templates are. You install
+  and update it with the built-in `update-rules` subcommand — no rebuild,
+  no restart:
+
+  ```bash
+  # Install the latest pack into ~/.veilgate/rules (the default location)
+  veilgate update-rules
+
+  # Or into a specific directory, pinned to a release tag
+  veilgate update-rules --dir /etc/veilgate/rules --version v1.2.0
+
+  # List available releases
+  veilgate update-rules --list
+  ```
+
+  After the install, VeilGate's `fsnotify` watcher picks up the new files
+  within ~500 ms. Each existing file is backed up as `<name>.bak` before
+  being overwritten (pass `--no-backup` to skip). The installed version is
+  recorded in `<rules_dir>/.rules-version.json` so CI and operators can
+  check what is running without consulting git metadata.
+
+  Treat both directories as security policy — review changes before
+  deploying to production, especially `detector.yaml` and `ip_reputation.yaml`.
+  Full guide and rollback procedure:
+  [docs/how-to/install-community-rules.md](docs/how-to/install-community-rules.md).
 
 ## Documentation
 
