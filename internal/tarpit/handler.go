@@ -54,8 +54,8 @@ func NewHandler(cfg *config.TarpitConfig, store *ProfileStore, injector PayloadI
 	if injector == nil {
 		injector = noopInjector{}
 	}
-	vuln, _ := rules.LoadVulnerabilities("")
-	strat, _ := rules.LoadInjectionStrategy("")
+	vuln := new(rules.Vulnerabilities)
+	strat := new(rules.InjectionStrategy)
 	return &Handler{
 		cfg:      cfg,
 		profiles: store,

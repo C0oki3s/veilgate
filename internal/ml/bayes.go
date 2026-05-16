@@ -145,6 +145,42 @@ func (b *Bayes) FeatureAgentProb(name, bucket string) (float64, int) {
 	return float64(a+1) / float64(support+2), support
 }
 
+// Seed primes the classifier with pre-computed (feature, bucket) counts
+// derived from a learned candidate's posterior and support values. It is
+// used at startup to warm up the classifier with community-contributed
+// or operator-promoted rules before any live traffic is observed.
+//
+// agentCount and humanCount are additive — calling Seed twice for the
+// same bucket accumulates counts rather than replacing them.
+func (b *Bayes) Seed(feature, bucket string, agentCount, humanCount int) {
+	if agentCount < 0 {
+		agentCount = 0
+	}
+	if humanCount < 0 {
+		humanCount = 0
+	}
+	if agentCount+humanCount == 0 {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	m, ok := b.counts[feature]
+	if !ok {
+		m = make(map[string][2]int)
+		b.counts[feature] = m
+	}
+	existing := m[bucket]
+	if existing[0] == 0 && existing[1] == 0 {
+		b.vocab[feature]++
+	}
+	existing[0] += agentCount
+	existing[1] += humanCount
+	m[bucket] = existing
+	b.agentCount += agentCount
+	b.humanCount += humanCount
+	b.total += agentCount + humanCount
+}
+
 // Snapshot holds a read-only view of the counts for the miner.
 type Snapshot struct {
 	Agent, Human, Total int

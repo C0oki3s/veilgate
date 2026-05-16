@@ -37,10 +37,9 @@ type ProfileStore struct {
 	data     *rules.Holder[rules.FakeData]
 }
 
-// NewProfileStore builds a store backed by embedded fake-data defaults.
-// Call SetFakeData to swap in a hot-reloadable holder.
+// NewProfileStore builds an empty store. Call SetFakeData to wire in real data.
 func NewProfileStore() *ProfileStore {
-	fd, _ := rules.LoadFakeData("")
+	fd := new(rules.FakeData)
 	return &ProfileStore{
 		profiles: make(map[string]*ShadowProfile),
 		data:     rules.NewHolder(fd),

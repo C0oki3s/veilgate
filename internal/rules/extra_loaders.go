@@ -1,35 +1,40 @@
 package rules
 
 import (
-	_ "embed"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed defaults/templates.yaml
-var embeddedTemplates []byte
-
-//go:embed defaults/fake_data.yaml
-var embeddedFakeData []byte
-
-//go:embed defaults/vulnerabilities.yaml
-var embeddedVulnerabilities []byte
-
-//go:embed defaults/injection_strategy.yaml
-var embeddedInjectionStrategy []byte
-
-//go:embed defaults/challenge.yaml
-var embeddedChallenge []byte
-
-//go:embed defaults/ml.yaml
-var embeddedML []byte
-
-//go:embed defaults/learned.yaml
-var embeddedLearned []byte
-
-//go:embed defaults/dashboard.yaml
-var embeddedDashboard []byte
+// walkYAMLDir calls fn for every .yaml / .yml file under dir in
+// lexicographic order, recursing into subdirectories. The directory is
+// silently skipped when it does not exist.
+func walkYAMLDir(dir string, fn func(path string, raw []byte) error) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil
+	}
+	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		name := d.Name()
+		if !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml") {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", path, err)
+		}
+		return fn(path, raw)
+	})
+}
 
 // TemplateResponse is one entry under `templates:` in templates.yaml.
 // Body is a text/template string; Headers values are also templated.
@@ -192,14 +197,90 @@ type ML struct {
 	} `yaml:"path_redaction"`
 }
 
+// CandidateInfo holds optional human-readable metadata for a learned candidate.
+// All fields are optional and never inspected by the scoring engine — they exist
+// purely for operator/community review and tooling (dashboards, LLM template
+// generation, rule search). Modelled after the Nuclei template info: block so
+// that existing community tooling and LLM prompts transfer easily.
+type CandidateInfo struct {
+	// Name is a short human-readable label, e.g. "Python-requests UA token".
+	Name string `yaml:"name,omitempty"`
+	// Author is the GitHub username or email of the rule author.
+	Author string `yaml:"author,omitempty"`
+	// Severity rates the risk posed by traffic matching this rule.
+	// One of: info, low, medium, high, critical.
+	Severity string `yaml:"severity,omitempty"`
+	// Description explains what traffic pattern this rule detects and why it
+	// is agent-indicative. Markdown is accepted; keep it under ~5 lines.
+	Description string `yaml:"description,omitempty"`
+	// Remediation is an optional note for operators on how to tune or respond.
+	Remediation string `yaml:"remediation,omitempty"`
+	// Impact describes what a matched client is likely attempting.
+	Impact string `yaml:"impact,omitempty"`
+	// Tags is a comma-separated or YAML-list set of labels used for filtering
+	// and searching rules, e.g. [scanner, python, llm-agent, ja4].
+	Tags []string `yaml:"tags,omitempty"`
+	// Reference is a list of URLs to threat-intel reports, CVEs, blog posts,
+	// or tool documentation that contextualises the rule.
+	Reference []string `yaml:"reference,omitempty"`
+	// Metadata is a free-form string→string map for quality signals and
+	// tooling hints. Recommended keys:
+	//   verified: "true"              — tested against known-agent traffic
+	//   source: "community"           — "community", "miner", or "operator"
+	//   false_positive_rate: "low"    — "low", "medium", "high"
+	//   min_veilgate_version: "0.4.0" — earliest compatible release
+	//   tool: "nuclei"                — tool or framework that generates this UA
+	Metadata map[string]string `yaml:"metadata,omitempty"`
+}
+
 // LearnedCandidate is one entry in learned.yaml -> candidates[].
+// The core scoring fields (Feature, Bucket, Posterior, Support, Active)
+// are required; all others are optional and do not affect scoring.
+//
+// Minimal (miner output, no metadata):
+//
+//	- feature: ua_token
+//	  bucket: python-requests
+//	  posterior: 0.98
+//	  support: 47
+//	  active: false
+//
+// Full (community rule with metadata):
+//
+//	- id: VG-UA-001
+//	  feature: ua_token
+//	  bucket: python-requests
+//	  posterior: 0.98
+//	  support: 47
+//	  active: true
+//	  info:
+//	    name: python-requests library default UA
+//	    author: community
+//	    severity: medium
+//	    description: |
+//	      Default User-Agent emitted by the Python requests library when no
+//	      custom UA is set. Heavily used by automated scanners and LLM agents.
+//	    tags: [scanner, python, automation]
+//	    metadata:
+//	      verified: "true"
+//	      source: community
+//	      false_positive_rate: low
 type LearnedCandidate struct {
-	Feature   string  `yaml:"feature"`
-	Bucket    string  `yaml:"bucket"`
-	Posterior float64 `yaml:"posterior"`
-	Support   int     `yaml:"support"`
-	Active    bool    `yaml:"active"`
-	ProposedAt string `yaml:"proposed_at,omitempty"`
+	// ID is an optional unique rule identifier, e.g. "VG-UA-001" or
+	// "COMMUNITY-JA4-CHROME-BOT". Used for deduplication and referencing.
+	// The miner does not set this field; community contributors should.
+	ID string `yaml:"id,omitempty"`
+
+	Feature    string  `yaml:"feature"`
+	Bucket     string  `yaml:"bucket"`
+	Posterior  float64 `yaml:"posterior"`
+	Support    int     `yaml:"support"`
+	Active     bool    `yaml:"active"`
+	ProposedAt string  `yaml:"proposed_at,omitempty"`
+
+	// Info holds optional human-readable metadata. Never inspected by the
+	// scoring engine — safe to omit in miner output and minimal rules.
+	Info *CandidateInfo `yaml:"info,omitempty"`
 }
 
 // Learned is the parsed learned.yaml.
@@ -224,61 +305,170 @@ func (l *Learned) ActiveByFeature() map[string][]string {
 
 // Loaders -----------------------------------------------------------
 
-// LoadTemplates reads templates.yaml or the embedded default.
+// LoadTemplates reads templates.yaml from dir (optional), then merges
+// additions from rules/templates/. All files are equal peers — later files
+// (lexicographic order) override earlier ones for the same key.
 func LoadTemplates(dir string) (*Templates, error) {
-	raw, err := readOrEmbed(dir, "templates.yaml", embeddedTemplates)
+	var t Templates
+	raw, err := readOptionalFromDir(dir, "templates.yaml")
 	if err != nil {
 		return nil, err
 	}
-	var t Templates
-	if err := yaml.Unmarshal(raw, &t); err != nil {
-		return nil, fmt.Errorf("parse templates.yaml: %w", err)
+	if raw != nil {
+		if err := yaml.Unmarshal(raw, &t); err != nil {
+			return nil, fmt.Errorf("parse templates.yaml: %w", err)
+		}
+	}
+	if err := mergeTemplatesDir(filepath.Join(dir, "templates"), &t); err != nil {
+		return nil, err
 	}
 	return &t, nil
 }
 
-// LoadFakeData reads fake_data.yaml or the embedded default.
+func mergeTemplatesDir(dir string, t *Templates) error {
+	return walkYAMLDir(dir, func(path string, raw []byte) error {
+		var patch Templates
+		if err := yaml.Unmarshal(raw, &patch); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		if t.Templates == nil {
+			t.Templates = make(map[string]TemplateResponse)
+		}
+		for k, v := range patch.Templates {
+			t.Templates[k] = v
+		}
+		return nil
+	})
+}
+
+// LoadFakeData reads fake_data.yaml from dir, then merges community
+// additions from rules/fake_data/. All list fields are appended.
 func LoadFakeData(dir string) (*FakeData, error) {
-	raw, err := readOrEmbed(dir, "fake_data.yaml", embeddedFakeData)
+	var f FakeData
+	raw, err := readOptionalFromDir(dir, "fake_data.yaml")
 	if err != nil {
 		return nil, err
 	}
-	var f FakeData
-	if err := yaml.Unmarshal(raw, &f); err != nil {
-		return nil, fmt.Errorf("parse fake_data.yaml: %w", err)
+	if raw != nil {
+		if err := yaml.Unmarshal(raw, &f); err != nil {
+			return nil, fmt.Errorf("parse fake_data.yaml: %w", err)
+		}
+	}
+	if err := mergeFakeDataDir(filepath.Join(dir, "fake_data"), &f); err != nil {
+		return nil, err
 	}
 	return &f, nil
 }
 
-// LoadVulnerabilities reads vulnerabilities.yaml or the embedded default.
+func mergeFakeDataDir(dir string, f *FakeData) error {
+	return walkYAMLDir(dir, func(path string, raw []byte) error {
+		var patch FakeData
+		if err := yaml.Unmarshal(raw, &patch); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		f.Versions = append(f.Versions, patch.Versions...)
+		f.Stacks = append(f.Stacks, patch.Stacks...)
+		f.Companies = append(f.Companies, patch.Companies...)
+		f.AdminUsers = append(f.AdminUsers, patch.AdminUsers...)
+		f.AdminPasses = append(f.AdminPasses, patch.AdminPasses...)
+		f.EmailDomains = append(f.EmailDomains, patch.EmailDomains...)
+		return nil
+	})
+}
+
+// LoadVulnerabilities reads vulnerabilities.yaml from dir, then merges
+// community additions from rules/vulnerabilities/.
 func LoadVulnerabilities(dir string) (*Vulnerabilities, error) {
-	raw, err := readOrEmbed(dir, "vulnerabilities.yaml", embeddedVulnerabilities)
+	var v Vulnerabilities
+	raw, err := readOptionalFromDir(dir, "vulnerabilities.yaml")
 	if err != nil {
 		return nil, err
 	}
-	var v Vulnerabilities
-	if err := yaml.Unmarshal(raw, &v); err != nil {
-		return nil, fmt.Errorf("parse vulnerabilities.yaml: %w", err)
+	if raw != nil {
+		if err := yaml.Unmarshal(raw, &v); err != nil {
+			return nil, fmt.Errorf("parse vulnerabilities.yaml: %w", err)
+		}
+	}
+	if err := mergeVulnerabilitiesDir(filepath.Join(dir, "vulnerabilities"), &v); err != nil {
+		return nil, err
 	}
 	return &v, nil
 }
 
-// LoadInjectionStrategy reads injection_strategy.yaml or the embedded default.
+func mergeVulnerabilitiesDir(dir string, v *Vulnerabilities) error {
+	return walkYAMLDir(dir, func(path string, raw []byte) error {
+		var patch Vulnerabilities
+		if err := yaml.Unmarshal(raw, &patch); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		v.HoneypotPaths = append(v.HoneypotPaths, patch.HoneypotPaths...)
+		v.SQLInjectionPatterns = append(v.SQLInjectionPatterns, patch.SQLInjectionPatterns...)
+		v.FakeGitPaths = append(v.FakeGitPaths, patch.FakeGitPaths...)
+		v.FakeEnvPaths = append(v.FakeEnvPaths, patch.FakeEnvPaths...)
+		return nil
+	})
+}
+
+// LoadInjectionStrategy reads injection_strategy.yaml from dir, then
+// prepends community routes from rules/injection_strategy/ before the
+// root file's routes. This ensures community-specific routes run before
+// the generic catch-all (match: any). The injector config (knobs) is
+// authoritative in injection_strategy.yaml only.
 func LoadInjectionStrategy(dir string) (*InjectionStrategy, error) {
-	raw, err := readOrEmbed(dir, "injection_strategy.yaml", embeddedInjectionStrategy)
+	var i InjectionStrategy
+	raw, err := readOptionalFromDir(dir, "injection_strategy.yaml")
 	if err != nil {
 		return nil, err
 	}
-	var i InjectionStrategy
-	if err := yaml.Unmarshal(raw, &i); err != nil {
-		return nil, fmt.Errorf("parse injection_strategy.yaml: %w", err)
+	if raw != nil {
+		if err := yaml.Unmarshal(raw, &i); err != nil {
+			return nil, fmt.Errorf("parse injection_strategy.yaml: %w", err)
+		}
+	}
+	if err := mergeInjectionStrategyDir(filepath.Join(dir, "injection_strategy"), &i); err != nil {
+		return nil, err
 	}
 	return &i, nil
 }
 
-// LoadChallenge reads challenge.yaml or the embedded default.
+func mergeInjectionStrategyDir(dir string, i *InjectionStrategy) error {
+	// Collect community routes first so they prepend before root routes;
+	// the generic catch-all (match: any) from base.yaml stays last.
+	// Injector scalar config is set only when the file specifies non-zero values.
+	var extra []Route
+	err := walkYAMLDir(dir, func(path string, raw []byte) error {
+		var patch InjectionStrategy
+		if err := yaml.Unmarshal(raw, &patch); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		extra = append(extra, patch.Routes...)
+		if patch.Injector.MaxPayloadsPerResponse != 0 {
+			i.Injector.MaxPayloadsPerResponse = patch.Injector.MaxPayloadsPerResponse
+		}
+		if patch.Injector.VisitBucketRotation {
+			i.Injector.VisitBucketRotation = patch.Injector.VisitBucketRotation
+		}
+		if len(patch.Injector.StyleWeights) > 0 {
+			i.Injector.StyleWeights = patch.Injector.StyleWeights
+		}
+		if len(patch.Injector.CategoryOrder) > 0 {
+			i.Injector.CategoryOrder = patch.Injector.CategoryOrder
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	// Prepend community routes; keep base routes (including any catch-all) after.
+	if len(extra) > 0 {
+		i.Routes = append(extra, i.Routes...)
+	}
+	return nil
+}
+
+// LoadChallenge reads challenge.yaml from dir.
 func LoadChallenge(dir string) (*ChallengeRules, error) {
-	raw, err := readOrEmbed(dir, "challenge.yaml", embeddedChallenge)
+	raw, err := readFromDir(dir, "challenge.yaml")
 	if err != nil {
 		return nil, err
 	}
@@ -289,9 +479,9 @@ func LoadChallenge(dir string) (*ChallengeRules, error) {
 	return &c, nil
 }
 
-// LoadML reads ml.yaml or the embedded default.
+// LoadML reads ml.yaml from dir.
 func LoadML(dir string) (*ML, error) {
-	raw, err := readOrEmbed(dir, "ml.yaml", embeddedML)
+	raw, err := readFromDir(dir, "ml.yaml")
 	if err != nil {
 		return nil, err
 	}
@@ -302,18 +492,76 @@ func LoadML(dir string) (*ML, error) {
 	return &m, nil
 }
 
-// LoadLearned reads learned.yaml or the embedded default (which is an
-// empty candidates list — operators never need to edit the file by hand).
+// LoadLearned reads learned rules from up to two sources and merges them:
+//
+//  1. <dir>/learned.yaml — miner output (operator-reviewed candidates). Optional.
+//  2. <dir>/learned/ subdirectory — one .yaml file per feature family,
+//     shipped via community rules releases or contributed by operators.
+//
+// Both sources use identical YAML structure (`candidates: []`). Active
+// flags from both are honoured; the miner never writes into learned/.
 func LoadLearned(dir string) (*Learned, error) {
-	raw, err := readOrEmbed(dir, "learned.yaml", embeddedLearned)
+	var merged Learned
+
+	// Source 1: root learned.yaml (miner output or hand-edited, optional).
+	raw, err := readOptionalFromDir(dir, "learned.yaml")
 	if err != nil {
 		return nil, err
 	}
-	var l Learned
-	if err := yaml.Unmarshal(raw, &l); err != nil {
-		return nil, fmt.Errorf("parse learned.yaml: %w", err)
+	if raw != nil {
+		var root Learned
+		if err := yaml.Unmarshal(raw, &root); err != nil {
+			return nil, fmt.Errorf("parse learned.yaml: %w", err)
+		}
+		merged.Candidates = append(merged.Candidates, root.Candidates...)
 	}
-	return &l, nil
+
+	// Source 2: learned/ subdirectory (community + contributed rules).
+	if dir != "" {
+		learnedDir := filepath.Join(dir, "learned")
+		if info, err := os.Stat(learnedDir); err == nil && info.IsDir() {
+			extra, err := loadLearnedDir(learnedDir)
+			if err != nil {
+				return nil, err
+			}
+			merged.Candidates = append(merged.Candidates, extra.Candidates...)
+		}
+	}
+
+	return &merged, nil
+}
+
+// loadLearnedDir reads every .yaml / .yml file under dir (recursively) and
+// merges their candidates lists. Files are visited in lexicographic order
+// within each directory so results are deterministic across runs.
+func loadLearnedDir(dir string) (*Learned, error) {
+	var merged Learned
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		name := d.Name()
+		if !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml") {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", path, err)
+		}
+		var l Learned
+		if err := yaml.Unmarshal(raw, &l); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		merged.Candidates = append(merged.Candidates, l.Candidates...)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk learned dir %s: %w", dir, err)
+	}
+	return &merged, nil
 }
 
 // --- Dashboard config types ---
@@ -425,9 +673,9 @@ type Dashboard struct {
 	ScoreThresholds   DashboardScoreThresholds   `yaml:"score_thresholds" json:"score_thresholds"`
 }
 
-// LoadDashboard reads dashboard.yaml or the embedded default.
+// LoadDashboard reads dashboard.yaml from dir.
 func LoadDashboard(dir string) (*Dashboard, error) {
-	raw, err := readOrEmbed(dir, "dashboard.yaml", embeddedDashboard)
+	raw, err := readFromDir(dir, "dashboard.yaml")
 	if err != nil {
 		return nil, err
 	}

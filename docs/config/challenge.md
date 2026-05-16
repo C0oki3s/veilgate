@@ -1,7 +1,7 @@
 # `challenge:`
 
-> **File:** `/etc/veilgate/veilgate.yaml` &nbsp;·&nbsp;
-> **Section:** `challenge:` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/veilgate.yaml`
+> **Section:** `challenge:`
 > **Reload:** restart required.
 
 Configures the JavaScript proof-of-work challenge served when a
@@ -26,7 +26,7 @@ holds the runtime secrets and TTLs.
 | string | yes (on production) | `change-me-in-production-or-set-VEILGATE_SECRET` |
 
 HMAC secret used to sign issued challenge tokens. **Set this to a real
-random value before going to `challenge` or `tarpit` mode** — the
+random value before going to `challenge` or `tarpit` mode** - the
 default value is a placeholder that anyone can forge.
 
 Recommended generation:
@@ -71,7 +71,7 @@ Number of leading hex zeros required on the challenge solution.
 | 3 | <100 ms |
 | 4 | ~500 ms |
 | 5 | ~5 s |
-| 6 | ~80 s — too slow for real users |
+| 6 | ~80 s - too slow for real users |
 
 `4` is the sweet spot. Raise to `5` only if your traffic is
 overwhelmingly desktop browsers and you don't mind the visible delay
@@ -100,11 +100,11 @@ challenge:
 
 ## Related
 
-- [`rules/challenge.yaml`](rules/challenge.md) — HTML template, cookie
+- [`rules/challenge.yaml`](rules/challenge.md) - HTML template, cookie
   name, status code
 - [`detector.score_challenge_threshold`](detector.md#score_challenge_threshold)
 - [How-to: Observe-mode rollout](../how-to/observe-and-tune.md)
 
 ---
 
-*Previous: [`tarpit:`](tarpit.md) · Next: [`metrics:`](metrics.md)*
+*Previous: [`tarpit:`](tarpit.md) | Next: [`metrics:`](metrics.md)*

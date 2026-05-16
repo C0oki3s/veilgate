@@ -1,6 +1,6 @@
 # `rules/detector.yaml`
 
-> **File:** `/etc/veilgate/rules/detector.yaml` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/rules/detector.yaml`
 > **Reload:** hot-reload via fsnotify (~500 ms debounce).
 >
 > The rule definitions for every signal in the rule-based scorer.
@@ -83,12 +83,12 @@ browser_headers:
       points: 8
 ```
 
-Tiers are evaluated top-down — list them in descending `missing`.
+Tiers are evaluated top-down - list them in descending `missing`.
 A request with 3 missing hits the first tier; a request with 2
 missing hits the second.
 
 > **Note.** When a browser-shaped UA is present *and* at least one
-> hint is also present, this signal is suppressed entirely — that
+> hint is also present, this signal is suppressed entirely - that
 > avoids the "legit page-load scores 14 pts from subresource fetches"
 > false positive.
 
@@ -118,14 +118,14 @@ substrings in the rolling event window.
 | `points.full` | int | `30` (all three stages observed) |
 | `points.partial` | int | `15` (two stages observed) |
 
-The signal looks at *both* the path and the raw query string —
+The signal looks at *both* the path and the raw query string -
 exploit markers usually live in the query (`?q=' or 1=1--`).
 
 ---
 
 ### `timing`
 
-Detects suspiciously regular inter-request gaps — the classic LLM
+Detects suspiciously regular inter-request gaps - the classic LLM
 or crawler cadence.
 
 | Field | Type | Default |
@@ -217,11 +217,11 @@ part of a blind-SSRF / blind-XXE template.
 
 ## Related
 
-- [`detector:`](../detector.md) — thresholds and trust lists
-- [`rules/ml.yaml`](ml.md) — additive ML signal
-- [`rules/ip_reputation.yaml`](ip-reputation.md) — CIDR categories +
+- [`detector:`](../detector.md) - thresholds and trust lists
+- [`rules/ml.yaml`](ml.md) - additive ML signal
+- [`rules/ip_reputation.yaml`](ip-reputation.md) - CIDR categories +
   fleet rotation
 
 ---
 
-*Previous: [`capture:`](../capture.md) · Next: [`rules/ml.yaml`](ml.md)*
+*Previous: [`capture:`](../capture.md) | Next: [`rules/ml.yaml`](ml.md)*

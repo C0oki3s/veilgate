@@ -1,6 +1,6 @@
 # `rules/ip_reputation.yaml`
 
-> **File:** `/etc/veilgate/rules/ip_reputation.yaml` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/rules/ip_reputation.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
 > Three things in one file: CIDR-based IP categorisation,
@@ -30,7 +30,7 @@ categories:
       - 5.61.55.0/24
       - 23.129.64.0/24
       - 51.81.93.0/24
-      # …Tor exit-node list…
+      # ...Tor exit-node list...
   - name: cloud
     points: 12
     cidrs:
@@ -42,12 +42,12 @@ categories:
     points: 18
     cidrs:
       - 31.13.64.0/19
-      # …commercial VPN ranges…
+      # ...commercial VPN ranges...
   - name: anonymizer
     points: 30
     cidrs:
       - 185.220.100.0/22
-      # …I2P / proxy fleets…
+      # ...I2P / proxy fleets...
 ```
 
 | Field | Type | Required | Notes |
@@ -85,7 +85,7 @@ panel on the dashboard.
 ## `fleet_rotation:`
 
 Detects one attacker rotating through a pool of IPs. The fleet
-tracker groups requests by a behavioural fingerprint
+tracker groups requests by a behavioral fingerprint
 (UA family + JA4 prefix + header set + method) and counts distinct
 IPs per fingerprint inside a rolling window.
 
@@ -112,7 +112,7 @@ fleet_rotation:
 
 A request is tagged with `ip_rotation_fleet` and the points of the
 first matching tier. A score of 45 is one of the highest single-signal
-contributions in the system — fleet rotation is near-perfect proof of
+contributions in the system - fleet rotation is near-perfect proof of
 malicious intent.
 
 `max_fingerprints` is a soft cap on the tracker's memory use. When the
@@ -176,14 +176,14 @@ ua_rotation:
 
 ## Related
 
-- [`detector.trusted_proxies`](../detector.md#trusted_proxies) — XFF
+- [`detector.trusted_proxies`](../detector.md#trusted_proxies) - XFF
   resolution that determines the client identifier
-- [`detector.window_seconds`](../detector.md#window_seconds) — rolling
+- [`detector.window_seconds`](../detector.md#window_seconds) - rolling
   window for UA rotation
-- [`rules/tls_fingerprints.yaml`](tls-fingerprints.md) — JA4 prefix
+- [`rules/tls_fingerprints.yaml`](tls-fingerprints.md) - JA4 prefix
   feeds into the fleet fingerprint
 - [Use case: API recon blocking](../../usecases/api-recon-blocking.md)
 
 ---
 
-*Previous: [`rules/tls_fingerprints.yaml`](tls-fingerprints.md) · Next: [`rules/challenge.yaml`](challenge.md)*
+*Previous: [`rules/tls_fingerprints.yaml`](tls-fingerprints.md) | Next: [`rules/challenge.yaml`](challenge.md)*

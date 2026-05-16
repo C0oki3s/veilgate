@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -186,4 +188,24 @@ func (c *Config) applyDefaults() {
 	if c.Persist.RetentionDays == 0 {
 		c.Persist.RetentionDays = 30
 	}
+	// Expand ~ in path fields so operators can write "~/.veilgate/rules"
+	// in the config and get a correct absolute path at runtime.
+	c.RulesDir = expandHome(c.RulesDir)
+	c.Persist.Path = expandHome(c.Persist.Path)
+	c.Persist.DumpPath = expandHome(c.Persist.DumpPath)
+	c.Capture.Path = expandHome(c.Capture.Path)
+}
+
+// expandHome replaces a leading "~" with the current user's home
+// directory. Returns the path unchanged when it does not start with "~"
+// or when the home directory cannot be determined.
+func expandHome(p string) string {
+	if !strings.HasPrefix(p, "~/") && p != "~" {
+		return p
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return p
+	}
+	return filepath.Join(home, p[1:])
 }

@@ -10,6 +10,17 @@ import (
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
 
+const testRulesDir = "../../rules"
+
+func mustDatabase(t *testing.T) *Database {
+	t.Helper()
+	db, err := NewDatabaseFromDir(testRulesDir)
+	if err != nil {
+		t.Fatalf("NewDatabaseFromDir: %v", err)
+	}
+	return db
+}
+
 func TestJA4BasicShape(t *testing.T) {
 	ch := &ClientHello{
 		Version:        0x0303,
@@ -207,7 +218,7 @@ func TestParseClientHelloRejectsBadRecords(t *testing.T) {
 }
 
 func TestDatabaseLookup(t *testing.T) {
-	db := NewDatabase()
+	db := mustDatabase(t)
 	fp := Fingerprint{JA4: "t13d1715h2_5b57614c22b0_3d5424432f57"}
 	c := db.Lookup(fp)
 	if c.Label != "python-httpx" {
@@ -276,7 +287,7 @@ func TestClassifierFallbacks(t *testing.T) {
 }
 
 func TestDatabaseBrowserPrefix(t *testing.T) {
-	db := NewDatabase()
+	db := mustDatabase(t)
 	// Unknown exact, but Chrome-like prefix
 	fp := Fingerprint{JA4: "t13d1517h2_aaaaaaaaaaaa_bbbbbbbbbbbb"}
 	if !db.LooksLikeBrowser(fp) {

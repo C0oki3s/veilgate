@@ -1,13 +1,13 @@
 # `detector:`
 
-> **File:** `/etc/veilgate/veilgate.yaml` &nbsp;·&nbsp;
-> **Section:** `detector:` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/veilgate.yaml`
+> **Section:** `detector:`
 > **Reload:** restart required.
 >
 > The detector's *rule* logic (UA substrings, header tiers, timing,
 > toolchain, injection markers) lives in
 > [`rules/detector.yaml`](rules/detector.md). This page documents only
-> the top-level keys — thresholds, honeypot paths, and trust lists.
+> the top-level keys - thresholds, honeypot paths, and trust lists.
 
 **On this page:**
 
@@ -29,7 +29,7 @@
 | int | no | `70` |
 
 Score at which a request is diverted to the tarpit (only when `mode:
-"tarpit"`). Range `0–100`.
+"tarpit"`). Range `0-100`.
 
 ---
 
@@ -40,7 +40,7 @@ Score at which a request is diverted to the tarpit (only when `mode:
 | int | no | `40` |
 
 Score at which a JS proof-of-work challenge is served (in `challenge`
-or `tarpit` mode). Must be ≤ `score_tarpit_threshold`.
+or `tarpit` mode). Must be <= `score_tarpit_threshold`.
 
 > **Tuning.** See the [observe-and-tune how-to](../how-to/observe-and-tune.md).
 > Defaults are calibrated against a synthetic agent corpus and should
@@ -61,8 +61,8 @@ fresh attackers.
 
 Common values:
 
-- `60`–`90` — default. Fast detection on a busy site.
-- `120`–`300` — for low-volume APIs where the per-client request rate
+- `60`-`90` - default. Fast detection on a busy site.
+- `120`-`300` - for low-volume APIs where the per-client request rate
   is low.
 
 ---
@@ -101,7 +101,7 @@ honeypot_paths:
 ```
 
 > **Important.** Never list a path that your real app actually serves
-> — every request to a honeypot triggers the highest-priority signal.
+> - every request to a honeypot triggers the highest-priority signal.
 
 ---
 
@@ -120,7 +120,7 @@ is legitimate.
 trusted_ips:
   - 192.0.2.10        # internal monitoring
   - 198.51.100.5      # CI runner
-  - 203.0.113.0/24    # not yet supported as CIDR — listed individually for now
+  - 203.0.113.0/24    # not yet supported as CIDR - listed individually for now
 ```
 
 > **Format.** Today the matcher does exact-string compare against the
@@ -135,9 +135,9 @@ trusted_ips:
 | --- | --- | --- |
 | list of strings (CIDR or IP) | no | `[]` |
 
-CIDRs (or exact IPs) whose `X-Forwarded-For` header VeilGate honours.
+CIDRs (or exact IPs) whose `X-Forwarded-For` header VeilGate honors.
 **Without this list, VeilGate refuses to read XFF.** That is a
-deliberate Log4Shell-injection defence — an attacker who can write
+deliberate Log4Shell-injection defense - an attacker who can write
 into XFF can otherwise spoof themselves onto the trusted-IP allowlist
 or pollute tracker state.
 
@@ -151,7 +151,7 @@ trusted_proxies:
 When XFF is present and the *direct* peer is inside one of these
 CIDRs, VeilGate walks the XFF chain right-to-left and picks the first
 hop that is **not** itself a trusted proxy. That's the standards-compliant
-RFC 7239 behaviour.
+RFC 7239 behavior.
 
 ## Example
 
@@ -172,11 +172,11 @@ detector:
 
 ## Related
 
-- [`rules/detector.yaml`](rules/detector.md) — actual signal definitions
-- [`rules/ip_reputation.yaml`](rules/ip-reputation.md) — CIDR categories
-- [`rules/ml.yaml`](rules/ml.md) — ML signal that contributes to the score
+- [`rules/detector.yaml`](rules/detector.md) - actual signal definitions
+- [`rules/ip_reputation.yaml`](rules/ip-reputation.md) - CIDR categories
+- [`rules/ml.yaml`](rules/ml.md) - ML signal that contributes to the score
 - [How-to: Observe-mode rollout](../how-to/observe-and-tune.md)
 
 ---
 
-*Previous: [`tls:`](tls.md) · Next: [`tarpit:`](tarpit.md)*
+*Previous: [`tls:`](tls.md) | Next: [`tarpit:`](tarpit.md)*

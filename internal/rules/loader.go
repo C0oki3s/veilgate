@@ -1,25 +1,15 @@
 // Package rules loads detection rules, TLS fingerprints, and payload
-// templates from external YAML files. Defaults ship embedded in the binary;
-// operators can override by setting `rules_dir` in veilgate.yaml.
+// templates from external YAML files. All rules are read from the rules_dir
+// configured in veilgate.yaml — no embedded defaults are shipped.
 package rules
 
 import (
-	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
-
-//go:embed defaults/detector.yaml
-var embeddedDetector []byte
-
-//go:embed defaults/tls_fingerprints.yaml
-var embeddedTLS []byte
-
-//go:embed defaults/payloads.yaml
-var embeddedPayloads []byte
 
 // Detector holds scorer rule knobs loaded from detector.yaml.
 type Detector struct {
@@ -155,56 +145,177 @@ type Payloads struct {
 	} `yaml:"generators"`
 }
 
-// LoadDetector reads detector.yaml from dir, or falls back to the embedded
-// defaults when dir is empty or the file is missing.
+// LoadDetector reads detector.yaml from dir, then merges any community
+// additions from the rules/detector/ subdirectory. Community files may
+// extend any list field (substrings, paths, markers); scalar config
+// (points, tiers, timing) is authoritative in detector.yaml only.
 func LoadDetector(dir string) (*Detector, error) {
-	raw, err := readOrEmbed(dir, "detector.yaml", embeddedDetector)
+	var d Detector
+	raw, err := readOptionalFromDir(dir, "detector.yaml")
 	if err != nil {
 		return nil, err
 	}
-	var d Detector
-	if err := yaml.Unmarshal(raw, &d); err != nil {
-		return nil, fmt.Errorf("parse detector.yaml: %w", err)
+	if raw != nil {
+		if err := yaml.Unmarshal(raw, &d); err != nil {
+			return nil, fmt.Errorf("parse detector.yaml: %w", err)
+		}
+	}
+	if err := mergeDetectorDir(filepath.Join(dir, "detector"), &d); err != nil {
+		return nil, err
 	}
 	return &d, nil
 }
 
-// LoadTLS reads tls_fingerprints.yaml or embedded defaults.
+// mergeDetectorDir walks dir and merges all .yaml files into d.
+// Scalar fields (points, tiers, timing) are set only when the parsed file
+// carries a non-zero value, so base.yaml sets them and community files
+// (which omit scalars) never overwrite them.
+func mergeDetectorDir(dir string, d *Detector) error {
+	return walkYAMLDir(dir, func(path string, raw []byte) error {
+		var p Detector
+		if err := yaml.Unmarshal(raw, &p); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		// Scalars: only overwrite when the file explicitly sets them.
+		if p.SuspiciousUserAgents.Points != 0 {
+			d.SuspiciousUserAgents.Points = p.SuspiciousUserAgents.Points
+		}
+		if p.EmptyUserAgent.Points != 0 {
+			d.EmptyUserAgent.Points = p.EmptyUserAgent.Points
+		}
+		if p.WordlistPaths.Points != 0 {
+			d.WordlistPaths.Points = p.WordlistPaths.Points
+		}
+		if p.InjectionMarkers.Points != 0 {
+			d.InjectionMarkers.Points = p.InjectionMarkers.Points
+		}
+		if p.OOBInteraction.Points != 0 {
+			d.OOBInteraction.Points = p.OOBInteraction.Points
+		}
+		if p.Toolchain.Points.Full != 0 {
+			d.Toolchain.Points.Full = p.Toolchain.Points.Full
+		}
+		if p.Toolchain.Points.Partial != 0 {
+			d.Toolchain.Points.Partial = p.Toolchain.Points.Partial
+		}
+		if len(p.BrowserHeaders.Tiers) > 0 {
+			d.BrowserHeaders.Tiers = p.BrowserHeaders.Tiers
+		}
+		if len(p.PathBruteforce.Tiers) > 0 {
+			d.PathBruteforce.Tiers = p.PathBruteforce.Tiers
+		}
+		if p.Timing.MinEvents > 0 {
+			d.Timing = p.Timing
+		}
+		// Lists: always append.
+		d.SuspiciousUserAgents.Substrings = append(d.SuspiciousUserAgents.Substrings, p.SuspiciousUserAgents.Substrings...)
+		d.BrowserHeaders.Hints = append(d.BrowserHeaders.Hints, p.BrowserHeaders.Hints...)
+		d.Toolchain.ReconPaths = append(d.Toolchain.ReconPaths, p.Toolchain.ReconPaths...)
+		d.Toolchain.ProbePaths = append(d.Toolchain.ProbePaths, p.Toolchain.ProbePaths...)
+		d.Toolchain.ExploitMarkers = append(d.Toolchain.ExploitMarkers, p.Toolchain.ExploitMarkers...)
+		d.WordlistPaths.Substrings = append(d.WordlistPaths.Substrings, p.WordlistPaths.Substrings...)
+		d.InjectionMarkers.Substrings = append(d.InjectionMarkers.Substrings, p.InjectionMarkers.Substrings...)
+		d.InjectionMarkers.Headers = append(d.InjectionMarkers.Headers, p.InjectionMarkers.Headers...)
+		d.OOBInteraction.Substrings = append(d.OOBInteraction.Substrings, p.OOBInteraction.Substrings...)
+		return nil
+	})
+}
+
+// LoadTLS reads tls_fingerprints.yaml from dir, then merges any community
+// additions from rules/tls_fingerprints/.
 func LoadTLS(dir string) (*TLSFingerprints, error) {
-	raw, err := readOrEmbed(dir, "tls_fingerprints.yaml", embeddedTLS)
+	var t TLSFingerprints
+	raw, err := readOptionalFromDir(dir, "tls_fingerprints.yaml")
 	if err != nil {
 		return nil, err
 	}
-	var t TLSFingerprints
-	if err := yaml.Unmarshal(raw, &t); err != nil {
-		return nil, fmt.Errorf("parse tls_fingerprints.yaml: %w", err)
+	if raw != nil {
+		if err := yaml.Unmarshal(raw, &t); err != nil {
+			return nil, fmt.Errorf("parse tls_fingerprints.yaml: %w", err)
+		}
+	}
+	if err := mergeTLSDir(filepath.Join(dir, "tls_fingerprints"), &t); err != nil {
+		return nil, err
 	}
 	return &t, nil
 }
 
-// LoadPayloads reads payloads.yaml or embedded defaults.
+func mergeTLSDir(dir string, t *TLSFingerprints) error {
+	return walkYAMLDir(dir, func(path string, raw []byte) error {
+		var patch TLSFingerprints
+		if err := yaml.Unmarshal(raw, &patch); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		t.JA4Exact = append(t.JA4Exact, patch.JA4Exact...)
+		t.JA4Prefix = append(t.JA4Prefix, patch.JA4Prefix...)
+		t.JA3Exact = append(t.JA3Exact, patch.JA3Exact...)
+		return nil
+	})
+}
+
+// LoadPayloads reads payloads.yaml from dir, then merges community
+// additions from rules/payloads/.
 func LoadPayloads(dir string) (*Payloads, error) {
-	raw, err := readOrEmbed(dir, "payloads.yaml", embeddedPayloads)
+	var p Payloads
+	raw, err := readOptionalFromDir(dir, "payloads.yaml")
 	if err != nil {
 		return nil, err
 	}
-	var p Payloads
-	if err := yaml.Unmarshal(raw, &p); err != nil {
-		return nil, fmt.Errorf("parse payloads.yaml: %w", err)
+	if raw != nil {
+		if err := yaml.Unmarshal(raw, &p); err != nil {
+			return nil, fmt.Errorf("parse payloads.yaml: %w", err)
+		}
+	}
+	if err := mergePayloadsDir(filepath.Join(dir, "payloads"), &p); err != nil {
+		return nil, err
 	}
 	return &p, nil
 }
 
-func readOrEmbed(dir, name string, embedded []byte) ([]byte, error) {
+func mergePayloadsDir(dir string, p *Payloads) error {
+	return walkYAMLDir(dir, func(path string, raw []byte) error {
+		var patch Payloads
+		if err := yaml.Unmarshal(raw, &patch); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		p.Termination = append(p.Termination, patch.Termination...)
+		p.RabbitHole = append(p.RabbitHole, patch.RabbitHole...)
+		p.CostBomb = append(p.CostBomb, patch.CostBomb...)
+		p.Confusion = append(p.Confusion, patch.Confusion...)
+		p.MoralAppeal = append(p.MoralAppeal, patch.MoralAppeal...)
+		// Generators: only set when the file explicitly specifies them.
+		if patch.Generators.LogBurst.Count != 0 {
+			p.Generators.LogBurst = patch.Generators.LogBurst
+		}
+		return nil
+	})
+}
+
+func readFromDir(dir, name string) ([]byte, error) {
 	if dir == "" {
-		return embedded, nil
+		return nil, fmt.Errorf("rules_dir must be set: cannot load %s without a rules directory", name)
 	}
 	path := filepath.Join(dir, name)
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return embedded, nil
-		}
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	return raw, nil
+}
+
+// readOptionalFromDir is like readFromDir but returns (nil, nil) when the
+// file does not exist. Use this for root rule files whose content has been
+// moved into the corresponding community subdirectory as base.yaml.
+func readOptionalFromDir(dir, name string) ([]byte, error) {
+	if dir == "" {
+		return nil, fmt.Errorf("rules_dir must be set: cannot load %s without a rules directory", name)
+	}
+	path := filepath.Join(dir, name)
+	raw, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	return raw, nil

@@ -159,7 +159,7 @@ new customer geography. Investigate whichever is least expected.
 
 - [Config: metrics](../config/metrics.md)
 - [Use case: Compliance & audit evidence](../usecases/compliance-evidence.md)
-- [docs/PROMETHEUS_QUERIES.md](../PROMETHEUS_QUERIES.md) — query cookbook
+- [Prometheus query cookbook](../operations/prometheus-queries.md) — query cookbook
 
 ---
 

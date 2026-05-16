@@ -15,8 +15,19 @@ import (
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
 
+const testRulesDir = "../../rules"
+
+func testNewHandler(t *testing.T, secret string) *Handler {
+	t.Helper()
+	h, err := NewHandlerFromDir(secret, testRulesDir, 0, 0)
+	if err != nil {
+		t.Fatalf("NewHandlerFromDir: %v", err)
+	}
+	return h
+}
+
 func TestVerifyPOWRejectsUnsignedPayload(t *testing.T) {
-	h := NewHandler("test-secret", 0, 0)
+	h := testNewHandler(t, "test-secret")
 	cr := h.rules.Load()
 	cr.Difficulty = 1
 
@@ -36,7 +47,7 @@ func TestVerifyPOWRejectsUnsignedPayload(t *testing.T) {
 }
 
 func TestVerifyPOWAcceptsValidPayload(t *testing.T) {
-	h := NewHandler("test-secret", 0, 0)
+	h := testNewHandler(t, "test-secret")
 	cr := h.rules.Load()
 	cr.Difficulty = 1
 	cr.TokenTTLMinutes = 1
@@ -64,7 +75,7 @@ func TestVerifyPOWAcceptsValidPayload(t *testing.T) {
 }
 
 func TestVerifySetsSecureCookieWhenForwardedProtoHTTPS(t *testing.T) {
-	h := NewHandler("test-secret", 0, 0)
+	h := testNewHandler(t, "test-secret")
 	cr := h.rules.Load()
 	cr.Difficulty = 1
 	cr.TokenTTLMinutes = 1
@@ -119,7 +130,7 @@ func TestVerifySetsSecureCookieWhenForwardedProtoHTTPS(t *testing.T) {
 // header. This is what enables app.example.com + api.example.com
 // deployments — without Domain= the cookie stays host-only.
 func TestVerifyCookieHonoursDomainAndSameSite(t *testing.T) {
-	h := NewHandler("test-secret", 0, 0)
+	h := testNewHandler(t, "test-secret")
 	cr := h.rules.Load()
 	cr.Difficulty = 1
 	cr.TokenTTLMinutes = 1
@@ -155,7 +166,7 @@ func TestVerifyCookieHonoursDomainAndSameSite(t *testing.T) {
 // accepted as well as a cookie. Without this, SPAs on a different
 // origin couldn't authenticate.
 func TestPassedAcceptsHeaderToken(t *testing.T) {
-	h := NewHandler("test-secret", 0, 0)
+	h := testNewHandler(t, "test-secret")
 	cr := h.rules.Load()
 	cr.TokenTTLMinutes = 5
 	cr.TokenHeaderName = "X-Veilgate-Token"
@@ -191,9 +202,12 @@ func TestPassedAcceptsHeaderToken(t *testing.T) {
 // HTML is useless from a fetch() — there's no <script> execution —
 // so the JSON shape lets the SPA route around the failure.
 func TestServeChallengeSPAAware(t *testing.T) {
-	h := NewHandler("test-secret", 0, 0)
+	h := testNewHandler(t, "test-secret")
 	cr := h.rules.Load()
 	cr.SPAAwareResponse = true
+	// Keep PoW cheap so the round-trip stays well under the per-test
+	// timeout. The handler itself is independent of difficulty.
+	cr.Difficulty = 1
 
 	// fetch() from an SPA — Sec-Fetch-Dest is "empty".
 	req := httptest.NewRequest(http.MethodGet, "/api/data", nil)
@@ -217,6 +231,11 @@ func TestServeChallengeSPAAware(t *testing.T) {
 	var body struct {
 		Error       string `json:"error"`
 		TokenHeader string `json:"token_header"`
+		VerifyPath  string `json:"verify_path"`
+		Challenge   string `json:"challenge"`
+		Target      string `json:"target"`
+		TS          string `json:"ts"`
+		Sig         string `json:"sig"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 		t.Fatalf("response body not JSON: %v", err)
@@ -226,6 +245,39 @@ func TestServeChallengeSPAAware(t *testing.T) {
 	}
 	if body.TokenHeader == "" {
 		t.Fatalf("expected token_header in response body, got empty")
+	}
+	if body.VerifyPath == "" || body.Challenge == "" || body.Target == "" ||
+		body.TS == "" || body.Sig == "" {
+		t.Fatalf("expected PoW metadata in body (verify_path/challenge/target/ts/sig), got %+v", body)
+	}
+
+	// Round-trip: solve the PoW the SPA way, post to verify, attach the
+	// returned token to a follow-up request, expect Passed() to accept it.
+	nonce := solveNonce(t, body.Challenge, body.Target)
+	verifyReq := httptest.NewRequest(http.MethodPost, body.VerifyPath, mustJSON(t, map[string]any{
+		"challenge": body.Challenge,
+		"nonce":     nonce,
+		"ts":        body.TS,
+		"sig":       body.Sig,
+	}))
+	verifyRR := httptest.NewRecorder()
+	h.verify(verifyRR, verifyReq, cr)
+	if verifyRR.Code != http.StatusOK {
+		t.Fatalf("verify after SPA solve: expected 200, got %d (body=%s)", verifyRR.Code, verifyRR.Body.String())
+	}
+	var verifyBody struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(verifyRR.Body.Bytes(), &verifyBody); err != nil {
+		t.Fatalf("verify response not JSON: %v", err)
+	}
+	if verifyBody.Token == "" {
+		t.Fatalf("verify response missing token")
+	}
+	followUp := httptest.NewRequest(http.MethodGet, "/api/data", nil)
+	followUp.Header.Set(body.TokenHeader, verifyBody.Token)
+	if !h.Passed(followUp) {
+		t.Fatalf("Passed() rejected token from SPA-solved challenge")
 	}
 
 	// Document navigation should still get the HTML challenge.

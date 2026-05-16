@@ -1,7 +1,7 @@
 # `persist:`
 
-> **File:** `/etc/veilgate/veilgate.yaml` &nbsp;·&nbsp;
-> **Section:** `persist:` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/veilgate.yaml`
+> **Section:** `persist:`
 > **Reload:** restart required.
 
 The SQLite-backed event store. Holds the events, feature rollups, rule
@@ -63,7 +63,7 @@ else, add the parent to `ReadWritePaths`.
 | int | no | `30` |
 
 How long event rows are kept before the trim goroutine deletes them.
-The trim runs every 6 hours; rows older than `retention_days × 24h`
+The trim runs every 6 hours; rows older than `retention_days x 24h`
 are removed. Set `0` to disable trimming entirely.
 
 The trim runs *after* the optional CSV.gz dump (see `dump_path`), so
@@ -79,7 +79,7 @@ the dump captures rows that are about to be trimmed.
 
 Batch-commit interval in milliseconds. Lower values reduce the
 in-flight queue depth at the cost of more fsync work. The default of
-1 s is fine for most workloads; raise to 2000–5000 for very high RPS,
+1 s is fine for most workloads; raise to 2000-5000 for very high RPS,
 where the queue saturates only on traffic bursts.
 
 ---
@@ -93,7 +93,7 @@ where the queue saturates only on traffic bursts.
 Buffered channel depth for the event-write queue. When this fills up,
 new events are **dropped** with a counter bump
 (`Store.Dropped()`). The drop policy keeps the proxy hot path off the
-disk — a slow disk can never block request scoring.
+disk - a slow disk can never block request scoring.
 
 If you see persistent drops in production, raise this *and*
 investigate disk throughput.
@@ -107,7 +107,7 @@ investigate disk throughput.
 | string (directory path) | no | `""` (disabled) |
 
 Directory to write rotated `events-<timestamp>.csv.gz` archives every
-6 hours, alongside the trim. Leave empty to disable archives —
+6 hours, alongside the trim. Leave empty to disable archives -
 rotated rows are then simply deleted.
 
 ```yaml
@@ -128,7 +128,7 @@ retention policy.
 | int | no | `65536` (64 MiB) |
 
 SQLite page cache size in **kilobytes**. Default of 64 MiB is fine for
-deployments under ~1k RPS. Raise to 256–512 MiB for read-heavy
+deployments under ~1k RPS. Raise to 256-512 MiB for read-heavy
 dashboard workloads.
 
 The store also sets `mmap_size=512 MiB` and `temp_store=MEMORY`
@@ -138,14 +138,14 @@ unconditionally, which carry most of the read performance.
 
 | Table | Purpose |
 | --- | --- |
-| `events` | one row per request — features, decision, signals fired |
+| `events` | one row per request - features, decision, signals fired |
 | `features_rollup` | rolling counts of (feature, bucket, agent_count, human_count) used by the miner |
 | `rule_candidates` | the miner's proposed (feature, bucket, posterior, support) rules |
 | `audit_log` | hash-chained operator-action log |
 | `tarpit_canaries` | tokens served from the tarpit, watched for replay |
 | `schema_version` | single-row migration version table |
 
-Cross-reference: [Engineering gaps → §4 storage layout](../ENGINEERING_GAPS.md).
+Cross-reference: [Engineering gaps -> storage layout](../internals/engineering-gaps.md).
 
 ## Example
 
@@ -164,9 +164,9 @@ persist:
 
 - [How-to: Handle a Right-to-Erasure (RTBF) request](../how-to/handle-rtbf.md)
 - [How-to: Promote learned rules](../how-to/promote-learned-rules.md)
-- [`capture:`](capture.md) — separate JSONL capture stream
-- [`rules/ml.yaml`](rules/ml.md) — miner thresholds
+- [`capture:`](capture.md) - separate JSONL capture stream
+- [`rules/ml.yaml`](rules/ml.md) - miner thresholds
 
 ---
 
-*Previous: [`metrics:`](metrics.md) · Next: [`capture:`](capture.md)*
+*Previous: [`metrics:`](metrics.md) | Next: [`capture:`](capture.md)*

@@ -144,7 +144,7 @@ systemd unit.
 
 ## Related
 
-- [Deployment reference](../DEPLOYMENT.md)
+- [Deployment reference](../deployment/README.md)
 - [How-to: Observe-mode rollout & threshold tuning](observe-and-tune.md)
 - [Config: top-level settings](../config/top-level.md)
 

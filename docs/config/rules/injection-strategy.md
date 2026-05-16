@@ -1,6 +1,6 @@
 # `rules/injection_strategy.yaml`
 
-> **File:** `/etc/veilgate/rules/injection_strategy.yaml` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/rules/injection_strategy.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
 > Two-part config: the route table that maps tarpit-bound requests to
@@ -51,7 +51,7 @@ response and how the categories are weighted.
 | Key | Type | Default | Purpose |
 | --- | --- | --- | --- |
 | `max_payloads_per_response` | int | `3` | hard cap per response |
-| `visit_bucket_rotation` | bool | `true` | rotate the *style* selected for each visit-bucket so an agent can't memorise one pattern |
+| `visit_bucket_rotation` | bool | `true` | rotate the *style* selected for each visit-bucket so an agent cannot memorize one pattern |
 | `style_weights` | map of map | see below | weights per style, scoped per route or `default` |
 | `category_order` | list of strings | `[termination, rabbit_hole, cost_bomb, confusion, moral_appeal]` | order in which categories are sampled |
 
@@ -67,7 +67,7 @@ injector:
       confusion: 1
       moral_appeal: 1
     fake_admin:
-      moral_appeal: 4              # heavier "you are unauthorised" framing
+      moral_appeal: 4              # heavier "you are unauthorized" framing
       termination: 2
   category_order:
     - termination
@@ -88,9 +88,9 @@ land on that template.
 | `exact` | path equals any value (case-insensitive) |
 | `contains` | path contains any value as a substring (case-insensitive) |
 | `regex` | path matches any compiled regex in `values`. Compiled regexes are cached per strategy version. |
-| `sqli` | path or query contains any pattern from `vulnerabilities.sql_injection_patterns` (centralised list) |
+| `sqli` | path or query contains any pattern from `vulnerabilities.sql_injection_patterns` (centralized list) |
 | `list` | `values` are *names* of lists in `rules/vulnerabilities.yaml` (e.g. `honeypot_paths`, `fake_git_paths`); the route fires if the path matches any entry in any named list |
-| `any` | unconditional — used as the final fallthrough route |
+| `any` | unconditional - used as the final fallthrough route |
 
 The `regex` matcher caches compiled regexes per strategy file
 version. Hot-reloading the strategy file invalidates the cache; bad
@@ -139,12 +139,11 @@ injector:
 
 ## Related
 
-- [`rules/templates.yaml`](templates.md) — response bodies
-- [`rules/payloads.yaml`](payloads.md) — payload library
-- [`rules/vulnerabilities.yaml`](#) — lists referenced by `match: list`
-  *(reference page TBD)*
-- [Use case: LLM-agent defence](../../usecases/llm-agent-defense.md)
+- [`rules/templates.yaml`](templates.md) - response bodies
+- [`rules/payloads.yaml`](payloads.md) - payload library
+- [`rules/vulnerabilities.yaml`](vulnerabilities.md) - lists referenced by `match: list`
+- [Use case: LLM-agent defense](../../usecases/llm-agent-defense.md)
 
 ---
 
-*Previous: [`rules/templates.yaml`](templates.md) · Next: [`rules/tls_fingerprints.yaml`](tls-fingerprints.md)*
+*Previous: [`rules/templates.yaml`](templates.md) | Next: [`rules/tls_fingerprints.yaml`](tls-fingerprints.md)*

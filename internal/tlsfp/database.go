@@ -22,12 +22,9 @@ type Database struct {
 	ja3Exact  map[string]Classification
 }
 
-// NewDatabase returns a database populated from the embedded default file.
+// NewDatabase returns an empty database. Use NewDatabaseFromDir to load rules.
 func NewDatabase() *Database {
-	d := newEmptyDatabase()
-	tls, _ := rules.LoadTLS("")
-	d.Apply(tls)
-	return d
+	return newEmptyDatabase()
 }
 
 // NewDatabaseFromDir returns a database populated from rulesDir (or embedded

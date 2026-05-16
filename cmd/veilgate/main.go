@@ -95,6 +95,9 @@ func main() {
 		case "forget":
 			runForget(os.Args[2:])
 			return
+		case "update-rules":
+			runUpdateRules(os.Args[2:])
+			return
 		}
 	}
 
@@ -253,6 +256,15 @@ func main() {
 		}
 		ml.SetActiveRedactor(pr)
 		log.Info().Msg("ML path redaction active (UUIDs / IDs / hex / tokens scrubbed)")
+	}
+
+	// Load learned rules (miner output + community rules from learned/)
+	// and seed the Bayes classifier so active candidates take effect
+	// immediately — before the burn-in period fills from live traffic.
+	if learned, err := rules.LoadLearned(cfg.RulesDir); err != nil {
+		log.Warn().Err(err).Msg("failed to load learned rules at startup")
+	} else if n := mlScorer.SeedFromLearned(learned.Candidates); n > 0 {
+		log.Info().Int("candidates", n).Msg("seeded Bayes from learned rules")
 	}
 
 	// Background GC for stale client state + cardinality gauges.
@@ -566,6 +578,27 @@ func main() {
 				tlsDB.Apply(fp)
 				return nil
 			})
+		}
+		// learned.yaml + learned/ subdir — reload seeds the Bayes classifier.
+		w.Register("learned.yaml", func() error {
+			learned, err := rules.LoadLearned(cfg.RulesDir)
+			if err != nil {
+				return err
+			}
+			if n := mlScorer.SeedFromLearned(learned.Candidates); n > 0 {
+				log.Info().Int("candidates", n).Msg("reseeded Bayes from learned rules")
+			}
+			return nil
+		})
+		// If learned/ subdirectory already exists, watch it so community
+		// rule files added by update-rules hot-reload without a restart.
+		if cfg.RulesDir != "" {
+			learnedSubdir := filepath.Join(cfg.RulesDir, "learned")
+			if info, err := os.Stat(learnedSubdir); err == nil && info.IsDir() {
+				if err := w.AddSubdir(learnedSubdir, "learned.yaml"); err != nil {
+					log.Warn().Err(err).Str("dir", learnedSubdir).Msg("could not watch learned/ subdir")
+				}
+			}
 		}
 		go w.Run(rootCtx, func(name string, err error) {
 			log.Warn().Str("file", name).Err(err).Msg("rules reload")

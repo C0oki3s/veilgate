@@ -34,10 +34,9 @@ type Library struct {
 	payloads []Payload
 }
 
-// NewLibrary builds a library from embedded default payload templates.
+// NewLibrary returns an empty library. Use NewLibraryFromDir to load rules.
 func NewLibrary() *Library {
-	p, _ := rules.LoadPayloads("")
-	return buildLibrary(p)
+	return &Library{}
 }
 
 // NewLibraryFromDir builds a library from rulesDir (or embedded defaults).

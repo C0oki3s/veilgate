@@ -1,7 +1,7 @@
 # `tarpit:`
 
-> **File:** `/etc/veilgate/veilgate.yaml` &nbsp;·&nbsp;
-> **Section:** `tarpit:` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/veilgate.yaml`
+> **Section:** `tarpit:`
 > **Reload:** restart required.
 
 Latency and body caps applied to every tarpit response. The actual
@@ -45,7 +45,7 @@ Maximum delay. Pick this with attacker economics in mind:
 - Lower values give a less convincing fake-app feel.
 
 > **Tuning.** Most operators settle around `min: 800, max: 4000`.
-> Long-tail higher values (10–30 s) work well against LLM agents that
+> Long-tail higher values (10-30 s) work well against LLM agents that
 > wait for full bodies before deciding what to do next.
 
 ---
@@ -82,7 +82,7 @@ tarpit:
   max_body_bytes: 32768
 ```
 
-For an "LLM-agent-defence" deployment (slow + heavy, designed to burn
+For an "LLM-agent-defense" deployment (slow + heavy, designed to burn
 tokens):
 
 ```yaml
@@ -94,11 +94,11 @@ tarpit:
 
 ## Related
 
-- [`rules/templates.yaml`](rules/templates.md) — response bodies
-- [`rules/payloads.yaml`](rules/payloads.md) — prompt-injection content
-- [`rules/injection_strategy.yaml`](rules/injection-strategy.md) — route → template
-- [Use case: LLM-agent defence](../usecases/llm-agent-defense.md)
+- [`rules/templates.yaml`](rules/templates.md) - response bodies
+- [`rules/payloads.yaml`](rules/payloads.md) - prompt-injection content
+- [`rules/injection_strategy.yaml`](rules/injection-strategy.md) - route -> template
+- [Use case: LLM-agent defense](../usecases/llm-agent-defense.md)
 
 ---
 
-*Previous: [`detector:`](detector.md) · Next: [`challenge:`](challenge.md)*
+*Previous: [`detector:`](detector.md) | Next: [`challenge:`](challenge.md)*

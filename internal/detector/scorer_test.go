@@ -5,11 +5,21 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/C0oki3s/veilgate/internal/rules"
 )
+
+const testRulesDir = "../../rules"
 
 func newScorer() (*Scorer, *Tracker) {
 	t := NewTracker(90)
 	s := NewScorer(t, []string{"/admin-panel-v2", "/api/internal/debug"}, []string{"127.0.0.1"})
+	if d, err := rules.LoadDetector(testRulesDir); err == nil {
+		s.SetRules(d)
+	}
+	if ip, err := rules.LoadIPReputation(testRulesDir); err == nil {
+		s.SetIPReputation(ip)
+	}
 	return s, t
 }
 

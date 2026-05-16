@@ -28,8 +28,8 @@ others are mostly threshold tuning.
 
 ## Related
 
-- [Why VeilGate](../why-veilgate.md) — case study for why the project exists
-- [Business case](../BUSINESS_CASE.md) — analytical framing
+- [Why VeilGate](../product/why-veilgate.md) — case study for why the project exists
+- [Business case](../product/business-case.md) — analytical framing
 - [How-to guides](../how-to/README.md) — task-oriented walk-throughs
 - [Configuration reference](../config/README.md) — every YAML setting
 

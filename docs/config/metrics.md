@@ -1,11 +1,11 @@
 # `metrics:`
 
-> **File:** `/etc/veilgate/veilgate.yaml` &nbsp;·&nbsp;
-> **Section:** `metrics:` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/veilgate.yaml`
+> **Section:** `metrics:`
 > **Reload:** restart required.
 
 VeilGate exposes Prometheus metrics and the live operator dashboard on
-the same listener. Both are unauthenticated — keep this listener
+the same listener. Both are unauthenticated - keep this listener
 private.
 
 **On this page:**
@@ -25,8 +25,8 @@ private.
 | string | no | `:9090` |
 
 Address the metrics + dashboard listener binds to. Use
-`127.0.0.1:9090` to bind only to loopback — the default config in
-[DEPLOYMENT.md](../DEPLOYMENT.md) does this and accesses the dashboard
+`127.0.0.1:9090` to bind only to loopback - the default config in
+[deployment guide](../deployment/README.md) does this and accesses the dashboard
 via SSH tunnel.
 
 ```yaml
@@ -54,22 +54,22 @@ Two endpoints on the same listener:
 Notable Prometheus metrics:
 
 - `veilgate_requests_total{decision="real|challenge|tarpit"}`
-- `veilgate_score` — histogram of total scores
-- `veilgate_score_by_decision{decision="..."}` — same, split by decision
-- `veilgate_signal_hits_total{signal="..."}` — per-signal hit counter
+- `veilgate_score` - histogram of total scores
+- `veilgate_score_by_decision{decision="..."}` - same, split by decision
+- `veilgate_signal_hits_total{signal="..."}` - per-signal hit counter
 - `veilgate_tarpit_bytes_served_total`
 - `veilgate_tarpit_latency_ms_total`
-- `veilgate_attacker_cost_usd_total` — bytes-served × $0.003 / KiB
-- `veilgate_client_cardinality` — distinct clients tracked
-- `veilgate_fleet_fingerprint_cardinality` — distinct behavioural fingerprints
+- `veilgate_attacker_cost_usd_total` - bytes-served x $0.003 / KiB
+- `veilgate_client_cardinality` - distinct clients tracked
+- `veilgate_fleet_fingerprint_cardinality` - distinct behavioral fingerprints
 - `veilgate_ip_reputation_hits_total{category="..."}`
-- `veilgate_ml_fits_total{result="..."}` — Isolation Forest refit outcomes
+- `veilgate_ml_fits_total{result="..."}` - Isolation Forest refit outcomes
 - `veilgate_ml_fit_duration_seconds`
 - `veilgate_ml_fit_rows`
-- `veilgate_bayes_observed_total` — burn-in progress
+- `veilgate_bayes_observed_total` - burn-in progress
 
 A full query cookbook lives at
-[`docs/PROMETHEUS_QUERIES.md`](../PROMETHEUS_QUERIES.md).
+[Prometheus query cookbook](../operations/prometheus-queries.md).
 
 ## Securing the endpoint
 
@@ -83,7 +83,7 @@ Three options, in order of strength:
 
 Do not put `metrics.listen` on a public IP without one of these in
 front of it. Anyone who reaches the dashboard can read live event lines
-including paths, UAs, and decision rationale — that is sensitive
+including paths, UAs, and decision rationale - that is sensitive
 operational data.
 
 ## Example
@@ -103,9 +103,8 @@ ssh -L 9090:127.0.0.1:9090 user@veilgate-host
 ## Related
 
 - [How-to: Monitor with Prometheus + Grafana](../how-to/monitor-with-prometheus.md)
-- [`rules/dashboard.yaml`](rules/dashboard.md) — panel layout
-  *(see the rules dashboard reference page when added)*
+- [`rules/dashboard.yaml`](rules/dashboard.md) - panel layout
 
 ---
 
-*Previous: [`challenge:`](challenge.md) · Next: [`persist:`](persist.md)*
+*Previous: [`challenge:`](challenge.md) | Next: [`persist:`](persist.md)*

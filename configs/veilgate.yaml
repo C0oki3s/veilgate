@@ -9,9 +9,10 @@ upstream: "http://localhost:3000"
 mode: "observe"
 
 # External rule files. Leave empty to use the embedded defaults shipped with
-# the binary. Point at the repo's ./rules dir to edit signals without a rebuild.
-# Files consumed: detector.yaml, tls_fingerprints.yaml, payloads.yaml
-rules_dir: "./rules"
+# the binary. Set to ~/.veilgate/rules (the default for `veilgate update-rules`)
+# to use community rules without a rebuild.
+# Files consumed: detector.yaml, tls_fingerprints.yaml, payloads.yaml, and more.
+rules_dir: "~/.veilgate/rules"
 
 # Capture: legacy JSONL firehose. Superseded by `persist:` below — leave
 # `capture.enabled: false` unless you're running a non-SQLite collection

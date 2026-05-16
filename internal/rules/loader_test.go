@@ -6,19 +6,10 @@ import (
 	"testing"
 )
 
-func TestLoadDetectorEmbedded(t *testing.T) {
-	d, err := LoadDetector("")
-	if err != nil {
-		t.Fatalf("LoadDetector with empty dir should succeed via embed: %v", err)
-	}
-	if len(d.SuspiciousUserAgents.Substrings) == 0 {
-		t.Fatal("embedded detector rules have empty UA list")
-	}
-	if d.Timing.MinEvents == 0 {
-		t.Fatal("embedded detector rules have zero min_events")
-	}
-	if d.SuspiciousUserAgents.Points == 0 {
-		t.Fatal("embedded detector rules have zero UA points")
+func TestLoadDetectorEmptyDirErrors(t *testing.T) {
+	_, err := LoadDetector("")
+	if err == nil {
+		t.Fatal("LoadDetector with empty dir should return an error")
 	}
 }
 
@@ -67,42 +58,27 @@ timing:
 	}
 }
 
-func TestLoadDetectorMissingFileFallsBack(t *testing.T) {
-	dir := t.TempDir() // empty dir, no detector.yaml
+func TestLoadDetectorMissingFileReturnsZero(t *testing.T) {
+	dir := t.TempDir() // empty dir, no detector.yaml or detector/ subdir
 	d, err := LoadDetector(dir)
 	if err != nil {
-		t.Fatalf("missing file should fall back to embed, got error: %v", err)
+		t.Fatalf("missing root file should return zero-value detector, not error: %v", err)
 	}
-	if len(d.SuspiciousUserAgents.Substrings) == 0 {
-		t.Fatal("fallback to embedded should populate UA list")
-	}
-}
-
-func TestLoadTLSEmbedded(t *testing.T) {
-	tls, err := LoadTLS("")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(tls.JA4Exact) == 0 {
-		t.Fatal("embedded TLS db has no JA4 entries")
-	}
-	if len(tls.JA4Prefix) == 0 {
-		t.Fatal("embedded TLS db has no JA4 prefix entries")
+	if d == nil {
+		t.Fatal("expected non-nil zero-value detector")
 	}
 }
 
-func TestLoadPayloadsEmbedded(t *testing.T) {
-	p, err := LoadPayloads("")
-	if err != nil {
-		t.Fatal(err)
+func TestLoadTLSEmptyDirErrors(t *testing.T) {
+	_, err := LoadTLS("")
+	if err == nil {
+		t.Fatal("LoadTLS with empty dir should return an error")
 	}
-	if len(p.Termination) == 0 {
-		t.Fatal("embedded payloads missing termination category")
-	}
-	if len(p.CostBomb) == 0 {
-		t.Fatal("embedded payloads missing cost_bomb category")
-	}
-	if p.CostBomb[0].Generator != "log_burst" {
-		t.Errorf("expected cost_bomb[0].generator=log_burst, got %q", p.CostBomb[0].Generator)
+}
+
+func TestLoadPayloadsEmptyDirErrors(t *testing.T) {
+	_, err := LoadPayloads("")
+	if err == nil {
+		t.Fatal("LoadPayloads with empty dir should return an error")
 	}
 }

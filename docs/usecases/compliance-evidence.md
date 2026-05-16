@@ -32,7 +32,7 @@ answers all four out of the box.
 | Audit ask | VeilGate primitive |
 | --- | --- |
 | AI threat-exposure narrative | The dashboard at `:9090` plus the `veilgate_attacker_cost_usd_total` metric show exactly what an agent encountered |
-| Model documentation | [docs/MODEL_CARD.md](../MODEL_CARD.md) — inputs, learning behaviour, limitations |
+| Model documentation | [model card](../model/README.md) — inputs, learning behaviour, limitations |
 | Privacy-by-design | Default-on path redaction, capture off by default |
 | Right-to-Erasure | `veilgate forget --ip <addr>` — deletes every row tied to a client, writes an audit entry |
 | Tamper-evident audit trail | Hash-chained `audit.log` (SHA-256 chain across rows) plus an `audit_log` table in SQLite |
@@ -59,7 +59,7 @@ points for your own auditor conversation.
 - **Art. 25 (Data protection by design):** path redaction on by
   default, capture off by default, model never ingests bodies/values.
 - **Art. 30 (Records of processing):** the
-  [model card](../MODEL_CARD.md) is the canonical answer.
+  [model card](../model/README.md) is the canonical answer.
 
 ### ISO 27001
 
@@ -151,12 +151,12 @@ Ship the JSONL file to your SIEM via your existing collector
 
 ## Related
 
-- [Business case](../BUSINESS_CASE.md) — compliance posture in detail
-- [Engineering gaps](../ENGINEERING_GAPS.md) — what is and isn't shipped
+- [Business case](../product/business-case.md) — compliance posture in detail
+- [Engineering gaps](../internals/engineering-gaps.md) — what is and isn't shipped
 - [How-to: Handle an RTBF request](../how-to/handle-rtbf.md)
 - [Config: persist](../config/persist.md)
 - [Config: capture](../config/capture.md)
-- [Model card](../MODEL_CARD.md)
+- [Model card](../model/README.md)
 
 ---
 

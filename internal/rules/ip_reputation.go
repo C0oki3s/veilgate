@@ -1,15 +1,12 @@
 package rules
 
 import (
-	_ "embed"
 	"fmt"
 	"net"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
-
-//go:embed defaults/ip_reputation.yaml
-var embeddedIPReputation []byte
 
 // IPReputationCategory is one labelled CIDR bucket — "tor_exit",
 // "cloud", "anonymizer", etc. Points is what scoreIPReputation adds
@@ -60,18 +57,24 @@ type IPReputation struct {
 	ParsedPrivate []*net.IPNet `yaml:"-"`
 }
 
-// LoadIPReputation reads ip_reputation.yaml from dir (or embedded default
-// when dir is empty / file missing) and pre-parses every CIDR for fast
+// LoadIPReputation reads ip_reputation.yaml from dir, merges community
+// additions from rules/ip_reputation/, pre-parses every CIDR for fast
 // lookup. Invalid CIDR entries are silently dropped so an operator typo
 // in one category doesn't break the rest of the file.
 func LoadIPReputation(dir string) (*IPReputation, error) {
-	raw, err := readOrEmbed(dir, "ip_reputation.yaml", embeddedIPReputation)
+	var ir IPReputation
+	raw, err := readOptionalFromDir(dir, "ip_reputation.yaml")
 	if err != nil {
 		return nil, err
 	}
-	var ir IPReputation
-	if err := yaml.Unmarshal(raw, &ir); err != nil {
-		return nil, fmt.Errorf("parse ip_reputation.yaml: %w", err)
+	if raw != nil {
+		if err := yaml.Unmarshal(raw, &ir); err != nil {
+			return nil, fmt.Errorf("parse ip_reputation.yaml: %w", err)
+		}
+	}
+	// Merge community additions (new categories; append CIDRs by category name).
+	if err := mergeIPReputationDir(filepath.Join(dir, "ip_reputation"), &ir); err != nil {
+		return nil, err
 	}
 	for i := range ir.Categories {
 		cat := &ir.Categories[i]
@@ -98,6 +101,46 @@ func LoadIPReputation(dir string) (*IPReputation, error) {
 		}
 	}
 	return &ir, nil
+}
+
+// mergeIPReputationDir walks dir and merges community categories into ir.
+// Scalar config (fleet_rotation, ua_rotation) is set only when the file
+// carries non-zero values, so base.yaml sets them and community files
+// (which omit scalars) never overwrite them. private_cidrs are appended.
+func mergeIPReputationDir(dir string, ir *IPReputation) error {
+	return walkYAMLDir(dir, func(path string, raw []byte) error {
+		var patch IPReputation
+		if err := yaml.Unmarshal(raw, &patch); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		// Scalars: only set when the file explicitly provides them.
+		if patch.FleetRotation.WindowSeconds != 0 {
+			ir.FleetRotation = patch.FleetRotation
+		}
+		if patch.UARotation.DistinctUAsForFire != 0 {
+			ir.UARotation = patch.UARotation
+		}
+		// private_cidrs: append (community files may add private ranges).
+		ir.PrivateCIDRs = append(ir.PrivateCIDRs, patch.PrivateCIDRs...)
+		// Categories: merge by name.
+		for _, pc := range patch.Categories {
+			merged := false
+			for i := range ir.Categories {
+				if ir.Categories[i].Name == pc.Name {
+					if pc.Points != 0 {
+						ir.Categories[i].Points = pc.Points
+					}
+					ir.Categories[i].CIDRs = append(ir.Categories[i].CIDRs, pc.CIDRs...)
+					merged = true
+					break
+				}
+			}
+			if !merged {
+				ir.Categories = append(ir.Categories, pc)
+			}
+		}
+		return nil
+	})
 }
 
 // Classify returns the first matching category for the given IP, or

@@ -27,12 +27,12 @@ real requests, and where it loads detection rules from.
 One of `"observe"`, `"challenge"`, `"tarpit"`, `"auto"`. Governs what the proxy
 does when a score crosses a threshold.
 
-| Value | Behaviour |
+| Value | Behavior |
 | --- | --- |
 | `observe` | Score every request, never divert. Safe rollout mode. |
-| `challenge` | Below `score_challenge_threshold` → forward; at or above → JS proof-of-work. Tarpit threshold ignored. |
-| `tarpit` | Below `score_challenge_threshold` → forward; between thresholds → challenge; at or above `score_tarpit_threshold` → tarpit. |
-| `auto` | Threshold-driven enforcement: below challenge → forward; between thresholds → challenge; at or above tarpit → tarpit. |
+| `challenge` | Below `score_challenge_threshold` -> forward; at or above -> JS proof-of-work. Tarpit threshold ignored. |
+| `tarpit` | Below `score_challenge_threshold` -> forward; between thresholds -> challenge; at or above `score_tarpit_threshold` -> tarpit. |
+| `auto` | Threshold-driven enforcement: below challenge -> forward; between thresholds -> challenge; at or above tarpit -> tarpit. |
 
 > **Operator guidance.** Always start in `observe` mode for at least one
 > traffic cycle (typically a week). See the
@@ -56,7 +56,7 @@ either:
 - Front VeilGate with another proxy that owns the privileged port, or
 - Grant the binary `cap_net_bind_service` and uncomment
   `AmbientCapabilities=CAP_NET_BIND_SERVICE` in the systemd unit. See
-  [DEPLOYMENT.md → privileged ports](../DEPLOYMENT.md).
+  [deployment guide -> privileged ports](../deployment/README.md).
 
 ---
 
@@ -64,7 +64,7 @@ either:
 
 | Type | Required | Default |
 | --- | --- | --- |
-| string (URL) | yes (effectively) | — |
+| string (URL) | yes (effectively) | - |
 
 URL of the real application VeilGate forwards untainted requests to.
 Must include the scheme (`http://` or `https://`).
@@ -86,8 +86,8 @@ original host. Configure the upstream's virtual hosting accordingly.
 | string (path) | no | `""` (use embedded defaults) |
 
 Directory containing the detection rule files (`detector.yaml`,
-`ml.yaml`, `payloads.yaml`, …). When empty, VeilGate uses the rule
-files compiled into the binary — convenient for first boot, but every
+`ml.yaml`, `payloads.yaml`, ...). When empty, VeilGate uses the rule
+files compiled into the binary - convenient for first boot, but every
 production install should set this to `/etc/veilgate/rules`.
 
 The watcher uses `fsnotify` to debounce-reload any file under this
@@ -119,10 +119,10 @@ metrics:
 
 ## Related
 
-- [`detector:`](detector.md) — score thresholds + trusted proxies
-- [`tls:`](tls.md) — HTTPS termination
-- [Deployment guide](../DEPLOYMENT.md)
+- [`detector:`](detector.md) - score thresholds + trusted proxies
+- [`tls:`](tls.md) - HTTPS termination
+- [Deployment guide](../deployment/README.md)
 
 ---
 
-*Previous: [Configuration reference](README.md) · Next: [`tls:`](tls.md)*
+*Previous: [Configuration reference](README.md) | Next: [`tls:`](tls.md)*

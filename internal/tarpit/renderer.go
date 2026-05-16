@@ -36,10 +36,9 @@ type compiledResponse struct {
 	body        *template.Template
 }
 
-// NewRenderer builds a renderer from the embedded templates. Wire a holder
-// via SetTemplates to get hot-reload behavior.
+// NewRenderer builds an empty renderer. Wire a holder via SetTemplates.
 func NewRenderer() *Renderer {
-	t, _ := rules.LoadTemplates("")
+	t := new(rules.Templates)
 	return &Renderer{
 		holder:   rules.NewHolder(t),
 		compiled: make(map[string]*compiledResponse),

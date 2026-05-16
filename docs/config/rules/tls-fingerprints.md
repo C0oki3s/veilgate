@@ -1,11 +1,11 @@
 # `rules/tls_fingerprints.yaml`
 
-> **File:** `/etc/veilgate/rules/tls_fingerprints.yaml` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/rules/tls_fingerprints.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
 > Database of known JA3 / JA4 fingerprints. Read by the
 > `tls_agent` / `tls_bot` / `tls_non_browser` signals. Active only
-> when [`tls.enabled: true`](../tls.md) — VeilGate must terminate TLS
+> when [`tls.enabled: true`](../tls.md) - VeilGate must terminate TLS
 > to compute the fingerprints.
 
 **On this page:**
@@ -45,7 +45,7 @@ ja3_exact:
 | `prefix` (in `ja4_prefix`) | string | yes | first N chars of a JA4 hash, conventionally 10 |
 | `label` | string | yes | human-readable identifier |
 | `category` | string (enum) | yes | one of `browser`, `agent`, `scanner`, `bot`, `unknown` |
-| `confidence` | int | no | 0–100; default 100 if omitted |
+| `confidence` | int | no | 0-100; default 100 if omitted |
 
 ## `ja4_exact:`
 
@@ -65,7 +65,7 @@ don't use it.
 
 ## `ja3_exact:`
 
-Legacy JA3 MD5 fingerprints. Less discriminating than JA4 — JA3
+Legacy JA3 MD5 fingerprints. Less discriminating than JA4 - JA3
 hashes the *set* of TLS extensions, JA4 hashes the *prefix*. Keep
 `ja3_exact` for older agents and exotic clients that haven't been
 fingerprinted in JA4 yet.
@@ -77,11 +77,11 @@ The detector maps `(category, confidence)` to scoring points
 
 | Category | Confidence | Signal name | Points |
 | --- | --- | --- | --- |
-| `agent` / `scanner` | ≥ 80 | `tls_agent` | 45 |
+| `agent` / `scanner` | >= 80 | `tls_agent` | 45 |
 | `agent` / `scanner` | < 80 | `tls_agent` | 30 |
 | `bot` | any | `tls_bot` | 25 |
 | `unknown` | any | `tls_non_browser` | 20 |
-| `browser` | any | (no signal — these classify as legitimate) | 0 |
+| `browser` | any | (no signal - these classify as legitimate) | 0 |
 
 > **Note on accuracy.** The shipped database covers the common
 > Python / Go / Node / curl / OpenSSL libraries. JA4 hashes drift
@@ -104,7 +104,7 @@ sudo -u veilgate sqlite3 /var/lib/veilgate/events.db \
      LIMIT 30"
 ```
 
-For each high-volume JA4 you don't recognise:
+For each high-volume JA4 you do not recognize:
 
 1. Look up the User-Agent in the same row to identify the client.
 2. Decide the category (`browser` if it's a real browser drift,
@@ -143,11 +143,11 @@ ja3_exact:
 
 ## Related
 
-- [`tls:`](../tls.md) — TLS termination at the proxy
-- [`rules/detector.yaml` → suspicious_user_agents](detector.md#suspicious_user_agents)
-  — paired UA-based detection
-- [Use case: LLM-agent defence](../../usecases/llm-agent-defense.md)
+- [`tls:`](../tls.md) - TLS termination at the proxy
+- [`rules/detector.yaml` -> suspicious_user_agents](detector.md#suspicious_user_agents)
+  - paired UA-based detection
+- [Use case: LLM-agent defense](../../usecases/llm-agent-defense.md)
 
 ---
 
-*Previous: [`rules/injection_strategy.yaml`](injection-strategy.md) · Next: [`rules/ip_reputation.yaml`](ip-reputation.md)*
+*Previous: [`rules/injection_strategy.yaml`](injection-strategy.md) | Next: [`rules/ip_reputation.yaml`](ip-reputation.md)*

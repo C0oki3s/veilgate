@@ -31,8 +31,10 @@ func TestRepositoryConfigAndRulesLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if cfg.RulesDir != "./rules" {
-		t.Fatalf("rules_dir = %q", cfg.RulesDir)
+	// configs/veilgate.yaml now defaults to ~/.veilgate/rules which expands
+	// to the user home at load time. Accept any non-empty path.
+	if cfg.RulesDir == "" {
+		t.Fatalf("rules_dir must not be empty, got %q", cfg.RulesDir)
 	}
 
 	challengeRules, err := rules.LoadChallenge(repoPath("rules"))
@@ -53,7 +55,10 @@ func TestRepositoryConfigAndRulesLoad(t *testing.T) {
 }
 
 func TestChallengeHandlerRejectsUnsignedVerifyPOST(t *testing.T) {
-	h := challenge.NewHandler("integration-secret", 1, time.Minute)
+	h, err := challenge.NewHandlerFromDir("integration-secret", repoPath("rules"), 1, time.Minute)
+	if err != nil {
+		t.Fatalf("NewHandlerFromDir: %v", err)
+	}
 	r := httptest.NewRequest(http.MethodPost, "/__veilgate/verify", strings.NewReader(`{"challenge":"abc","nonce":1}`))
 	w := httptest.NewRecorder()
 
@@ -65,7 +70,10 @@ func TestChallengeHandlerRejectsUnsignedVerifyPOST(t *testing.T) {
 
 func TestTLSFingerprintClassifierThroughPublicAPI(t *testing.T) {
 	store := tlsfp.NewStore(time.Minute)
-	db := tlsfp.NewDatabase()
+	db, err := tlsfp.NewDatabaseFromDir(repoPath("rules"))
+	if err != nil {
+		t.Fatalf("NewDatabaseFromDir: %v", err)
+	}
 	classifier := tlsfp.NewClassifier(store, db)
 
 	remote := "203.0.113.10:443"
@@ -80,6 +88,9 @@ func TestTLSFingerprintClassifierThroughPublicAPI(t *testing.T) {
 func TestDetectorScoresAgentTrafficThroughPublicAPI(t *testing.T) {
 	tracker := detector.NewTracker(90)
 	scorer := detector.NewScorer(tracker, []string{"/admin-panel-v2"}, nil)
+	if d, err := rules.LoadDetector(repoPath("rules")); err == nil {
+		scorer.SetRules(d)
+	}
 
 	r := httptest.NewRequest(http.MethodGet, "/admin-panel-v2?id=1%27%20UNION%20SELECT%20password", nil)
 	r.Header.Set("User-Agent", "sqlmap/1.7")

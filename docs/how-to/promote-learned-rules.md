@@ -167,7 +167,7 @@ signal — your weak label might be wrong.
 ## Related
 
 - [Config: rules/ml.yaml](../config/rules/ml.md)
-- [Model card](../MODEL_CARD.md) — what the miner is and isn't
+- [Model card](../model/README.md) — what the miner is and isn't
 - [How-to: Observe-mode rollout & threshold tuning](observe-and-tune.md)
 
 ---

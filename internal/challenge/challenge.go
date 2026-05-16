@@ -43,7 +43,7 @@ type Handler struct {
 // `difficultyOverride` and `ttlOverride` are applied only when non-zero,
 // matching the old API for compat with the existing main.go wiring.
 func NewHandler(secret string, difficultyOverride int, ttlOverride time.Duration) *Handler {
-	cr, _ := rules.LoadChallenge("")
+	cr := new(rules.ChallengeRules)
 	// Apply overrides on a copy so the embedded default isn't mutated.
 	if difficultyOverride > 0 {
 		cr.Difficulty = difficultyOverride
@@ -55,6 +55,24 @@ func NewHandler(secret string, difficultyOverride int, ttlOverride time.Duration
 		secret: []byte(secret),
 		rules:  rules.NewHolder(cr),
 	}
+}
+
+// NewHandlerFromDir constructs the handler loading challenge rules from rulesDir.
+func NewHandlerFromDir(secret, rulesDir string, difficultyOverride int, ttlOverride time.Duration) (*Handler, error) {
+	cr, err := rules.LoadChallenge(rulesDir)
+	if err != nil {
+		return nil, err
+	}
+	if difficultyOverride > 0 {
+		cr.Difficulty = difficultyOverride
+	}
+	if ttlOverride > 0 {
+		cr.TokenTTLMinutes = int(ttlOverride / time.Minute)
+	}
+	return &Handler{
+		secret: []byte(secret),
+		rules:  rules.NewHolder(cr),
+	}, nil
 }
 
 // SetRules swaps in a hot-reloadable holder.
@@ -184,22 +202,27 @@ func (h *Handler) serveChallenge(w http.ResponseWriter, r *http.Request, cr *rul
 }
 
 // serveSPAChallenge returns a structured 401 JSON response for
-// XHR/fetch contexts where serving HTML would be useless. The SPA
-// reads the response, runs its own challenge flow (operator-defined
-// — e.g., redirect the user to a sign-in page, or open a separate
-// challenge URL the operator hosts), obtains a token through that
-// flow, then attaches it as the configured token header on
-// subsequent requests.
-//
-// We intentionally do NOT prescribe where the SPA must go to solve
-// the challenge — that's an operator decision. Returning a generic
-// "challenge_required" hint lets the SPA route the user through
-// whatever interstitial / sign-in flow the operator already has.
+// XHR/fetch contexts where serving HTML would be useless. The body
+// carries the same PoW metadata that the HTML page template gets,
+// so an SPA can solve the challenge inline (SHA-256 nonce search),
+// POST it to verify_path, and retry the original request with the
+// returned token attached as the configured header. No popup or
+// top-level navigation required — same shape as AWS WAF Bot Control's
+// `getToken()` flow, just delivered as one JSON document.
 func (h *Handler) serveSPAChallenge(w http.ResponseWriter, r *http.Request, cr *rules.ChallengeRules) {
 	hdrName := cr.TokenHeaderName
 	if hdrName == "" {
 		hdrName = "X-Veilgate-Token"
 	}
+
+	challengeNonce, err := newChallengeNonce()
+	if err != nil {
+		http.Error(w, "challenge seed failed", http.StatusInternalServerError)
+		return
+	}
+	challengeTS := time.Now().UTC().Format(time.RFC3339Nano)
+	challengeSig := h.sign(h.challengePayload(challengeNonce, challengeTS))
+	target := strings.Repeat("0", normalizedDifficulty(cr.Difficulty))
 
 	if origin := r.Header.Get("Origin"); origin != "" {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -216,6 +239,11 @@ func (h *Handler) serveSPAChallenge(w http.ResponseWriter, r *http.Request, cr *
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"error":        "challenge_required",
 		"token_header": hdrName,
+		"verify_path":  cr.VerifyPath,
+		"challenge":    challengeNonce,
+		"target":       target,
+		"ts":           challengeTS,
+		"sig":          challengeSig,
 		"retry_after":  1,
 	})
 }

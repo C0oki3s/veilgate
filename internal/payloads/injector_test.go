@@ -7,8 +7,19 @@ import (
 	"github.com/C0oki3s/veilgate/internal/tarpit"
 )
 
+const testRulesDir = "../../rules"
+
+func mustLibrary(t *testing.T) *Library {
+	t.Helper()
+	lib, err := NewLibraryFromDir(testRulesDir)
+	if err != nil {
+		t.Fatalf("NewLibraryFromDir: %v", err)
+	}
+	return lib
+}
+
 func TestInjectorHTMLAddsComments(t *testing.T) {
-	inj := NewInjector(NewLibrary(), 3, false)
+	inj := NewInjector(mustLibrary(t), 3, false)
 	body := `<html><head><title>x</title></head><body><h1>hi</h1></body></html>`
 	out := inj.Inject("text/html; charset=utf-8", body, tarpit.InjectionContext{
 		Path: "/", ClientID: "10.0.0.1", Visits: 1,
@@ -22,30 +33,29 @@ func TestInjectorHTMLAddsComments(t *testing.T) {
 }
 
 func TestInjectorJSONAddsField(t *testing.T) {
-	inj := NewInjector(NewLibrary(), 3, false)
+	inj := NewInjector(mustLibrary(t), 3, false)
 	body := `{"result":"ok"}`
 	out := inj.Inject("application/json", body, tarpit.InjectionContext{
 		Path: "/api", ClientID: "10.0.0.2", Visits: 1,
 	})
-	// Output must still end with } and must contain a payload marker.
+	// Output must still end with } and must contain an injected JSON key.
 	if !strings.HasSuffix(out, "}") {
 		t.Fatalf("JSON output must end with }, got %q", out)
 	}
-	if !strings.Contains(out, "_scan_status") && !strings.Contains(out, "_previous_tool_output") {
-		// Json-style payloads either "_scan_status" or "_previous_tool_output".
-		// Due to random selection one must eventually appear across multiple calls.
-		// Retry with different salt.
+	// Any json_field payload inserts a ",\"_<key>\":" pattern.
+	if out == body {
+		// No injection yet — retry with a different salt to hit json_field.
 		out = inj.Inject("application/json", body, tarpit.InjectionContext{
 			Path: "/api", ClientID: "10.0.0.99", Visits: 2,
 		})
-		if !strings.Contains(out, "_scan_status") && !strings.Contains(out, "_previous_tool_output") {
-			t.Fatalf("expected json_field payload, got %q", out)
+		if out == body {
+			t.Fatalf("expected json_field payload to inject something, got %q", out)
 		}
 	}
 }
 
 func TestInjectorLeavesMalformedJSONAlone(t *testing.T) {
-	inj := NewInjector(NewLibrary(), 3, false)
+	inj := NewInjector(mustLibrary(t), 3, false)
 	body := `not valid json`
 	out := inj.Inject("application/json", body, tarpit.InjectionContext{
 		Path: "/api", ClientID: "10.0.0.3", Visits: 1,
@@ -56,7 +66,7 @@ func TestInjectorLeavesMalformedJSONAlone(t *testing.T) {
 }
 
 func TestInjectorUnknownContentTypePassesThrough(t *testing.T) {
-	inj := NewInjector(NewLibrary(), 3, false)
+	inj := NewInjector(mustLibrary(t), 3, false)
 	body := "binary data"
 	out := inj.Inject("application/octet-stream", body, tarpit.InjectionContext{
 		Path: "/x", ClientID: "10.0.0.4", Visits: 1,
@@ -67,7 +77,7 @@ func TestInjectorUnknownContentTypePassesThrough(t *testing.T) {
 }
 
 func TestLibraryPickDeterministic(t *testing.T) {
-	lib := NewLibrary()
+	lib := mustLibrary(t)
 	a := lib.Pick("test-salt", 3)
 	b := lib.Pick("test-salt", 3)
 	if len(a) != len(b) {
@@ -81,7 +91,7 @@ func TestLibraryPickDeterministic(t *testing.T) {
 }
 
 func TestLibraryPickDifferentSalts(t *testing.T) {
-	lib := NewLibrary()
+	lib := mustLibrary(t)
 	a := lib.Pick("salt-one", 5)
 	b := lib.Pick("salt-two", 5)
 	// Different salts should almost certainly produce a different ordering.

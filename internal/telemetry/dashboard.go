@@ -38,9 +38,8 @@ func (d *Dashboard) cfg() *rules.Dashboard {
 			return c
 		}
 	}
-	// Fallback: load embedded defaults.
-	c, _ := rules.LoadDashboard("")
-	return c
+	// No rules holder set; return a zero-value config.
+	return new(rules.Dashboard)
 }
 
 func (d *Dashboard) Record(e Event) {

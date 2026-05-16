@@ -3,6 +3,7 @@ package rules
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,11 +18,21 @@ import (
 //
 // A rebuild-and-swap is debounced (default 500ms) so editors that write
 // in two flush cycles don't trigger two reloads.
+//
+// Subdirectory watching: AddSubdir registers an additional directory to
+// watch. Any .yaml/.yml change inside that directory fires a named handler
+// registered via Register. This is used for the learned/ subdirectory so
+// community rule files hot-reload the learned rules set.
 type Watcher struct {
 	dir      string
 	fsw      *fsnotify.Watcher
 	handlers map[string]func() error
 	debounce time.Duration
+
+	// subdirMap maps a cleaned subdirectory absolute path → handler name.
+	// When an fsnotify event arrives from a subdirectory, the event is
+	// dispatched to the named handler instead of looking up by basename.
+	subdirMap map[string]string
 
 	pendingMu sync.Mutex
 	pending   map[string]*time.Timer
@@ -50,11 +61,12 @@ func NewWatcher(dir string) (*Watcher, error) {
 		return nil, err
 	}
 	return &Watcher{
-		dir:      dir,
-		fsw:      fsw,
-		handlers: make(map[string]func() error),
-		debounce: 500 * time.Millisecond,
-		pending:  make(map[string]*time.Timer),
+		dir:       dir,
+		fsw:       fsw,
+		handlers:  make(map[string]func() error),
+		debounce:  500 * time.Millisecond,
+		subdirMap: make(map[string]string),
+		pending:   make(map[string]*time.Timer),
 	}, nil
 }
 
@@ -65,6 +77,22 @@ func (w *Watcher) Register(filename string, reload func() error) {
 		return
 	}
 	w.handlers[filename] = reload
+}
+
+// AddSubdir watches an additional subdirectory. Any .yaml or .yml file
+// change inside subdir fires the handler registered under handlerName.
+// This is the mechanism for community learned/ rules: any file added or
+// edited inside learned/ re-triggers the "learned.yaml" reload callback.
+// A nil watcher is a no-op.
+func (w *Watcher) AddSubdir(subdir, handlerName string) error {
+	if w == nil {
+		return nil
+	}
+	if err := w.fsw.Add(subdir); err != nil {
+		return err
+	}
+	w.subdirMap[filepath.Clean(subdir)] = handlerName
+	return nil
 }
 
 // Stats returns a snapshot of reload counters.
@@ -93,7 +121,19 @@ func (w *Watcher) Run(ctx context.Context, onError func(filename string, err err
 			if ev.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Rename) == 0 {
 				continue
 			}
+			// Determine which handler name to fire.
+			// First check whether the event came from a watched subdirectory;
+			// if so, map to the registered handler name regardless of basename.
 			name := filepath.Base(ev.Name)
+			if handler, ok := w.subdirMap[filepath.Clean(filepath.Dir(ev.Name))]; ok {
+				// Only act on YAML files inside the subdirectory.
+				ext := strings.ToLower(filepath.Ext(ev.Name))
+				if ext == ".yaml" || ext == ".yml" {
+					name = handler
+				} else {
+					continue
+				}
+			}
 			if _, ok := w.handlers[name]; !ok {
 				continue
 			}

@@ -1,6 +1,6 @@
 # `rules/templates.yaml`
 
-> **File:** `/etc/veilgate/rules/templates.yaml` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/rules/templates.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
 > Response bodies served by the tarpit. Each template is selected by a
@@ -45,18 +45,18 @@ The renderer hands every template a context object:
 
 | Variable | Source | Notes |
 | --- | --- | --- |
-| `.Profile.Company` | `rules/fake_data.yaml` → `companies[]` | deterministic per-IP — same client sees same value |
-| `.Profile.AdminUser` | `rules/fake_data.yaml` → `admin_users[]` | |
-| `.Profile.AdminPass` | `rules/fake_data.yaml` → `admin_passes[]` | |
-| `.Profile.Stack` | `rules/fake_data.yaml` → `stacks[]` | |
-| `.Profile.Version` | `rules/fake_data.yaml` → `versions[]` | |
+| `.Profile.Company` | `rules/fake_data.yaml` -> `companies[]` | deterministic per-IP - same client sees same value |
+| `.Profile.AdminUser` | `rules/fake_data.yaml` -> `admin_users[]` | |
+| `.Profile.AdminPass` | `rules/fake_data.yaml` -> `admin_passes[]` | |
+| `.Profile.Stack` | `rules/fake_data.yaml` -> `stacks[]` | |
+| `.Profile.Version` | `rules/fake_data.yaml` -> `versions[]` | |
 | `.Profile.MinorVersion` | derived | small integer for plausible patch numbers |
-| `.Profile.EmailDomain` | `rules/fake_data.yaml` → `email_domains[]` | |
+| `.Profile.EmailDomain` | `rules/fake_data.yaml` -> `email_domains[]` | |
 | `.Path` | request URL path | passed through `extra` map |
 | `.Query` | request raw query | passed through `extra` map |
 
 The deterministic mapping is `hash(client_ip) % len(pool)`. The same
-attacker sees the same fake company every visit — that's the
+attacker sees the same fake company every visit - that's the
 "coherent fake application" mechanism.
 
 ## Built-in templates
@@ -67,8 +67,8 @@ The shipped default file includes:
 | --- | --- | --- |
 | `generic_not_found` | fallthrough route | basic 404 page that still sells the fake |
 | `fake_admin` | `/admin*` and similar | login form claiming to be the operator's admin panel |
-| `fake_git_config` | `/.git/config` | a synthesised but coherent gitconfig |
-| `fake_env` | `/.env` | environment-file shape with fake secrets — register these as canaries |
+| `fake_git_config` | `/.git/config` | a synthesized but coherent gitconfig |
+| `fake_env` | `/.env` | environment-file shape with fake secrets - register these as canaries |
 | `sql_error` | requests with SQLi markers | a verbose-looking SQL error revealing fake schema |
 | `api_json_fake` | `/api/*` | JSON API stub returning fake users / records |
 
@@ -92,7 +92,7 @@ templates:
           "version": "{{.Profile.Version}}"
         },
         "paths": {
-          "/api/v1/admin/secret": {"get": {"summary": "internal — auth required"}},
+          "/api/v1/admin/secret": {"get": {"summary": "internal - auth required"}},
           "/api/v1/users/{id}":   {"get": {"summary": "fetch user"}},
           "/api/v1/keys":         {"get": {"summary": "list api keys"}}
         }
@@ -115,12 +115,11 @@ routes:
 
 ## Related
 
-- [`rules/injection_strategy.yaml`](injection-strategy.md) — route → template mapping
-- [`rules/fake_data.yaml`](#) — pools that feed `.Profile.*`
-  *(reference page TBD)*
-- [`rules/payloads.yaml`](payloads.md) — prompt-injection content
+- [`rules/injection_strategy.yaml`](injection-strategy.md) - route -> template mapping
+- [`rules/fake_data.yaml`](fake-data.md) - pools that feed `.Profile.*`
+- [`rules/payloads.yaml`](payloads.md) - prompt-injection content
 - [Use case: API recon blocking](../../usecases/api-recon-blocking.md)
 
 ---
 
-*Previous: [`rules/payloads.yaml`](payloads.md) · Next: [`rules/injection_strategy.yaml`](injection-strategy.md)*
+*Previous: [`rules/payloads.yaml`](payloads.md) | Next: [`rules/injection_strategy.yaml`](injection-strategy.md)*

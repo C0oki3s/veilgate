@@ -6,7 +6,10 @@ import (
 	"testing"
 
 	"github.com/C0oki3s/veilgate/internal/config"
+	"github.com/C0oki3s/veilgate/internal/rules"
 )
+
+const testRulesDir = "../../rules"
 
 func newTestHandler() *Handler {
 	cfg := &config.TarpitConfig{
@@ -14,7 +17,21 @@ func newTestHandler() *Handler {
 		MaxLatencyMs: 2,
 		MaxBodyBytes: 1024 * 1024,
 	}
-	return NewHandler(cfg, NewProfileStore(), nil)
+	h := NewHandler(cfg, NewProfileStore(), nil)
+	if tpls, err := rules.LoadTemplates(testRulesDir); err == nil {
+		vuln, _ := rules.LoadVulnerabilities(testRulesDir)
+		strat, _ := rules.LoadInjectionStrategy(testRulesDir)
+		var vh *rules.Holder[rules.Vulnerabilities]
+		var sh *rules.Holder[rules.InjectionStrategy]
+		if vuln != nil {
+			vh = rules.NewHolder(vuln)
+		}
+		if strat != nil {
+			sh = rules.NewHolder(strat)
+		}
+		h.SetRules(rules.NewHolder(tpls), vh, sh)
+	}
+	return h
 }
 
 func TestRouteLoginPage(t *testing.T) {

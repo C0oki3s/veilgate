@@ -1,10 +1,10 @@
 # `capture:`
 
-> **File:** `/etc/veilgate/veilgate.yaml` &nbsp;·&nbsp;
-> **Section:** `capture:` &nbsp;·&nbsp;
+> **File:** `/etc/veilgate/veilgate.yaml`
+> **Section:** `capture:`
 > **Reload:** restart required.
 
-Optional JSONL capture of every request — score, decision, signals.
+Optional JSONL capture of every request - score, decision, signals.
 Distinct from [`persist:`](persist.md), which is the structured SQLite
 store. Capture is intended for offline ML research; **default is off.**
 
@@ -30,7 +30,7 @@ store. Capture is intended for offline ML research; **default is off.**
 | bool | no | `false` |
 
 When `true`, the proxy writes one JSONL line per request to `path`.
-Default is **off** — turning capture on creates a new data store with
+Default is **off** - turning capture on creates a new data store with
 its own privacy considerations.
 
 ---
@@ -39,7 +39,7 @@ its own privacy considerations.
 
 | Type | Required if enabled | Default |
 | --- | --- | --- |
-| string (file path) | yes | — |
+| string (file path) | yes | - |
 
 JSONL file path. Parent directory is created at 0700; the file at
 0600 (configurable via `file_mode`). Recommended:
@@ -55,7 +55,7 @@ JSONL file path. Parent directory is created at 0700; the file at
 
 Rotate the file when it exceeds this size in megabytes. The current
 file is renamed to `<path>.1`; a fresh file is created at `path`. Only
-one rotated copy is kept — the next rotation overwrites it.
+one rotated copy is kept - the next rotation overwrites it.
 
 ---
 
@@ -128,7 +128,7 @@ capture:
       replace: "\"authorization\":\"<redacted>\""
 ```
 
-Bad regexes are silently dropped at startup — a typo doesn't take the
+Bad regexes are silently dropped at startup - a typo doesn't take the
 proxy down. Verify with the journal log immediately after a config
 change.
 
@@ -175,11 +175,11 @@ capture:
 
 ## Related
 
-- [`persist:`](persist.md) — structured SQLite store (different surface)
+- [`persist:`](persist.md) - structured SQLite store (different surface)
 - [Use case: Compliance & audit evidence](../usecases/compliance-evidence.md)
 - [How-to: Handle a Right-to-Erasure (RTBF) request](../how-to/handle-rtbf.md)
-- [Model card](../MODEL_CARD.md) — what features the ML actually trains on
+- [Model card](../model/README.md) - what features the ML actually trains on
 
 ---
 
-*Previous: [`persist:`](persist.md) · Next: [Rules: `detector.yaml`](rules/detector.md)*
+*Previous: [`persist:`](persist.md) | Next: [Rules: `detector.yaml`](rules/detector.md)*

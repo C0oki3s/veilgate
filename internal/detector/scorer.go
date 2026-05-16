@@ -81,9 +81,8 @@ func NewScorer(t *Tracker, honeypots, trusted []string) *Scorer {
 		}
 		tr[ip] = struct{}{}
 	}
-	// Embedded defaults are guaranteed parseable at build time; ignore error.
-	d, _ := rules.LoadDetector("")
-	ip, _ := rules.LoadIPReputation("")
+	d := new(rules.Detector)
+	ip := new(rules.IPReputation)
 	window := 600
 	maxFP := 20000
 	if ip != nil {

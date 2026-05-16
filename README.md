@@ -89,16 +89,18 @@ metrics:
   listen: ":9090"
 ```
 
-Full reference: [docs/CONFIG_REFERENCE.md](docs/CONFIG_REFERENCE.md).
+Full reference: [Configuration reference](docs/reference/config-reference.md).
 
 ## Documentation
 
-- [Getting Started](docs/GETTING_STARTED.md): local run and first checks.
-- [Configuration Reference](docs/CONFIG_REFERENCE.md): `veilgate.yaml` and rule files.
-- [Deployment](docs/DEPLOYMENT.md): Linux/systemd installation.
-- [Architecture](docs/ARCHITECTURE.md): request flow and subsystem design.
-- [Operations](docs/OPERATIONS.md): metrics, dashboards, alerts, routine checks.
-- [Model Card](docs/MODEL_CARD.md): ML signal behavior and limitations.
+- [Getting Started](docs/getting-started/README.md): local run and first checks.
+- [Configuration Reference](docs/reference/config-reference.md): `veilgate.yaml` and rule files.
+- [Deployment](docs/deployment/README.md): Linux/systemd installation.
+- [Architecture](docs/architecture/README.md): request flow and subsystem design.
+- [Operations](docs/operations/README.md): metrics, dashboards, alerts, routine checks.
+- [Model Card](docs/model/README.md): ML signal behavior and limitations.
+- [Reference Index](docs/reference/README.md): complete lookup-oriented reference pages.
+- [Community Rules](docs/how-to/install-community-rules.md): install and update community-maintained rule sets via `veilgate update-rules`.
 - [Threat Model](THREAT_MODEL.md): what VeilGate does and does not protect.
 
 ## Security Notes

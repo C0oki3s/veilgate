@@ -307,3 +307,55 @@ func (s *Scorer) BufferedRows() int {
 func (s *Scorer) Observed() int64 {
 	return s.observed.Load()
 }
+
+// knownBadPosterior and knownBadSupport are the synthetic values used
+// when an active candidate has no observed posterior/support — i.e. it
+// was authored from human knowledge or tool-fingerprint research rather
+// than from miner output. They give the bucket a small but firm agent
+// prior without overwhelming the classifier.
+const (
+	knownBadPosterior = 0.99
+	knownBadSupport   = 10
+)
+
+// SeedFromLearned primes s's Bayes classifier with active candidates from
+// loaded learned rules. Each active candidate is converted to synthetic
+// observation counts and injected via Bayes.Seed.
+//
+// posterior and support are optional:
+//   - If both are zero (human-knowledge / tool-fingerprint rule with no
+//     observed traffic), knownBadPosterior=0.99 and knownBadSupport=10
+//     are used — a small but firm agent prior.
+//   - If only posterior is set (and support is zero), support defaults to
+//     knownBadSupport so the value is still contributed.
+//   - If support is set but posterior is zero, the entry is skipped
+//     (posterior=0 would contribute zero agent counts).
+//
+// Returns the number of candidates seeded.
+func (s *Scorer) SeedFromLearned(candidates []rules.LearnedCandidate) int {
+	seeded := 0
+	for _, c := range candidates {
+		if !c.Active {
+			continue
+		}
+		posterior := c.Posterior
+		support := c.Support
+		switch {
+		case posterior == 0 && support == 0:
+			// Human-knowledge rule: no observed data — use synthetic defaults.
+			posterior = knownBadPosterior
+			support = knownBadSupport
+		case posterior > 0 && support == 0:
+			// Operator specified confidence but no count.
+			support = knownBadSupport
+		case posterior == 0:
+			// Support without posterior — cannot compute meaningful seed.
+			continue
+		}
+		agentCount := int(math.Round(posterior * float64(support)))
+		humanCount := support - agentCount
+		s.bayes.Seed(c.Feature, c.Bucket, agentCount, humanCount)
+		seeded++
+	}
+	return seeded
+}
