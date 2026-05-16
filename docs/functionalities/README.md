@@ -1,6 +1,6 @@
 # Functionality Index
 
-This directory contains NGINX-style detailed references for each VeilGate
+This directory contains detailed references for each VeilGate
 functionality area. The pages follow `DOCSskill.md`: runnable example,
 directives, `Syntax`, `Default`, `Context`, implementation code paths,
 operational notes, validation commands, and limitations.

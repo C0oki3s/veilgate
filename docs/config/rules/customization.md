@@ -1,7 +1,7 @@
 # Rule Customization Guide
 
 The `veilgate_rules_customization` guide explains how to customize VeilGate rule
-files safely. It follows the NGINX-style documentation pattern from
+files safely. It follows the documentation pattern from
 `DOCSskill.md`: directive-style fields, code paths, operational notes, and
 validation commands.
 

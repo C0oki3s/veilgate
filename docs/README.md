@@ -16,7 +16,7 @@ contribute to VeilGate.
 
 ## Functionality Reference
 
-Detailed NGINX-style module pages with examples, directive blocks, code paths,
+Detailed module pages with examples, directive blocks, code paths,
 operational notes, validation commands, and limitations.
 
 | Page | Use |
@@ -37,7 +37,7 @@ operational notes, validation commands, and limitations.
 | [getting-started/](getting-started/README.md) | Local setup and first validation checks |
 | [deployment/](deployment/README.md) | Linux and systemd deployment |
 | [operations/](operations/README.md) | Runtime operations, metrics, alerts, and query cookbook |
-| [config/](config/README.md) | NGINX-style config and rule documentation |
+| [config/](config/README.md) | Config and rule documentation |
 | [modules/](modules/README.md) | Code-correlated module reference |
 | [reference/](reference/README.md) | Full configuration and functionality reference pages |
 | [model/](model/README.md) | ML behavior, limits, and safety notes |
@@ -76,7 +76,7 @@ Index: [how-to/](how-to/README.md)
 
 ## Configuration Reference
 
-NGINX-style reference for every setting in `veilgate.yaml` and every file under
+Reference for every setting in `veilgate.yaml` and every file under
 `rules/`: examples, reload behavior, code path, operational notes, and
 validation commands.
 

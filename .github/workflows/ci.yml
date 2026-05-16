@@ -1,6 +1,9 @@
 name: CI
 
 on:
+  # Doc-only changes (anything under docs/ or any *.md / LICENSE / .gitignore)
+  # skip CI -- they don't change the binary the image runs. workflow_dispatch
+  # remains available if you ever need to force a run for a docs-only commit.
   push:
     branches:
       - main
@@ -9,7 +12,21 @@ on:
       - maintain
     tags:
       - "v*"
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
   workflow_dispatch:
 
 permissions:

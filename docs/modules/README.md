@@ -1,6 +1,6 @@
 # VeilGate Module Reference
 
-The pages in this directory use an NGINX-style reference structure:
+The pages in this directory use a reference-style structure:
 module purpose, example configuration, directive list, syntax/default/context
 blocks, implementation code path, operational notes, validation commands, and
 limitations.

@@ -9,7 +9,7 @@ VeilGate has two configuration surfaces:
   matchers, fingerprint labels, tarpit content, challenge presentation, ML
   settings, dashboard layout, and learned candidates.
 
-This section follows the NGINX-style documentation pattern from
+This section follows the documentation pattern from
 `DOCSskill.md`: each page names the directive or file, gives examples, states
 reload behavior, maps the setting to code, and calls out operational risk.
 
