@@ -19,6 +19,31 @@ type Config struct {
 	Metrics   MetricsConfig   `yaml:"metrics"`
 	Capture   CaptureConfig   `yaml:"capture"`
 	Persist   PersistConfig   `yaml:"persist"`
+	// Verifiers configure the short-circuit authenticator chain that
+	// runs ahead of the score system. Used for server-to-server
+	// (HMAC, JWT), service-mesh (mTLS header), and other
+	// non-browser-token paths.
+	Verifiers VerifiersConfig `yaml:"verifiers"`
+}
+
+// VerifiersConfig collects all the alternate authenticators. Each
+// sub-block has an enabled flag; disabled verifiers don't load any
+// state. The proxy walks the chain in the order documented here:
+// mTLS first (cheapest to verify, lowest false-positive risk), then
+// HMAC.
+type VerifiersConfig struct {
+	HMAC HMACVerifierConfig `yaml:"hmac"`
+}
+
+// HMACVerifierConfig is the operator-tunable surface for the
+// Stripe-style request-signature verifier.
+type HMACVerifierConfig struct {
+	Enabled         bool   `yaml:"enabled"`
+	HeaderSignature string `yaml:"header_signature"` // default "X-Veilgate-Signature"
+	HeaderClient    string `yaml:"header_client"`    // default "X-Veilgate-Client"
+	ClockSkewSec    int    `yaml:"clock_skew_sec"`   // default 300
+	MaxBodyBytes    int64  `yaml:"max_body_bytes"`   // default 1 MiB
+	ClientsDir      string `yaml:"clients_dir"`      // required when enabled
 }
 
 // PersistConfig is the SQLite event store. When enabled, takes the place

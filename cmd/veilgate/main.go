@@ -29,7 +29,33 @@ import (
 	"github.com/C0oki3s/veilgate/internal/tarpit"
 	"github.com/C0oki3s/veilgate/internal/telemetry"
 	"github.com/C0oki3s/veilgate/internal/tlsfp"
+	"github.com/C0oki3s/veilgate/internal/verifier"
 )
+
+// buildVerifierChain constructs the operator-configured authenticator
+// chain. Each enabled block adds one verifier; a misconfigured
+// enabled block (e.g. hmac.enabled=true with no clients_dir) is a
+// fatal startup error rather than a silent skip.
+func buildVerifierChain(cfg *config.Config, log zerolog.Logger) *verifier.Chain {
+	verifiers := []verifier.Verifier{}
+	if cfg.Verifiers.HMAC.Enabled {
+		v, err := verifier.NewHMACVerifier(verifier.HMACConfig{
+			HeaderSignature: cfg.Verifiers.HMAC.HeaderSignature,
+			HeaderClient:    cfg.Verifiers.HMAC.HeaderClient,
+			ClockSkewSec:    cfg.Verifiers.HMAC.ClockSkewSec,
+			MaxBodyBytes:    cfg.Verifiers.HMAC.MaxBodyBytes,
+			ClientsDir:      cfg.Verifiers.HMAC.ClientsDir,
+		})
+		if err != nil {
+			log.Fatal().Err(err).Msg("hmac verifier: bad config")
+		}
+		verifiers = append(verifiers, v)
+		log.Info().
+			Str("clients_dir", cfg.Verifiers.HMAC.ClientsDir).
+			Msg("hmac verifier enabled")
+	}
+	return verifier.NewChain(verifiers...)
+}
 
 // canaryAdapter wraps persist.Store so it satisfies the
 // detector.CanaryLookup interface (which deliberately doesn't import
@@ -391,6 +417,15 @@ func main() {
 	srv.SetTracker(tracker)
 	if store != nil {
 		srv.SetPersist(store, mlExtractor)
+	}
+
+	// Build the alternate-authenticator chain. Disabled verifiers
+	// don't contribute; absence of a clients_dir on the HMAC verifier
+	// is a fatal config error if hmac.enabled is true.
+	verifiers := buildVerifierChain(cfg, log)
+	srv.SetVerifiers(verifiers)
+	if verifiers.Len() > 0 {
+		log.Info().Int("verifiers", verifiers.Len()).Msg("authenticator chain installed")
 	}
 
 	if cfg.Capture.Enabled {

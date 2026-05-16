@@ -16,6 +16,7 @@ import (
 	"github.com/C0oki3s/veilgate/internal/ml"
 	"github.com/C0oki3s/veilgate/internal/persist"
 	"github.com/C0oki3s/veilgate/internal/telemetry"
+	"github.com/C0oki3s/veilgate/internal/verifier"
 )
 
 // Decision is what we've decided to do with a request.
@@ -49,6 +50,7 @@ type Server struct {
 	tracker          *detector.Tracker
 	tarpitHandler    http.Handler
 	challengeHandler ChallengeHandler
+	verifiers        *verifier.Chain
 	realProxy        http.Handler
 	dashboard        *telemetry.Dashboard
 	capture          *telemetry.Capture
@@ -57,6 +59,11 @@ type Server struct {
 	trustedProxies   []*net.IPNet
 	log              zerolog.Logger
 }
+
+// SetVerifiers installs the verifier chain. Nil is safe — the server
+// will simply skip the chain check and fall through to the existing
+// PoW cookie / score pipeline.
+func (s *Server) SetVerifiers(c *verifier.Chain) { s.verifiers = c }
 
 // SetTracker hands the proxy a reference to the detector's per-client
 // tracker so it can post the response status back via RecordStatus
@@ -222,9 +229,30 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		telemetry.PublicIPRequests.WithLabelValues(rotating).Inc()
 	}
 
-	// A client that already solved the PoW is treated as human for this session.
-	if s.challengeHandler != nil && s.challengeHandler.Passed(r) && decision != DecisionTarpit {
-		decision = DecisionReal
+	// Authenticator chain. Either a verifier (operator-issued HMAC
+	// token, future JWT/mTLS) OR the PoW cookie/header counts as
+	// "this client is trusted enough to skip the challenge tier."
+	// Tarpit is intentionally NOT bypassed — a leaked HMAC secret or
+	// stolen cookie can't whitewash attack-tier behaviour. The score
+	// stays in charge of the worst-case outcome.
+	if decision != DecisionTarpit {
+		passed := false
+		if s.verifiers != nil {
+			if res := s.verifiers.Verify(r); res.Accepted {
+				passed = true
+				s.log.Debug().
+					Str("verifier", res.Name).
+					Str("client", res.Client).
+					Str("reason", res.Reason).
+					Msg("verifier accepted request")
+			}
+		}
+		if !passed && s.challengeHandler != nil && s.challengeHandler.Passed(r) {
+			passed = true
+		}
+		if passed {
+			decision = DecisionReal
+		}
 	}
 
 	// Log every decision for tuning.
