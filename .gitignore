@@ -45,3 +45,4 @@ deployments/macos/
 deployments/packaging/
 deployments/windows/
 deployments/docker-compose*.yml
+e2e/

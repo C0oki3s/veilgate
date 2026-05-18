@@ -62,13 +62,15 @@ type Scorer struct {
 // hot-reloads see live config.
 func NewScorer(cfg *rules.Holder[rules.ML]) *Scorer {
 	m := cfg.Load()
-	laplace := m.Bayes.LaplaceSmoothing
-	if laplace <= 0 {
-		laplace = 1.0
-	}
-	bufCap := m.IsoForest.RetrainEveryNEvents
-	if bufCap <= 0 {
-		bufCap = 5000
+	laplace := 1.0
+	bufCap := 5000
+	if m != nil {
+		if m.Bayes.LaplaceSmoothing > 0 {
+			laplace = m.Bayes.LaplaceSmoothing
+		}
+		if m.IsoForest.RetrainEveryNEvents > 0 {
+			bufCap = m.IsoForest.RetrainEveryNEvents
+		}
 	}
 	return &Scorer{
 		cfg:    cfg,
