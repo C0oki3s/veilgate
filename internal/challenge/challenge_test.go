@@ -353,3 +353,114 @@ func TestChallengeTTLIsCapped(t *testing.T) {
 		t.Fatalf("expected cap at 10m, got %v", got)
 	}
 }
+
+// --- start-page tests -----------------------------------------------
+
+// newHandlerWithRules creates a challenge.Handler without requiring
+// the rules directory on disk. Used by tests that need specific rule
+// values but can't rely on ../../rules being present.
+func newHandlerWithRules(secret string, cr *rules.ChallengeRules) *Handler {
+	return &Handler{
+		secret: []byte(secret),
+		rules:  rules.NewHolder(cr),
+	}
+}
+
+func TestServeStartReturnsHTML(t *testing.T) {
+	h := newHandlerWithRules("start-secret", &rules.ChallengeRules{
+		Difficulty:      1,
+		VerifyPath:      "/__veilgate/verify",
+		CookieName:      "veilgate_pow",
+		TokenHeaderName: "X-Veilgate-Token",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start", nil)
+	rr := httptest.NewRecorder()
+	h.ServeStart(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%q)", rr.Code, rr.Body.String())
+	}
+	ct := rr.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/html") {
+		t.Fatalf("expected text/html, got %q", ct)
+	}
+	body := rr.Body.String()
+	// Injected config blob must be present.
+	if !strings.Contains(body, `"challenge"`) {
+		t.Error("body missing challenge field")
+	}
+	if !strings.Contains(body, `"verify_path"`) {
+		t.Error("body missing verify_path field")
+	}
+	if !strings.Contains(body, `"veilgate-token"`) {
+		t.Error("body missing veilgate-token postMessage type")
+	}
+	// Cache suppression headers must be set.
+	if rr.Header().Get("Cache-Control") != "no-store" {
+		t.Errorf("expected Cache-Control: no-store, got %q", rr.Header().Get("Cache-Control"))
+	}
+}
+
+func TestServeStartInjectsOriginParam(t *testing.T) {
+	h := newHandlerWithRules("start-secret", &rules.ChallengeRules{
+		Difficulty:  1,
+		VerifyPath:  "/__veilgate/verify",
+		CookieName:  "veilgate_pow",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start?origin=https://app.example.com", nil)
+	rr := httptest.NewRecorder()
+	h.ServeStart(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "https://app.example.com") {
+		t.Error("start page body should contain the injected origin")
+	}
+}
+
+func TestServeStartDefaultsOriginToWildcard(t *testing.T) {
+	h := newHandlerWithRules("start-secret", &rules.ChallengeRules{
+		Difficulty: 1,
+		VerifyPath: "/__veilgate/verify",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start", nil)
+	rr := httptest.NewRecorder()
+	h.ServeStart(rr, req)
+
+	if !strings.Contains(rr.Body.String(), `"*"`) {
+		t.Error("start page body should contain wildcard origin when no ?origin= param")
+	}
+}
+
+func TestStartPathDefault(t *testing.T) {
+	h := newHandlerWithRules("s", &rules.ChallengeRules{})
+	if got := h.StartPath(); got != "/__veilgate/start" {
+		t.Fatalf("default StartPath: got %q, want /__veilgate/start", got)
+	}
+}
+
+func TestStartPathConfigurable(t *testing.T) {
+	h := newHandlerWithRules("s", &rules.ChallengeRules{StartPath: "/__v/begin"})
+	if got := h.StartPath(); got != "/__v/begin" {
+		t.Fatalf("custom StartPath: got %q, want /__v/begin", got)
+	}
+}
+
+func TestDescribeChallengeIncludesStartPath(t *testing.T) {
+	h := newHandlerWithRules("s", &rules.ChallengeRules{
+		VerifyPath:      "/__veilgate/verify",
+		CookieName:      "veilgate_pow",
+		TokenHeaderName: "X-Veilgate-Token",
+	})
+	desc := h.DescribeChallenge()
+	if desc.StartPath != "/__veilgate/start" {
+		t.Errorf("StartPath: got %q, want /__veilgate/start", desc.StartPath)
+	}
+	if desc.VerifyPath != "/__veilgate/verify" {
+		t.Errorf("VerifyPath: got %q, want /__veilgate/verify", desc.VerifyPath)
+	}
+}

@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/C0oki3s/veilgate/internal/challenge"
 	"github.com/C0oki3s/veilgate/internal/config"
 	"github.com/C0oki3s/veilgate/internal/detector"
 	"github.com/C0oki3s/veilgate/internal/ml"
@@ -112,6 +114,23 @@ type ChallengeHandler interface {
 	Passed(r *http.Request) bool
 }
 
+// challengeDescriber is an optional interface the challenge handler
+// can implement to feed the /__veilgate/.well-known discovery
+// endpoint. Decoupled from ChallengeHandler so a future replacement
+// handler can opt out by not implementing it.
+type challengeDescriber interface {
+	DescribeChallenge() challenge.ChallengeDescriptor
+}
+
+// challengeStarter is an optional interface the challenge handler
+// can implement to serve the /__veilgate/start iframe-loadable PoW
+// interstitial. Decoupled so a handler without a start page doesn't
+// need to implement it.
+type challengeStarter interface {
+	StartPath() string
+	ServeStart(w http.ResponseWriter, r *http.Request)
+}
+
 func NewServer(cfg *config.Config, scorer *detector.Scorer, tarpit http.Handler, ch ChallengeHandler, dash *telemetry.Dashboard, log zerolog.Logger) (*Server, error) {
 	upstream, err := url.Parse(cfg.Upstream)
 	if err != nil {
@@ -160,11 +179,72 @@ func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(s.serve)
 }
 
+// discoveryDoc is the public JSON shape returned by
+// /__veilgate/.well-known. Stable contract — clients pin to this.
+// Optional fields are emitted only when populated so older clients
+// safely ignore new fields.
+type discoveryDoc struct {
+	Challenge   *challenge.ChallengeDescriptor    `json:"challenge,omitempty"`
+	Credentials []verifier.CredentialDescriptor   `json:"credentials,omitempty"`
+}
+
+// serveDiscovery emits the well-known JSON. It is callable
+// unauthenticated by design: a client SDK uses it on first contact
+// before any credential is in hand. The response contains only
+// configuration shape — never any secret, token, or PII.
+func (s *Server) serveDiscovery(w http.ResponseWriter, _ *http.Request) {
+	doc := discoveryDoc{}
+	if cd, ok := s.challengeHandler.(challengeDescriber); ok {
+		desc := cd.DescribeChallenge()
+		doc.Challenge = &desc
+	}
+	if s.verifiers != nil {
+		doc.Credentials = s.verifiers.Describe()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	// Short cache: discovery contents can change with rules
+	// hot-reload, but per-request fetches would defeat the point of
+	// a client-side cache. 60s is the same window the challenge
+	// rules system targets for propagation.
+	w.Header().Set("Cache-Control", "public, max-age=60")
+	// CORS open: a browser SDK loaded from a different origin must be
+	// able to fetch discovery. The body has no secrets and is the
+	// same for every caller.
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	_ = jsonEncode(w, doc)
+}
+
+// jsonEncode is a tiny wrapper that lets the discovery handler stay
+// short. Inlined here rather than living in a helpers file so the
+// entire discovery path is readable on one screen.
+func jsonEncode(w http.ResponseWriter, v any) error {
+	return json.NewEncoder(w).Encode(v)
+}
+
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// Let the challenge verify endpoint through untouched.
 	if s.challengeHandler != nil && r.URL.Path == "/__veilgate/verify" {
 		s.challengeHandler.ServeHTTP(w, r)
 		return
+	}
+	// Discovery endpoint — advertises the configured challenge wire
+	// shape and the verifier chain's credential descriptors so a
+	// client SDK can auto-attach the right credential. No scoring,
+	// no challenge, no upstream call: this is a meta endpoint that
+	// returns static configuration as JSON.
+	if r.URL.Path == "/__veilgate/.well-known" {
+		s.serveDiscovery(w, r)
+		return
+	}
+	// Start interstitial — iframe-loadable PoW page for cross-origin SPAs.
+	// Routed before scoring so bots cannot poison the client's score by
+	// hammering the start page (start page responses don't hit upstream).
+	if cs, ok := s.challengeHandler.(challengeStarter); ok {
+		if r.URL.Path == cs.StartPath() {
+			cs.ServeStart(w, r)
+			return
+		}
 	}
 
 	clientID := resolveClientIP(r, s.trustedProxies)

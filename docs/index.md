@@ -55,6 +55,25 @@ Repository: <https://github.com/C0oki3s/veilgate>
 - [Module veilgate_verifier](modules/veilgate_verifier.md)
 - [Module veilgate_audit](modules/veilgate_audit.md)
 
+## Verifier Reference
+
+- [Credential verifiers — design tracker](design/credential-verifiers.md)
+- [Bearer verifier](reference/verifiers/bearer.md)
+- [Cookie verifier](reference/verifiers/cookie.md)
+- [Header verifier](reference/verifiers/header.md)
+- [JWT validator](reference/verifiers/jwt-validator.md)
+- [HTTP callout validator](reference/verifiers/callout-validator.md)
+
+## Endpoint Reference
+
+- [`/__veilgate/.well-known` — discovery](reference/endpoints/well-known.md)
+- [`/__veilgate/start` — PoW interstitial iframe](reference/endpoints/start.md)
+
+## Client SDK Reference
+
+- [`@veilgate/client` — browser SDK](reference/clients/browser.md)
+- [`@veilgate/node` — Node.js server SDK](reference/clients/node.md)
+
 ## Rules
 
 - [Rule customization guide](config/rules/customization.md)

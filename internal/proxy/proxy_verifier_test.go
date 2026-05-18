@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -303,6 +304,171 @@ func TestSPAAwareChallengeReturnsJSONForFetch(t *testing.T) {
 	}
 	if rr.Header().Get("Access-Control-Allow-Origin") != "https://app.example.com" {
 		t.Fatalf("CORS allow-origin should echo Origin, got %q", rr.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
+// --- discovery endpoint tests ---------------------------------------
+
+// buildDiscoveryServer builds a minimal Server with a self-contained
+// challenge handler (no rules directory required) so these tests are
+// runnable without the external rules/ tree.
+func buildDiscoveryServer(t *testing.T, upstreamURL string) *Server {
+	t.Helper()
+	cfg := &config.Config{
+		Mode:     "auto",
+		Upstream: upstreamURL,
+		Detector: config.DetectorConfig{
+			ScoreChallengeThreshold: 40,
+			ScoreTarpitThreshold:    70,
+		},
+	}
+	tracker := detector.NewTracker(60)
+	scorer := detector.NewScorer(tracker, nil, nil)
+
+	// NewHandler uses embedded-default ChallengeRules (zero value).
+	// Override the important descriptor fields via SetRules so the
+	// discovery assertions have well-known values to check.
+	ch := challenge.NewHandler("disc-test-secret", 0, 0)
+	ch.SetRules(rules.NewHolder(&rules.ChallengeRules{
+		VerifyPath:      "/__veilgate/verify",
+		CookieName:      "veilgate_pow",
+		TokenHeaderName: "X-Veilgate-Token",
+	}))
+
+	tarpit := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	srv, err := NewServer(cfg, scorer, tarpit, ch, nil, zerolog.Nop())
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	return srv
+}
+
+func TestDiscoveryEndpointShape(t *testing.T) {
+	// /__veilgate/.well-known returns JSON with challenge + credentials.
+	// Verify: Content-Type, Cache-Control, CORS, and field presence.
+	resetMetrics()
+	upstream, _ := upstreamProbe(t)
+	srv := buildDiscoveryServer(t, upstream.URL)
+
+	// Wire a bearer verifier so credentials is non-empty.
+	tokensDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tokensDir, "sdk-client.token"), []byte("disc-test-token"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bv, err := verifier.NewBearerVerifier(verifier.BearerConfig{TokensDir: tokensDir})
+	if err != nil {
+		t.Fatalf("NewBearerVerifier: %v", err)
+	}
+	srv.SetVerifiers(verifier.NewChain(bv))
+
+	req := httptest.NewRequest(http.MethodGet, "/__veilgate/.well-known", nil)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%q)", rr.Code, rr.Body.String())
+	}
+	if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Fatalf("expected application/json, got %q", ct)
+	}
+	if cc := rr.Header().Get("Cache-Control"); !strings.Contains(cc, "max-age=60") {
+		t.Fatalf("expected Cache-Control with max-age=60, got %q", cc)
+	}
+	if cors := rr.Header().Get("Access-Control-Allow-Origin"); cors != "*" {
+		t.Fatalf("expected CORS *, got %q", cors)
+	}
+
+	var doc discoveryDoc
+	if err := json.NewDecoder(rr.Body).Decode(&doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if doc.Challenge == nil {
+		t.Fatal("challenge block absent from discovery doc")
+	}
+	if doc.Challenge.VerifyPath != "/__veilgate/verify" {
+		t.Errorf("challenge.verify_path: got %q, want /__veilgate/verify", doc.Challenge.VerifyPath)
+	}
+	if doc.Challenge.TokenHeader != "X-Veilgate-Token" {
+		t.Errorf("challenge.token_header: got %q, want X-Veilgate-Token", doc.Challenge.TokenHeader)
+	}
+	if doc.Challenge.CookieName != "veilgate_pow" {
+		t.Errorf("challenge.cookie_name: got %q, want veilgate_pow", doc.Challenge.CookieName)
+	}
+	if len(doc.Credentials) == 0 {
+		t.Fatal("credentials block absent from discovery doc")
+	}
+	if doc.Credentials[0].Type != "bearer" {
+		t.Errorf("credentials[0].type: got %q, want bearer", doc.Credentials[0].Type)
+	}
+}
+
+func TestStartInterstitialRouting(t *testing.T) {
+	// /__veilgate/start must be routed to the challenge handler's ServeStart.
+	// It should return an HTML page (not be passed to upstream or the scorer).
+	resetMetrics()
+	upstream, hits := upstreamProbe(t)
+	srv := buildDiscoveryServer(t, upstream.URL)
+
+	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start", nil)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%q)", rr.Code, rr.Body.String())
+	}
+	if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Fatalf("expected text/html, got %q", ct)
+	}
+	if *hits != 0 {
+		t.Fatalf("start page reached upstream (%d hits); must never reach upstream", *hits)
+	}
+	if !strings.Contains(rr.Body.String(), "veilgate-token") {
+		t.Error("start page body missing veilgate-token postMessage type")
+	}
+}
+
+func TestStartInterstitialWithOriginParam(t *testing.T) {
+	resetMetrics()
+	upstream, _ := upstreamProbe(t)
+	srv := buildDiscoveryServer(t, upstream.URL)
+
+	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start?origin=https://spa.example.com", nil)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "https://spa.example.com") {
+		t.Error("start page should embed the requested origin")
+	}
+}
+
+func TestDiscoveryEndpointNoCreds(t *testing.T) {
+	// When no verifier chain is configured, discovery returns a valid
+	// doc with just the challenge block and no credentials field.
+	resetMetrics()
+	upstream, _ := upstreamProbe(t)
+	srv := buildDiscoveryServer(t, upstream.URL)
+
+	req := httptest.NewRequest(http.MethodGet, "/__veilgate/.well-known", nil)
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var doc discoveryDoc
+	if err := json.NewDecoder(rr.Body).Decode(&doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if doc.Challenge == nil {
+		t.Fatal("challenge block should still be present when no verifiers configured")
+	}
+	if doc.Credentials != nil {
+		t.Fatalf("credentials should be absent when no verifiers, got %v", doc.Credentials)
 	}
 }
 
