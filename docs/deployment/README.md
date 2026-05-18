@@ -118,6 +118,71 @@ Then open:
 http://localhost:9090/
 ```
 
+## Docker / Container
+
+The official image is `ghcr.io/c0oki3s/veilgate:latest`. It runs as the
+`nonroot` user (uid 65532) on a distroless base with no shell.
+
+The image pre-creates `/home/nonroot/.veilgate/rules` owned by `nonroot` so
+the ML miner can write `learned.yaml` even without a volume mount. When you
+mount a rules directory over that path you **must not** use `:ro` — the miner
+writes to `learned.yaml` on every tick and will log a `WRN miner tick error`
+if the filesystem is read-only.
+
+### Minimum run command
+
+```bash
+docker run -d --name veilgate \
+  --network host \
+  -v /etc/veilgate/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro \
+  -v /etc/veilgate/rules:/home/nonroot/.veilgate/rules \
+  -e VEILGATE_SECRET=$(openssl rand -hex 32) \
+  ghcr.io/c0oki3s/veilgate:latest -config /etc/veilgate/veilgate.yaml
+```
+
+### Volume mount summary
+
+| Host path | Container path | Flags | Why |
+| --- | --- | --- | --- |
+| `/etc/veilgate/veilgate.yaml` | `/etc/veilgate/veilgate.yaml` | `:ro` | Config is read-only at runtime |
+| `/etc/veilgate/rules` | `/home/nonroot/.veilgate/rules` | *(writable)* | Miner writes `learned.yaml` here every tick |
+| `/etc/veilgate/tokens` | `/etc/veilgate/tokens` | `:ro` | Bearer token files |
+| `/etc/veilgate/clients` | `/etc/veilgate/clients` | `:ro` | HMAC client files |
+| `/var/lib/veilgate` | `/var/lib/veilgate` | *(writable)* | SQLite store and dumps (when `persist.enabled: true`) |
+
+> **SELinux hosts (Fedora, RHEL, CentOS):** append `,z` to writable mounts and
+> `,ro,z` to read-only mounts so Docker relabels the files for container access:
+> ```
+> -v /etc/veilgate/rules:/home/nonroot/.veilgate/rules:z
+> -v /etc/veilgate/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro,z
+> ```
+
+### Why the rules directory must be writable
+
+The ML miner runs on a background timer (default: every 60 minutes). After
+each tick it atomically writes candidate rules to
+`<rules_dir>/learned.yaml` via a `.tmp` rename. If the mount is read-only,
+every tick logs:
+
+```
+WRN miner tick error="miner: write learned.yaml: open .../learned.yaml.tmp: read-only file system"
+```
+
+No candidates are persisted, the Bayes classifier never learns from live
+traffic, and the isolation forest refit buffer fills but is never committed
+to disk. The proxy continues to function, but the online learning component
+is silently disabled.
+
+### Checking the miner is healthy
+
+```bash
+# No WRN miner lines = writable mount is working
+docker logs veilgate 2>&1 | grep "miner"
+
+# Candidates appear after enough traffic crosses min_support threshold
+docker exec veilgate cat /home/nonroot/.veilgate/rules/learned.yaml
+```
+
 ## Rollout
 
 1. Start with `mode: "observe"`.
