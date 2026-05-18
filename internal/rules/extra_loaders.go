@@ -142,6 +142,12 @@ type ChallengeRules struct {
 	// of the 503 HTML page. The HTML page is still served for
 	// top-level document navigations.
 	SPAAwareResponse bool `yaml:"spa_aware_response"`
+
+	// StartPath is the URL path of the iframe-loadable PoW interstitial
+	// page. A cross-origin SPA loads this path in a hidden iframe; the
+	// page solves the challenge and postMessages the token back to the
+	// parent. Defaults to "/__veilgate/start" when empty.
+	StartPath string `yaml:"start_path"`
 }
 
 // ML is the parsed ml.yaml.

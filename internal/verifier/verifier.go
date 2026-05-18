@@ -42,6 +42,36 @@ type Verifier interface {
 	Verify(r *http.Request) Result
 }
 
+// Discoverable is implemented by verifiers that want to advertise
+// the credential shape they accept on the /__veilgate/.well-known
+// discovery endpoint. Implementing it is optional: a verifier that
+// does not advertise (e.g. HMAC, where the client-secret pairing is
+// out-of-band) simply omits Describe.
+type Discoverable interface {
+	Describe() CredentialDescriptor
+}
+
+// CredentialDescriptor is the JSON shape exposed by the discovery
+// endpoint so a client SDK can auto-attach the right credential
+// without hardcoding cookie/header names. Each field is optional —
+// only the fields meaningful for the credential type are populated.
+type CredentialDescriptor struct {
+	// Type is one of "bearer", "cookie", "header". Required.
+	Type string `json:"type"`
+	// Name is the cookie or header name (for cookie / header types).
+	Name string `json:"name,omitempty"`
+	// Header is the request header (for bearer type).
+	Header string `json:"header,omitempty"`
+	// Scheme is the prefix the bearer header expects (e.g. "Bearer").
+	// Empty when the bearer is configured in raw-token mode.
+	Scheme string `json:"scheme,omitempty"`
+	// Validator names the validator implementation behind a cookie or
+	// header verifier ("opaque", "jwt", "callout"). Clients can use
+	// this to know whether the credential is short-lived (so they
+	// shouldn't aggressively cache it).
+	Validator string `json:"validator,omitempty"`
+}
+
 // Chain is a short-circuit list of verifiers. Verify returns the
 // first Accepted result, or a zero-value Result if no verifier
 // accepted.
@@ -84,4 +114,22 @@ func (c *Chain) Len() int {
 		return 0
 	}
 	return len(c.verifiers)
+}
+
+// Describe returns one CredentialDescriptor per Discoverable
+// verifier in the chain, in chain order. Verifiers that do not
+// implement Discoverable (e.g. HMAC) are omitted — the discovery
+// surface is for what a client SDK can attach, not a full audit of
+// what is installed.
+func (c *Chain) Describe() []CredentialDescriptor {
+	if c == nil {
+		return nil
+	}
+	out := make([]CredentialDescriptor, 0, len(c.verifiers))
+	for _, v := range c.verifiers {
+		if d, ok := v.(Discoverable); ok {
+			out = append(out, d.Describe())
+		}
+	}
+	return out
 }

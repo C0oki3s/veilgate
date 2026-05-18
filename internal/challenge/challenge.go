@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	htmltmpl "html/template"
 	"io"
 	"net/http"
 	"strconv"
@@ -17,6 +18,41 @@ import (
 
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
+
+// startPageTmpl is the self-contained HTML+JS page served at
+// /__veilgate/start. It is loaded in a hidden iframe by a cross-origin
+// SPA; it solves the PoW nonce search, posts the proof to verify_path,
+// and postMessages the resulting token back to the parent window.
+// The entire challenge configuration is injected as a JSON blob at
+// serve time — no secondary fetch required.
+const startPageTmpl = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<title>Authenticating</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;background:#fafafa;color:#666}p{font-size:.875rem}</style>
+</head>
+<body>
+<p>Authenticating…</p>
+<script>
+(async function(){
+  var cfg={{.Config}};
+  var nonce=0,enc=new TextEncoder();
+  while(true){
+    var h=await crypto.subtle.digest("SHA-256",enc.encode(cfg.challenge+":"+nonce));
+    var hex=Array.from(new Uint8Array(h)).map(function(b){return b.toString(16).padStart(2,"0")}).join("");
+    if(hex.startsWith(cfg.target))break;
+    nonce++;
+  }
+  var resp=await fetch(cfg.verify_path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({challenge:cfg.challenge,nonce:nonce,ts:cfg.ts,sig:cfg.sig})});
+  if(!resp.ok){window.parent.postMessage({type:"veilgate-error",reason:"verify_failed",status:resp.status},cfg.origin);return;}
+  var data=await resp.json();
+  window.parent.postMessage({type:"veilgate-token",token:data.token,header:data.header||cfg.header,expires_in:data.expires_in},cfg.origin);
+})().catch(function(err){window.parent.postMessage({type:"veilgate-error",reason:String(err)},"*");});
+</script>
+</body>
+</html>`
 
 // Handler serves a JS proof-of-work page. Real browsers solve it in <1s.
 // Headless HTTP clients (the LLM-agent common case) never solve it at all.
@@ -81,6 +117,122 @@ func (h *Handler) SetRules(holder *rules.Holder[rules.ChallengeRules]) {
 		return
 	}
 	h.rules = holder
+}
+
+// ChallengeDescriptor captures the configured names a client SDK
+// needs in order to participate in the PoW challenge flow: where to
+// POST the proof, what header to attach the resulting token in, and
+// what cookie name to expect on same-origin pages.
+//
+// Returned by Handler.DescribeChallenge for the
+// /__veilgate/.well-known discovery endpoint.
+type ChallengeDescriptor struct {
+	VerifyPath  string `json:"verify_path"`
+	StartPath   string `json:"start_path,omitempty"`
+	TokenHeader string `json:"token_header"`
+	CookieName  string `json:"cookie_name"`
+}
+
+// DescribeChallenge returns the current challenge-tier wire shape
+// for the discovery endpoint. Reads from the live rules holder so
+// hot-reloaded config flows through without a restart.
+func (h *Handler) DescribeChallenge() ChallengeDescriptor {
+	if h == nil || h.rules == nil {
+		return ChallengeDescriptor{}
+	}
+	cr := h.rules.Load()
+	return ChallengeDescriptor{
+		VerifyPath:  cr.VerifyPath,
+		StartPath:   h.StartPath(),
+		TokenHeader: cr.TokenHeaderName,
+		CookieName:  cr.CookieName,
+	}
+}
+
+// StartPath returns the configured start-page path, defaulting to
+// "/__veilgate/start" when not set in rules.
+func (h *Handler) StartPath() string {
+	if h == nil || h.rules == nil {
+		return "/__veilgate/start"
+	}
+	if p := h.rules.Load().StartPath; p != "" {
+		return p
+	}
+	return "/__veilgate/start"
+}
+
+// ServeStart serves the iframe-loadable PoW interstitial page. The page
+// solves the nonce search in JS and postMessages the resulting token to
+// the parent window. It should be loaded in a hidden iframe by a
+// cross-origin SPA that cannot receive cookies and does not want to
+// block its own JS thread while searching for the nonce.
+//
+// The optional "origin" query parameter restricts the postMessage target
+// to a specific origin (e.g. ?origin=https://app.example.com). When
+// absent the target defaults to "*" — acceptable because the PoW token
+// is not a long-lived secret and expires quickly.
+func (h *Handler) ServeStart(w http.ResponseWriter, r *http.Request) {
+	cr := h.rules.Load()
+
+	nonce, err := newChallengeNonce()
+	if err != nil {
+		http.Error(w, "challenge seed failed", http.StatusInternalServerError)
+		return
+	}
+	challengeTS := time.Now().UTC().Format(time.RFC3339Nano)
+	challengeSig := h.sign(h.challengePayload(nonce, challengeTS))
+	target := strings.Repeat("0", normalizedDifficulty(cr.Difficulty))
+
+	allowedOrigin := r.URL.Query().Get("origin")
+	if allowedOrigin == "" {
+		allowedOrigin = "*"
+	}
+
+	hdr := cr.TokenHeaderName
+	if hdr == "" {
+		hdr = "X-Veilgate-Token"
+	}
+
+	cfg := struct {
+		Challenge  string `json:"challenge"`
+		Target     string `json:"target"`
+		TS         string `json:"ts"`
+		Sig        string `json:"sig"`
+		VerifyPath string `json:"verify_path"`
+		Header     string `json:"header"`
+		Origin     string `json:"origin"`
+	}{
+		Challenge:  nonce,
+		Target:     target,
+		TS:         challengeTS,
+		Sig:        challengeSig,
+		VerifyPath: cr.VerifyPath,
+		Header:     hdr,
+		Origin:     allowedOrigin,
+	}
+	cfgJSON, err := json.Marshal(cfg)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	tmpl, err := htmltmpl.New("start").Parse(startPageTmpl)
+	if err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	// Allow framing from any origin — this endpoint exists precisely to be
+	// loaded as a cross-origin iframe. Do not set X-Frame-Options.
+	// CSP frame-ancestors is set to "*" explicitly for operators who
+	// apply a default-deny CSP at the edge.
+	w.Header().Set("Content-Security-Policy", "frame-ancestors *")
+	_ = tmpl.Execute(w, map[string]htmltmpl.JS{
+		"Config": htmltmpl.JS(cfgJSON),
+	})
 }
 
 // Passed returns true if the request carries a valid solved-challenge

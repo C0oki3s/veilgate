@@ -31,10 +31,82 @@ type Config struct {
 // VerifiersConfig collects all the alternate authenticators. Each
 // sub-block has an enabled flag; disabled verifiers don't load any
 // state. The proxy walks the chain in the order documented here:
-// mTLS first (cheapest to verify, lowest false-positive risk), then
-// HMAC.
+// HMAC first (request-bound signature, no replay), then Bearer
+// (opaque static token). Operators that need cookie- or
+// header-based bypass with JWT/callout validation use the cookie /
+// header verifier blocks (see docs/design/credential-verifiers.md).
 type VerifiersConfig struct {
-	HMAC HMACVerifierConfig `yaml:"hmac"`
+	HMAC    HMACVerifierConfig     `yaml:"hmac"`
+	Bearer  BearerVerifierConfig   `yaml:"bearer"`
+	Cookies []CookieVerifierConfig `yaml:"cookies"`
+	Headers []HeaderVerifierConfig `yaml:"headers"`
+}
+
+// HeaderVerifierConfig is one entry under verifiers.headers. Each
+// entry binds a request header name to a validator (same validator
+// types as cookies — opaque today, jwt and callout in ships #4, #5).
+type HeaderVerifierConfig struct {
+	Name      string `yaml:"name"`      // header name (required)
+	Validator string `yaml:"validator"` // "opaque" | "jwt" | "callout"
+	TokensDir string `yaml:"tokens_dir"`
+
+	// JWT validator fields (only used when Validator=="jwt").
+	JWKSURL         string   `yaml:"jwks_url"`
+	Issuer          string   `yaml:"issuer"`
+	Audience        string   `yaml:"audience"`
+	ClientClaim     string   `yaml:"client_claim"`
+	Algorithms      []string `yaml:"algorithms"`
+	RefreshInterval string   `yaml:"refresh_interval"`
+
+	// Callout validator fields (only used when Validator=="callout").
+	URL        string `yaml:"url"`
+	CacheTTL   string `yaml:"cache_ttl"`
+	Timeout    string `yaml:"timeout"`
+	AuthHeader string `yaml:"auth_header"`
+	AuthValue  string `yaml:"auth_value"`
+}
+
+// CookieVerifierConfig is one entry under verifiers.cookies. Each
+// entry binds a cookie name to a validator. The validator type
+// dictates which other fields are required:
+//
+//	validator=opaque  → tokens_dir is required
+//	validator=jwt     → jwks_url + required_claims (ship #4)
+//	validator=callout → url + cache_ttl                (ship #5)
+//
+// Unrecognised validator types are rejected at startup so a typo
+// does not silently disable the verifier.
+type CookieVerifierConfig struct {
+	Name      string `yaml:"name"`      // cookie name (required)
+	Validator string `yaml:"validator"` // "opaque" | "jwt" | "callout"
+	TokensDir string `yaml:"tokens_dir"`
+
+	// JWT validator fields (only used when Validator=="jwt").
+	JWKSURL         string   `yaml:"jwks_url"`
+	Issuer          string   `yaml:"issuer"`
+	Audience        string   `yaml:"audience"`
+	ClientClaim     string   `yaml:"client_claim"`
+	Algorithms      []string `yaml:"algorithms"`
+	RefreshInterval string   `yaml:"refresh_interval"` // duration string, e.g. "1h"
+
+	// Callout validator fields (only used when Validator=="callout").
+	URL        string `yaml:"url"`
+	CacheTTL   string `yaml:"cache_ttl"` // duration string, e.g. "30s"
+	Timeout    string `yaml:"timeout"`
+	AuthHeader string `yaml:"auth_header"`
+	AuthValue  string `yaml:"auth_value"`
+}
+
+// BearerVerifierConfig is the operator-tunable surface for the opaque
+// bearer-token verifier. Tokens are static secrets compared by
+// sha256; they carry no per-request replay protection, so operators
+// must rely on TLS and rotate on suspected compromise. The GitHub
+// personal-access-token and Stripe-API-key model.
+type BearerVerifierConfig struct {
+	Enabled   bool   `yaml:"enabled"`
+	Header    string `yaml:"header"`     // default "Authorization"
+	Scheme    string `yaml:"scheme"`     // default "Bearer" when Header=Authorization, else empty
+	TokensDir string `yaml:"tokens_dir"` // required when enabled
 }
 
 // HMACVerifierConfig is the operator-tunable surface for the

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -54,7 +55,147 @@ func buildVerifierChain(cfg *config.Config, log zerolog.Logger) *verifier.Chain 
 			Str("clients_dir", cfg.Verifiers.HMAC.ClientsDir).
 			Msg("hmac verifier enabled")
 	}
+	if cfg.Verifiers.Bearer.Enabled {
+		v, err := verifier.NewBearerVerifier(verifier.BearerConfig{
+			Header:    cfg.Verifiers.Bearer.Header,
+			Scheme:    cfg.Verifiers.Bearer.Scheme,
+			TokensDir: cfg.Verifiers.Bearer.TokensDir,
+		})
+		if err != nil {
+			log.Fatal().Err(err).Msg("bearer verifier: bad config")
+		}
+		verifiers = append(verifiers, v)
+		log.Info().
+			Str("tokens_dir", cfg.Verifiers.Bearer.TokensDir).
+			Int("loaded", v.LoadedTokens()).
+			Msg("bearer verifier enabled")
+	}
+	for _, cc := range cfg.Verifiers.Cookies {
+		val, err := buildValidator(cc.Validator, validatorArgs{
+			TokensDir:       cc.TokensDir,
+			JWKSURL:         cc.JWKSURL,
+			Issuer:          cc.Issuer,
+			Audience:        cc.Audience,
+			ClientClaim:     cc.ClientClaim,
+			Algorithms:      cc.Algorithms,
+			RefreshInterval: cc.RefreshInterval,
+			URL:             cc.URL,
+			CacheTTL:        cc.CacheTTL,
+			Timeout:         cc.Timeout,
+			AuthHeader:      cc.AuthHeader,
+			AuthValue:       cc.AuthValue,
+		})
+		if err != nil {
+			log.Fatal().Err(err).Str("cookie", cc.Name).Msg("cookie verifier: bad config")
+		}
+		v, err := verifier.NewCookieVerifier(cc.Name, val)
+		if err != nil {
+			log.Fatal().Err(err).Str("cookie", cc.Name).Msg("cookie verifier: bad config")
+		}
+		verifiers = append(verifiers, v)
+		log.Info().
+			Str("cookie", cc.Name).
+			Str("validator", cc.Validator).
+			Msg("cookie verifier enabled")
+	}
+	for _, hc := range cfg.Verifiers.Headers {
+		val, err := buildValidator(hc.Validator, validatorArgs{
+			TokensDir:       hc.TokensDir,
+			JWKSURL:         hc.JWKSURL,
+			Issuer:          hc.Issuer,
+			Audience:        hc.Audience,
+			ClientClaim:     hc.ClientClaim,
+			Algorithms:      hc.Algorithms,
+			RefreshInterval: hc.RefreshInterval,
+			URL:             hc.URL,
+			CacheTTL:        hc.CacheTTL,
+			Timeout:         hc.Timeout,
+			AuthHeader:      hc.AuthHeader,
+			AuthValue:       hc.AuthValue,
+		})
+		if err != nil {
+			log.Fatal().Err(err).Str("header", hc.Name).Msg("header verifier: bad config")
+		}
+		v, err := verifier.NewHeaderVerifier(hc.Name, val)
+		if err != nil {
+			log.Fatal().Err(err).Str("header", hc.Name).Msg("header verifier: bad config")
+		}
+		verifiers = append(verifiers, v)
+		log.Info().
+			Str("header", hc.Name).
+			Str("validator", hc.Validator).
+			Msg("header verifier enabled")
+	}
 	return verifier.NewChain(verifiers...)
+}
+
+// validatorArgs collects every field cookie- and header-verifier
+// entries can supply to their validator. Each validator type ignores
+// fields it doesn't use; bad combinations (e.g. validator=jwt with
+// no jwks_url) fail at NewJWTValidator, not silently.
+type validatorArgs struct {
+	TokensDir       string
+	JWKSURL         string
+	Issuer          string
+	Audience        string
+	ClientClaim     string
+	Algorithms      []string
+	RefreshInterval string
+	URL             string
+	CacheTTL        string
+	Timeout         string
+	AuthHeader      string
+	AuthValue       string
+}
+
+// buildValidator constructs the Validator implementation named in a
+// cookie/header verifier entry. Shared so cookie (#2) and header
+// (#3) entries pick the same validator surface. Unknown validator
+// names are a startup-fatal config error to avoid silent
+// misconfiguration.
+func buildValidator(kind string, a validatorArgs) (verifier.Validator, error) {
+	switch kind {
+	case "opaque", "":
+		return verifier.NewOpaqueValidator(a.TokensDir)
+	case "jwt":
+		refresh, err := parseDurationOrZero(a.RefreshInterval)
+		if err != nil {
+			return nil, fmt.Errorf("jwt validator: refresh_interval: %w", err)
+		}
+		return verifier.NewJWTValidator(verifier.JWTConfig{
+			JWKSURL:         a.JWKSURL,
+			Issuer:          a.Issuer,
+			Audience:        a.Audience,
+			ClientClaim:     a.ClientClaim,
+			Algorithms:      a.Algorithms,
+			RefreshInterval: refresh,
+		})
+	case "callout":
+		ttl, err := parseDurationOrZero(a.CacheTTL)
+		if err != nil {
+			return nil, fmt.Errorf("callout validator: cache_ttl: %w", err)
+		}
+		timeout, err := parseDurationOrZero(a.Timeout)
+		if err != nil {
+			return nil, fmt.Errorf("callout validator: timeout: %w", err)
+		}
+		return verifier.NewCalloutValidator(verifier.CalloutConfig{
+			URL:        a.URL,
+			CacheTTL:   ttl,
+			Timeout:    timeout,
+			AuthHeader: a.AuthHeader,
+			AuthValue:  a.AuthValue,
+		})
+	default:
+		return nil, fmt.Errorf("unknown validator type %q", kind)
+	}
+}
+
+func parseDurationOrZero(s string) (time.Duration, error) {
+	if s == "" {
+		return 0, nil
+	}
+	return time.ParseDuration(s)
 }
 
 // canaryAdapter wraps persist.Store so it satisfies the
