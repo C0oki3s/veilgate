@@ -31,7 +31,6 @@ docs/product/
 docs/security/
 docs/why-veilgate.md
 packages/
-scripts/
 
 # Deployment examples not supported for the current OSS surface.
 # Keep Linux/systemd deployment tracked; ignore the rest.

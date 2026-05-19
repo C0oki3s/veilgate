@@ -416,7 +416,7 @@ sudo chown -R veilgate:veilgate ~veilgate/.veilgate/rules
 ```
 
 **Docker:** Mount the rules directory **without** `:ro`. The container runs as
-`nonroot` (uid 65532); a read-only mount causes every miner tick to log:
+root; a read-only mount causes every miner tick to log:
 
 ```
 WRN miner tick error="miner: write learned.yaml: open .../learned.yaml.tmp: read-only file system"

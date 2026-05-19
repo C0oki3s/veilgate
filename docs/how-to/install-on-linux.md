@@ -6,25 +6,54 @@
 
 **On this page:**
 
-1. [Prerequisites](#prerequisites)
-2. [Build the binary](#build-the-binary)
+1. [Install script (recommended)](#install-script-recommended)
+2. [Manual install from source](#manual-install-from-source)
 3. [Lay out the filesystem](#lay-out-the-filesystem)
 4. [Drop in the systemd unit](#drop-in-the-systemd-unit)
 5. [Verify](#verify)
 6. [Common problems](#common-problems)
 7. [Related](#related)
 
-## Prerequisites
+## Install script (recommended)
+
+The quickest path — downloads the binary, installs a systemd service, clones
+community rules, and writes a starter config in `observe` mode:
+
+```bash
+curl -sSL https://veilgate.dev/install.sh | sudo bash -s -- --upstream http://localhost:3000
+```
+
+Available flags:
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--upstream URL` | `http://127.0.0.1:3000` | Your upstream application |
+| `--listen ADDR` | `:8080` | Proxy listen address |
+| `--metrics-listen ADDR` | `127.0.0.1:9090` | Metrics (keep private) |
+| `--no-service` | — | Skip systemd service |
+| `--no-rules` | — | Skip community rules clone |
+
+After install:
+
+```bash
+systemctl status veilgate
+journalctl -u veilgate -f
+```
+
+## Manual install from source
+
+Use this path when you want full control over the build or are in an
+air-gapped environment.
+
+Prerequisites:
 
 - A Linux host running systemd (Ubuntu 22.04+, Debian 12+, RHEL/Rocky
   9+, Alma 9+).
-- Go 1.22+ to build, OR a prebuilt `veilgate` binary.
-- A real upstream HTTP service (your application) reachable from the
-  host. The default config assumes `http://127.0.0.1:3000`.
+- Go 1.25.10+ to build, OR a prebuilt `veilgate` binary.
+- A real upstream HTTP service reachable from the host. The default
+  config assumes `http://127.0.0.1:3000`.
 - Optional: a TLS cert + key for the proxy listener. Required when you
   want JA3/JA4 fingerprinting.
-
-## Build the binary
 
 ```bash
 git clone https://github.com/C0oki3s/veilgate

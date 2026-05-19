@@ -120,14 +120,13 @@ http://localhost:9090/
 
 ## Docker / Container
 
-The official image is `ghcr.io/c0oki3s/veilgate:latest`. It runs as the
-`nonroot` user (uid 65532) on a distroless base with no shell.
+The official image is `ghcr.io/c0oki3s/veilgate:latest`. It runs as root so
+the ML miner can always write `learned.yaml` to the mounted rules directory
+without any host-side permission changes.
 
-The image pre-creates `/home/nonroot/.veilgate/rules` owned by `nonroot` so
-the ML miner can write `learned.yaml` even without a volume mount. When you
-mount a rules directory over that path you **must not** use `:ro` — the miner
-writes to `learned.yaml` on every tick and will log a `WRN miner tick error`
-if the filesystem is read-only.
+When you mount a rules directory you **must not** use `:ro` — the miner writes
+to `learned.yaml` on every tick and will log a `WRN miner tick error` if the
+filesystem is read-only.
 
 ### Minimum run command
 
