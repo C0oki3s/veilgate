@@ -399,6 +399,43 @@ while still biasing the classifier correctly from day one.
 - Seeding is **additive**: existing runtime observations are not overwritten. Community priors blend with locally observed traffic.
 - Strip `proposed_at` timestamps before contributing — they carry no value for downstream operators.
 
+### Filesystem permissions
+
+The miner writes `learned.yaml` by creating a `.tmp` file in `rules_dir` and
+atomically renaming it. The process user must have **write permission** on the
+rules directory.
+
+**Linux (systemd):** The `veilgate` service user must own or have write access
+to the `rules_dir`. The standard layout (`/etc/veilgate/rules` owned by
+`root:root`, mode `0755`) does not allow writes — either change ownership or
+point `rules_dir` to a directory the service user owns:
+
+```bash
+sudo chown veilgate:veilgate /etc/veilgate/rules
+```
+
+**Docker:** Mount the rules directory **without** `:ro`. The container runs as
+`nonroot` (uid 65532); a read-only mount causes every miner tick to log:
+
+```
+WRN miner tick error="miner: write learned.yaml: open .../learned.yaml.tmp: read-only file system"
+```
+
+Correct mount — writable, with SELinux relabeling on RHEL/Fedora hosts:
+
+```bash
+-v /etc/veilgate/rules:/home/nonroot/.veilgate/rules:z
+```
+
+Incorrect mount — read-only, miner silently disabled:
+
+```bash
+-v /etc/veilgate/rules:/home/nonroot/.veilgate/rules:ro,z   # ❌
+```
+
+See [Deployment — Docker](../../deployment/README.md#docker--container) for the
+full volume mount table.
+
 ## Sharing with the Community
 
 Operators can contribute high-confidence, activated candidates back to the

@@ -263,6 +263,15 @@ func main() {
 			log.Fatal().Msg("refusing to start with insecure default challenge secret; set VEILGATE_SECRET or config.challenge.secret")
 		}
 	}
+	// Score is hard-capped at 100 in the detector. A tarpit threshold above
+	// that value can never be reached and silently disables the tarpit.
+	const maxScore = 100
+	if cfg.Detector.ScoreTarpitThreshold > maxScore {
+		log.Warn().
+			Int("score_tarpit_threshold", cfg.Detector.ScoreTarpitThreshold).
+			Int("max_score", maxScore).
+			Msg("score_tarpit_threshold exceeds maximum possible score — tarpit will never fire; lower it to 100 or below")
+	}
 	log.Info().Str("mode", cfg.Mode).Str("upstream", cfg.Upstream).Msg("starting veilgate")
 
 	// Root context so background goroutines shut down cleanly.
