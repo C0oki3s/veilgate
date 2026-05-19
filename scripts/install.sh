@@ -320,6 +320,7 @@ fi
 
 mkdir -p "$CONFIG_DIR" "$DATA_DIR" "${DATA_DIR}/dumps" /var/log/veilgate
 chown -R veilgate:veilgate "$DATA_DIR" /var/log/veilgate
+chown root:veilgate "$CONFIG_DIR"
 chmod 750 "$CONFIG_DIR"
 
 # Community rules
