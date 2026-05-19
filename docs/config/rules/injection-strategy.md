@@ -1,6 +1,6 @@
 # `rules/injection_strategy.yaml`
 
-> **File:** `/etc/veilgate/rules/injection_strategy.yaml`
+> **File:** `~/.veilgate/rules/injection_strategy.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
 > Two-part config: the route table that maps tarpit-bound requests to

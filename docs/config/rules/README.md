@@ -55,7 +55,7 @@ by the ML miner workflow rather than a generic watcher registration.
 ## Validation
 
 ```bash
-ls -la /etc/veilgate/rules
+ls -la ~/.veilgate/rules
 journalctl -u veilgate -n 50 | grep -Ei 'reload|parse'
 curl -sS http://127.0.0.1:9090/metrics | grep veilgate_signal_hits_total
 ```

@@ -1,6 +1,6 @@
 # `rules/ml.yaml`
 
-> **File:** `/etc/veilgate/rules/ml.yaml`
+> **File:** `~/.veilgate/rules/ml.yaml`
 > **Reload:** hot-reload (changes apply within ~500 ms).
 >
 > Hyperparameters for the online ML signal: Naive Bayes + Isolation

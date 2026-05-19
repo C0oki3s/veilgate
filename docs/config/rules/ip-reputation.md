@@ -1,6 +1,6 @@
 # `rules/ip_reputation.yaml`
 
-> **File:** `/etc/veilgate/rules/ip_reputation.yaml`
+> **File:** `~/.veilgate/rules/ip_reputation.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
 > Three things in one file: CIDR-based IP categorisation,

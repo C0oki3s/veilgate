@@ -122,7 +122,7 @@ the embedded default per-file.
 
 **YAML:**
 ```yaml
-rules_dir: "/etc/veilgate/rules"
+rules_dir: "~/.veilgate/rules"
 ```
 
 **Defaults to empty** (embedded-only).

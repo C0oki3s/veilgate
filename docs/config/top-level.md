@@ -87,8 +87,8 @@ original host. Configure the upstream's virtual hosting accordingly.
 
 Directory containing the detection rule files (`detector.yaml`,
 `ml.yaml`, `payloads.yaml`, ...). When empty, VeilGate uses the rule
-files compiled into the binary - convenient for first boot, but every
-production install should set this to `/etc/veilgate/rules`.
+files compiled into the binary - convenient for first boot. For community
+rules installed with `veilgate update-rules`, use `~/.veilgate/rules`.
 
 The watcher uses `fsnotify` to debounce-reload any file under this
 directory whose name matches a registered handler. Files added later
@@ -100,7 +100,7 @@ via `cp` / `mv` are picked up automatically.
 listen: ":8080"
 upstream: "http://127.0.0.1:3000"
 mode: "observe"
-rules_dir: "/etc/veilgate/rules"
+rules_dir: "~/.veilgate/rules"
 
 detector:
   score_tarpit_threshold: 70

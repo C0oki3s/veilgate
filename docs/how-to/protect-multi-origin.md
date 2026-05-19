@@ -61,7 +61,7 @@ shape.
 
 ### Step 1 — set the cookie scope
 
-In `/etc/veilgate/rules/challenge.yaml`:
+In `~/.veilgate/rules/challenge.yaml`:
 
 ```yaml
 cookie_domain: ".example.com"
@@ -128,7 +128,7 @@ visit still works transparently.
 ### Final challenge.yaml
 
 ```yaml
-# /etc/veilgate/rules/challenge.yaml
+# ~/.veilgate/rules/challenge.yaml
 difficulty: 4
 token_ttl_minutes: 30
 cookie_name: veilgate_pow

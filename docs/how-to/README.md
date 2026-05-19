@@ -25,7 +25,7 @@ documents every individual setting.
 - Commands prefixed `sudo` need root.
 - Commands prefixed `veilgate$` run as the dedicated `veilgate`
   user — typically `sudo -u veilgate <cmd>`.
-- A YAML block under a heading like `/etc/veilgate/rules/ml.yaml`
+- A YAML block under a heading like `~/.veilgate/rules/ml.yaml`
   shows a *partial* file — merge with what's already there, don't
   replace.
 

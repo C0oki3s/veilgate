@@ -9,7 +9,7 @@ the module docs: source, default behavior, code path, and operational effect.
 | Layer | Path | Reload |
 | --- | --- | --- |
 | Top-level config | `/etc/veilgate/veilgate.yaml` | restart required |
-| Rules directory | `/etc/veilgate/rules/*.yaml` | supported files hot-reload |
+| Rules directory | `~/.veilgate/rules/*.yaml` | supported files hot-reload |
 | Environment variables | service environment | restart required |
 
 The top-level config controls what the proxy is: listener, upstream, mode,

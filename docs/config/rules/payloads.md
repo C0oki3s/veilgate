@@ -1,6 +1,6 @@
 # `rules/payloads.yaml`
 
-> **File:** `/etc/veilgate/rules/payloads.yaml`
+> **File:** `~/.veilgate/rules/payloads.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
 > The prompt-injection payload library. Each tarpit response gets a

@@ -14,7 +14,7 @@ tls:
   cert_file: "/etc/veilgate/cert.pem"
   key_file: "/etc/veilgate/key.pem"
 
-rules_dir: "/etc/veilgate/rules"
+rules_dir: "~/.veilgate/rules"
 ```
 
 ## Directives

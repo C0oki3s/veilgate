@@ -288,7 +288,7 @@ zero.
 1. Confirm `rules/ml.yaml` has `enabled: true`.
 2. Confirm `rules_dir` points to the directory containing `ml.yaml`:
    ```yaml
-   rules_dir: "./rules"
+   rules_dir: "~/.veilgate/rules"
    ```
 3. Confirm `min_confidence_to_fire` is not set too high. The default is `0.2`.
 4. Confirm the ML scorer has received enough training observations. Check
@@ -308,7 +308,7 @@ change VeilGate's behavior.
 
 1. Confirm `rules_dir` is set in `veilgate.yaml`:
    ```yaml
-   rules_dir: "./rules"
+   rules_dir: "~/.veilgate/rules"
    ```
 2. Confirm the file was written and saved. Some editors write to a temp file
    then rename; `fsnotify` handles rename events, but confirm the watcher

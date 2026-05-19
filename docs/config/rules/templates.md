@@ -1,6 +1,6 @@
 # `rules/templates.yaml`
 
-> **File:** `/etc/veilgate/rules/templates.yaml`
+> **File:** `~/.veilgate/rules/templates.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
 > Response bodies served by the tarpit. Each template is selected by a

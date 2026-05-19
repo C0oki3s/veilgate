@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/install",
+      "destination": "https://raw.githubusercontent.com/C0oki3s/veilgate/main/scripts/install.sh",
+      "permanent": false
+    }
+  ]
+}

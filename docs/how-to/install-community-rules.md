@@ -30,16 +30,16 @@ Output:
 
 ```
 update-rules: downloading veilgate-rules @ v1.2.0
-  detector.yaml                     → /etc/veilgate/rules
-  ip_reputation.yaml                → /etc/veilgate/rules
-  tls_fingerprints.yaml             → /etc/veilgate/rules
-  templates.yaml                    → /etc/veilgate/rules
-  injection_strategy.yaml           → /etc/veilgate/rules
-  payloads.yaml                     → /etc/veilgate/rules
-  fake_data.yaml                    → /etc/veilgate/rules
-  challenge.yaml                    → /etc/veilgate/rules
-  vulnerabilities.yaml              → /etc/veilgate/rules
-update-rules: installed 9 YAML files → /etc/veilgate/rules (version v1.2.0)
+  detector.yaml                     → ~/.veilgate/rules
+  ip_reputation.yaml                → ~/.veilgate/rules
+  tls_fingerprints.yaml             → ~/.veilgate/rules
+  templates.yaml                    → ~/.veilgate/rules
+  injection_strategy.yaml           → ~/.veilgate/rules
+  payloads.yaml                     → ~/.veilgate/rules
+  fake_data.yaml                    → ~/.veilgate/rules
+  challenge.yaml                    → ~/.veilgate/rules
+  vulnerabilities.yaml              → ~/.veilgate/rules
+update-rules: installed 9 YAML files → ~/.veilgate/rules (version v1.2.0)
 update-rules: rules are hot-reloaded automatically when rules_dir is set
              restart veilgate to pick up changes to non-hot-reloadable files (payloads.yaml)
 ```

@@ -53,7 +53,7 @@ flowchart TD
 listen: ":8080"
 upstream: "http://localhost:3000"
 mode: "observe"
-rules_dir: "./rules"
+rules_dir: "~/.veilgate/rules"
 
 detector:
   score_challenge_threshold: 40
@@ -326,7 +326,7 @@ rules. Operators must tune it against their traffic.
 listen: ":8080"
 upstream: "http://localhost:3000"
 mode: "observe"
-rules_dir: "./rules"
+rules_dir: "~/.veilgate/rules"
 
 detector:
   score_challenge_threshold: 40

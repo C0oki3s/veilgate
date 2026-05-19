@@ -42,7 +42,7 @@ points across multiple signals).
 ```yaml
 listen: ":8080"
 upstream: "http://127.0.0.1:3000"
-rules_dir: "/etc/veilgate/rules"
+rules_dir: "~/.veilgate/rules"
 mode: "tarpit"
 
 detector:
@@ -68,7 +68,7 @@ metrics:
   listen: 127.0.0.1:9090
 ```
 
-### `/etc/veilgate/rules/ml.yaml`
+### `~/.veilgate/rules/ml.yaml`
 
 ```yaml
 enabled: true
@@ -88,7 +88,7 @@ miner:
   auto_promote_confidence: 0.0     # operator review only
 ```
 
-### `/etc/veilgate/rules/injection_strategy.yaml`
+### `~/.veilgate/rules/injection_strategy.yaml`
 
 ```yaml
 injector:

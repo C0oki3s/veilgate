@@ -11,7 +11,7 @@ embedded defaults.
 ## Example Configuration
 
 ```yaml
-rules_dir: "./rules"
+rules_dir: "~/.veilgate/rules"
 ```
 
 ## Directives
@@ -56,7 +56,7 @@ the watcher hot-reloads supported files.
 ### Validation
 
 ```bash
-ls -la ./rules
+ls -la ~/.veilgate/rules
 ```
 
 ## Rule File Reference

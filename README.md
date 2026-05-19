@@ -38,25 +38,49 @@ tokens, and attention on believable dead ends.
 
 ## Quick Start
 
-### Option 1 — Docker (recommended)
+### Option 1 — Install script (recommended)
 
-The published image lives on the GitHub Container Registry and ships every
-release from CI. No Go toolchain required.
+Downloads the binary, installs a systemd service, clones community rules, and
+writes a starter config in `observe` mode.
 
 ```bash
-# Pull the latest image (tag :latest, or pin to a release tag e.g. :v1.2.0)
-docker pull ghcr.io/c0oki3s/veilgate:latest
+# One-liner
+curl -sSL https://veilgate.dev/install.sh | sudo bash -s -- --upstream http://localhost:3000
 
-# Run with your config + rules mounted in
-docker run -d --name veilgate \
-  -p 8080:8080 -p 9090:9090 \
-  -e VEILGATE_SECRET=change-me \
-  -v "$(pwd)/configs/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro" \
-  -v "$(pwd)/rules:/rules:ro" \
-  ghcr.io/c0oki3s/veilgate:latest
+# Or download first, then run
+curl -sSL https://veilgate.dev/install.sh -o install.sh
+sudo ./install.sh --upstream http://localhost:3000
 ```
 
-### Option 2 — Build from source
+Flags:
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--upstream URL` | `http://127.0.0.1:3000` | Your upstream application |
+| `--listen ADDR` | `:8080` | Proxy listen address |
+| `--metrics-listen ADDR` | `127.0.0.1:9090` | Metrics (keep private) |
+| `--no-service` | — | Skip systemd service |
+| `--no-rules` | — | Skip community rules clone |
+
+After install:
+
+```bash
+systemctl status veilgate
+journalctl -u veilgate -f
+```
+
+### Option 2 — Docker
+
+```bash
+docker run -d --name veilgate \
+  --network host \
+  -v /etc/veilgate/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro \
+  -v ~/.veilgate/rules:/home/nonroot/.veilgate/rules \
+  -e VEILGATE_SECRET=$(openssl rand -hex 32) \
+  ghcr.io/c0oki3s/veilgate:latest -config /etc/veilgate/veilgate.yaml
+```
+
+### Option 3 — Build from source
 
 Prerequisite: Go `1.25.10` or newer.
 
@@ -68,18 +92,10 @@ make build
 ```
 
 By default VeilGate listens on `:8080`, proxies to `http://localhost:3000`,
-and exposes metrics/dashboard on `:9090`.
+and exposes metrics on `:9090`.
 
-Then test:
-
-```bash
-curl http://localhost:8080/
-curl -A "python-requests/2.31.0" http://localhost:8080/.git/config
-curl http://localhost:9090/metrics | grep veilgate
-```
-
-The default config starts in `observe` mode. That is intentional: you should
-baseline normal traffic before enabling challenge or tarpit behavior.
+The default config starts in `observe` mode — baseline normal traffic before
+enabling `challenge` or `tarpit`.
 
 ## Operating Modes
 
@@ -105,7 +121,7 @@ Start with [configs/veilgate.yaml](configs/veilgate.yaml):
 listen: ":8080"
 upstream: "http://localhost:3000"
 mode: "observe"
-rules_dir: "./rules"
+rules_dir: "~/.veilgate/rules"
 
 detector:
   score_challenge_threshold: 40
@@ -121,26 +137,27 @@ Full reference: [Configuration reference](docs/reference/config-reference.md).
 
 ## Rules
 
-VeilGate ships with embedded default rules that cover most attacker tooling
-(nikto, nuclei, sqlmap, dirsearch, WPScan, httpx, katana, …) so the binary
-works out of the box. For longer-term maintenance, rules live in two places:
+VeilGate ships **no embedded rules**. The binary reads `rules_dir` at startup
+and hot-reloads changes; if the directory is empty it starts with zero detection
+signals. Rules come from one place:
 
-- **`rules/` in this repository** — the embedded defaults plus any local
-  overrides you check in. Edit and commit these like any other policy file;
-  the file watcher hot-reloads them at runtime (`payloads.yaml` is the one
-  file that still requires a restart).
 - **[veilgate-rules](https://github.com/C0oki3s/veilgate-rules)** — the
-  community-maintained rule pack. Versioned with semver tags and distributed
-  as GitHub release archives, the same way Nuclei templates are. You install
-  and update it with the built-in `update-rules` subcommand — no rebuild,
-  no restart:
+  community-maintained rule pack. The `install.sh` script clones it
+  automatically on first install. You can also update it manually with the
+  built-in `update-rules` subcommand — no rebuild, no restart:
+
+| | Installs rules automatically? |
+| --- | --- |
+| `install.sh` (first run) | **Yes** — clones via git |
+| `veilgate` binary (startup) | **No** — reads `rules_dir`, never fetches |
+| `veilgate update-rules` | Only when you explicitly call it |
 
   ```bash
   # Install the latest pack into ~/.veilgate/rules (the default location)
   veilgate update-rules
 
-  # Or into a specific directory, pinned to a release tag
-  veilgate update-rules --dir /etc/veilgate/rules --version v1.2.0
+  # Or pin to a release tag
+  veilgate update-rules --dir ~/.veilgate/rules --version v1.2.0
 
   # List available releases
   veilgate update-rules --list

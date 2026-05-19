@@ -155,7 +155,7 @@ The supported layout, mirrored in [deployment guide](../deployment/README.md):
 | --- | --- | --- |
 | `/usr/local/bin/veilgate` | binary | 0755 root:root |
 | `/etc/veilgate/veilgate.yaml` | config | 0640 root:veilgate |
-| `/etc/veilgate/rules/` | rule files | 0750 root:veilgate |
+| `~/.veilgate/rules/` | rule files | 0750 root:veilgate |
 | `/var/lib/veilgate/events.db` | SQLite event store | 0600 veilgate:veilgate |
 | `/var/lib/veilgate/audit.log` | audit chain | 0600 veilgate:veilgate |
 | `/var/lib/veilgate/requests.jsonl` | optional capture | 0600 veilgate:veilgate |

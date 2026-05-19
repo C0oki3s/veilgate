@@ -3,30 +3,52 @@
 This guide gets VeilGate running locally, then shows how to verify scoring,
 metrics, challenge behavior, and tarpit behavior.
 
-## Prerequisites
+## Quick Start — Install Script (recommended)
 
-- Go `1.25.10` or newer.
-- A local upstream app on `http://localhost:3000`.
+The install script downloads the binary, installs a systemd service, clones
+community rules, and writes a starter config in `observe` mode.
+
+```bash
+curl -sSL https://veilgate.dev/install.sh | sudo bash -s -- --upstream http://localhost:3000
+```
+
+After install:
+
+```bash
+systemctl status veilgate
+journalctl -u veilgate -f
+```
+
+VeilGate ships **no embedded rules**. The install script clones the
+[veilgate-rules](https://github.com/C0oki3s/veilgate-rules) community pack
+automatically. You can update rules at any time without restarting:
+
+```bash
+veilgate update-rules
+```
 
 ## Quick Start with Docker
 
-Alternatively, you can pull the latest VeilGate image:
-
 ```bash
-docker pull ghcr.io/c0oki3s/veilgate:latest
+docker run -d --name veilgate \
+  --network host \
+  -v /etc/veilgate/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro \
+  -v ~/.veilgate/rules:/home/nonroot/.veilgate/rules \
+  -e VEILGATE_SECRET=$(openssl rand -hex 32) \
+  ghcr.io/c0oki3s/veilgate:latest -config /etc/veilgate/veilgate.yaml
 ```
 
+The image runs as root so the ML miner can always write `learned.yaml` to the
+mounted rules directory without host-side permission changes.
+
 ## Build From Source
+
+Prerequisite: Go `1.25.10` or newer.
 
 ```bash
 git clone https://github.com/C0oki3s/veilgate.git
 cd veilgate
 make build
-```
-
-Run:
-
-```bash
 ./veilgate -config configs/veilgate.yaml
 ```
 

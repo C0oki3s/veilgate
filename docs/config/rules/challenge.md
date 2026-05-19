@@ -1,6 +1,6 @@
 # `rules/challenge.yaml`
 
-> **File:** `/etc/veilgate/rules/challenge.yaml`
+> **File:** `~/.veilgate/rules/challenge.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
 > Presentation layer for the proof-of-work challenge. The runtime

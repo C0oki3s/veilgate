@@ -13,7 +13,7 @@ wired by `cmd/veilgate/main.go`.
 listen: ":8080"
 upstream: "http://localhost:3000"
 mode: "observe"
-rules_dir: "./rules"
+rules_dir: "~/.veilgate/rules"
 ```
 
 ## Directives
@@ -169,7 +169,7 @@ payloads, fake data, challenge rules, ML rules, and dashboard rules.
 ### Validation
 
 ```bash
-ls -la ./rules
+ls -la ~/.veilgate/rules
 curl http://127.0.0.1:9090/metrics | grep veilgate_signal_hits_total
 ```
 
