@@ -85,17 +85,22 @@ detect_platform() {
   echo "${os}_${arch}"
 }
 
-# ── latest release from GitHub ────────────────────────────────────────────────
+# ── latest release from GitHub (returns "" if none published yet) ─────────────
 latest_version() {
-  curl -sSf "https://api.github.com/repos/${REPO}/releases/latest" \
+  curl -sf "https://api.github.com/repos/${REPO}/releases/latest" \
+    2>/dev/null \
     | grep '"tag_name"' \
-    | sed -E 's/.*"([^"]+)".*/\1/'
+    | sed -E 's/.*"([^"]+)".*/\1/' \
+    || true
 }
 
-# ── download + verify ─────────────────────────────────────────────────────────
+# ── download pre-built release binary ────────────────────────────────────────
 download_binary() {
   local version="$1" platform="$2"
-  local asset="${BINARY}_${version}_${platform}.tar.gz"
+  # GoReleaser strips the leading "v" from the version in asset filenames
+  # but the tag (with "v") is still used in the download URL path.
+  local ver_clean="${version#v}"
+  local asset="${BINARY}_${ver_clean}_${platform}.tar.gz"
   local url="https://github.com/${REPO}/releases/download/${version}/${asset}"
   local checksum_url="https://github.com/${REPO}/releases/download/${version}/checksums.txt"
   local tmpdir
@@ -105,7 +110,6 @@ download_binary() {
   info "Downloading ${asset}…"
   curl -sSfL "$url" -o "${tmpdir}/${asset}"
 
-  # Verify checksum if available
   if curl -sSfL "$checksum_url" -o "${tmpdir}/checksums.txt" 2>/dev/null; then
     info "Verifying checksum…"
     (cd "$tmpdir" && grep "$asset" checksums.txt | sha256sum -c --quiet) \
@@ -115,6 +119,24 @@ download_binary() {
   fi
 
   tar -xzf "${tmpdir}/${asset}" -C "$tmpdir"
+  echo "${tmpdir}/${BINARY}"
+}
+
+# ── build from source (fallback when no release exists) ──────────────────────
+build_from_source() {
+  command -v go &>/dev/null \
+    || error "No GitHub release found and 'go' is not installed.\nInstall Go (https://go.dev/dl/) or use Docker:\n  docker run -d --network host -e VEILGATE_SECRET=\$(openssl rand -hex 32) ghcr.io/c0oki3s/veilgate:latest"
+
+  local goversion
+  goversion="$(go version | awk '{print $3}' | sed 's/go//')"
+  info "No release found — building from source with Go ${goversion}…"
+
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  trap 'rm -rf "$tmpdir"' EXIT
+
+  git clone --depth 1 "https://github.com/${REPO}.git" "${tmpdir}/src" -q
+  (cd "${tmpdir}/src" && CGO_ENABLED=0 go build -ldflags="-s -w" -o "${tmpdir}/${BINARY}" ./cmd/veilgate)
   echo "${tmpdir}/${BINARY}"
 }
 
@@ -253,11 +275,18 @@ info "Platform: ${PLATFORM}"
 
 step "2/6  Fetching latest release…"
 VERSION="$(latest_version)"
-[[ -z "$VERSION" ]] && error "Could not determine latest release. Check https://github.com/${REPO}/releases"
+if [[ -z "$VERSION" ]]; then
+  warn "No published release found — will build from source."
+  VERSION="dev"
+fi
 info "Version: ${VERSION}"
 
 step "3/6  Downloading binary…"
-BIN_PATH="$(download_binary "$VERSION" "$PLATFORM")"
+if [[ "$VERSION" == "dev" ]]; then
+  BIN_PATH="$(build_from_source)"
+else
+  BIN_PATH="$(download_binary "$VERSION" "$PLATFORM")"
+fi
 
 step "4/6  Installing binary…"
 install -m 0755 "$BIN_PATH" "${INSTALL_DIR}/${BINARY}"
@@ -336,8 +365,9 @@ else
   info "Start manually: ${INSTALL_DIR}/${BINARY} -config ${CONFIG_DIR}/veilgate.yaml"
 fi
 
+INSTALLED_VERSION="$("${INSTALL_DIR}/${BINARY}" -version 2>/dev/null || echo "$VERSION")"
 echo ""
-echo -e "${GREEN}${BOLD}VeilGate ${VERSION} installed successfully.${RESET}"
+echo -e "${GREEN}${BOLD}VeilGate ${INSTALLED_VERSION} installed successfully.${RESET}"
 echo ""
 echo -e "  Config:   ${CONFIG_DIR}/veilgate.yaml"
 echo -e "  Logs:     journalctl -u veilgate -f"
