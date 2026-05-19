@@ -94,10 +94,17 @@ latest_version() {
     || true
 }
 
+# BIN_PATH is set by download_binary or build_from_source (avoids the
+# bash set -e / command-substitution interaction where var=$(func) swallows
+# failures and the EXIT trap deletes tmpdir before the caller installs).
+BIN_PATH=""
+BIN_TMPDIR=""
+
 # ── download pre-built release binary ────────────────────────────────────────
+# Sets BIN_PATH on success; returns 1 if the binary asset does not exist.
 download_binary() {
   local version="$1" platform="$2"
-  # GoReleaser strips the leading "v" from the version in asset filenames
+  # GoReleaser strips the leading "v" from version in asset filenames,
   # but the tag (with "v") is still used in the download URL path.
   local ver_clean="${version#v}"
   local asset="${BINARY}_${ver_clean}_${platform}.tar.gz"
@@ -105,39 +112,49 @@ download_binary() {
   local checksum_url="https://github.com/${REPO}/releases/download/${version}/checksums.txt"
   local tmpdir
   tmpdir="$(mktemp -d)"
-  trap 'rm -rf "$tmpdir"' EXIT
 
   info "Downloading ${asset}…"
-  curl -sSfL "$url" -o "${tmpdir}/${asset}"
+  if ! curl -sSfL "$url" -o "${tmpdir}/${asset}" 2>/dev/null; then
+    rm -rf "$tmpdir"
+    return 1
+  fi
 
   if curl -sSfL "$checksum_url" -o "${tmpdir}/checksums.txt" 2>/dev/null; then
     info "Verifying checksum…"
-    (cd "$tmpdir" && grep "$asset" checksums.txt | sha256sum -c --quiet) \
-      || error "Checksum mismatch — download may be corrupted."
+    local expected
+    expected="$(grep "${asset}" "${tmpdir}/checksums.txt" || true)"
+    if [[ -z "$expected" ]]; then
+      warn "Asset not listed in checksums.txt — skipping verification."
+    else
+      echo "$expected" | (cd "$tmpdir" && sha256sum -c --quiet) \
+        || { rm -rf "$tmpdir"; error "Checksum mismatch — download may be corrupted."; }
+    fi
   else
-    warn "No checksums.txt found for this release — skipping verification."
+    warn "No checksums.txt in this release — skipping verification."
   fi
 
   tar -xzf "${tmpdir}/${asset}" -C "$tmpdir"
-  echo "${tmpdir}/${BINARY}"
+  BIN_PATH="${tmpdir}/${BINARY}"
+  BIN_TMPDIR="$tmpdir"
 }
 
-# ── build from source (fallback when no release exists) ──────────────────────
+# ── build from source (fallback when no release binary exists) ───────────────
+# Sets BIN_PATH on success; calls error() and exits if Go is unavailable.
 build_from_source() {
   command -v go &>/dev/null \
-    || error "No GitHub release found and 'go' is not installed.\nInstall Go (https://go.dev/dl/) or use Docker:\n  docker run -d --network host -e VEILGATE_SECRET=\$(openssl rand -hex 32) ghcr.io/c0oki3s/veilgate:latest"
+    || error "No prebuilt binary available and 'go' is not installed.\nInstall Go from https://go.dev/dl/ or use Docker:\n  docker run -d --network host -e VEILGATE_SECRET=\$(openssl rand -hex 32) ghcr.io/c0oki3s/veilgate:latest"
 
   local goversion
   goversion="$(go version | awk '{print $3}' | sed 's/go//')"
-  info "No release found — building from source with Go ${goversion}…"
+  info "Building from source with Go ${goversion}…"
 
   local tmpdir
   tmpdir="$(mktemp -d)"
-  trap 'rm -rf "$tmpdir"' EXIT
 
   git clone --depth 1 "https://github.com/${REPO}.git" "${tmpdir}/src" -q
   (cd "${tmpdir}/src" && CGO_ENABLED=0 go build -ldflags="-s -w" -o "${tmpdir}/${BINARY}" ./cmd/veilgate)
-  echo "${tmpdir}/${BINARY}"
+  BIN_PATH="${tmpdir}/${BINARY}"
+  BIN_TMPDIR="$tmpdir"
 }
 
 # ── write default config ──────────────────────────────────────────────────────
@@ -283,13 +300,15 @@ info "Version: ${VERSION}"
 
 step "3/6  Downloading binary…"
 if [[ "$VERSION" == "dev" ]]; then
-  BIN_PATH="$(build_from_source)"
-else
-  BIN_PATH="$(download_binary "$VERSION" "$PLATFORM")"
+  build_from_source
+elif ! download_binary "$VERSION" "$PLATFORM"; then
+  warn "Release ${VERSION} has no prebuilt binary for ${PLATFORM} — building from source."
+  build_from_source
 fi
 
 step "4/6  Installing binary…"
 install -m 0755 "$BIN_PATH" "${INSTALL_DIR}/${BINARY}"
+rm -rf "$BIN_TMPDIR"
 info "Installed to ${INSTALL_DIR}/${BINARY}"
 
 step "5/6  Setting up config and data directories…"
