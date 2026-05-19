@@ -97,7 +97,10 @@ latest_version() {
 # ── download pre-built release binary ────────────────────────────────────────
 download_binary() {
   local version="$1" platform="$2"
-  local asset="${BINARY}_${version}_${platform}.tar.gz"
+  # GoReleaser strips the leading "v" from the version in asset filenames
+  # but the tag (with "v") is still used in the download URL path.
+  local ver_clean="${version#v}"
+  local asset="${BINARY}_${ver_clean}_${platform}.tar.gz"
   local url="https://github.com/${REPO}/releases/download/${version}/${asset}"
   local checksum_url="https://github.com/${REPO}/releases/download/${version}/checksums.txt"
   local tmpdir

@@ -228,6 +228,9 @@ func listenTLS(srv *http.Server, cfg *config.Config, store *tlsfp.Store) error {
 	return srv.Serve(tlsLn)
 }
 
+// version is set at build time via -ldflags "-X main.version=<tag>".
+var version = "dev"
+
 func main() {
 	// Subcommand dispatch. The proxy's serve flow remains the default
 	// when no subcommand is given. New subcommands plug in here.
@@ -238,6 +241,9 @@ func main() {
 			return
 		case "update-rules":
 			runUpdateRules(os.Args[2:])
+			return
+		case "-version", "--version", "version":
+			fmt.Println(version)
 			return
 		}
 	}

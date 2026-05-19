@@ -4,14 +4,13 @@ on:
   # Doc-only changes (anything under docs/ or any *.md / LICENSE / .gitignore)
   # skip CI -- they don't change the binary the image runs. workflow_dispatch
   # remains available if you ever need to force a run for a docs-only commit.
+  # Tags are handled by release.yml (GoReleaser + Docker).
   push:
     branches:
       - main
       - master
       - dev
       - maintain
-    tags:
-      - "v*"
     paths-ignore:
       - "**/*.md"
       - "docs/**"
