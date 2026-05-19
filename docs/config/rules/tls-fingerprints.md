@@ -1,6 +1,6 @@
 # `rules/tls_fingerprints.yaml`
 
-> **File:** `/etc/veilgate/rules/tls_fingerprints.yaml`
+> **File:** `~/.veilgate/rules/tls_fingerprints.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
 > Database of known JA3 / JA4 fingerprints. Read by the

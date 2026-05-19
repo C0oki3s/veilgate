@@ -41,7 +41,7 @@ ratio shifts.
 ```yaml
 listen: ":8080"
 upstream: "http://127.0.0.1:3000"
-rules_dir: "/etc/veilgate/rules"
+rules_dir: "~/.veilgate/rules"
 mode: "tarpit"
 
 detector:
@@ -55,7 +55,7 @@ detector:
     - /openapi-internal.json
 ```
 
-### `/etc/veilgate/rules/detector.yaml`
+### `~/.veilgate/rules/detector.yaml`
 
 ```yaml
 path_bruteforce:
@@ -77,7 +77,7 @@ wordlist_paths:
     - /graphql
 ```
 
-### `/etc/veilgate/rules/injection_strategy.yaml`
+### `~/.veilgate/rules/injection_strategy.yaml`
 
 Use the API-shaped templates so the tarpit returns plausible fake JSON
 rather than HTML pages.

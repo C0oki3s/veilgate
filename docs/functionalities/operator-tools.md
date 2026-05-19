@@ -72,7 +72,7 @@ and rejects archive entries with path traversal patterns.
 
 ```bash
 go run ./cmd/veilgate -config configs/veilgate.yaml
-veilgate update-rules --dir ./rules
+veilgate update-rules --dir ~/.veilgate/rules
 go run ./cmd/replay -db data/events.db -rules rules -limit 500
 go run ./cmd/mlsmoke
 go run ./cmd/localreq -base http://localhost:8080 -traffic malicious -n 20 -inspect

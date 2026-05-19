@@ -16,7 +16,7 @@ used.
 listen: ":8080"
 upstream: "http://localhost:3000"
 mode: "observe"
-rules_dir: "./rules"
+rules_dir: "~/.veilgate/rules"
 ```
 
 | Field | Type | Default | Notes |

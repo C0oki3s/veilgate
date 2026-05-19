@@ -20,6 +20,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/veilgate /veilgate
 COPY --from=build --chown=65532:65532 /home/nonroot/.veilgate /home/nonroot/.veilgate
 COPY configs/veilgate.yaml /etc/veilgate/veilgate.yaml
+ENV HOME=/home/nonroot
 EXPOSE 8080 9090
 USER nonroot:nonroot
 ENTRYPOINT ["/veilgate"]

@@ -82,7 +82,7 @@ points for your own auditor conversation.
 ```yaml
 listen: ":8080"
 upstream: "http://127.0.0.1:3000"
-rules_dir: "/etc/veilgate/rules"
+rules_dir: "~/.veilgate/rules"
 mode: "challenge"                   # observe -> challenge -> tarpit ramp
 
 detector:
@@ -105,7 +105,7 @@ metrics:
   listen: 127.0.0.1:9090            # private — SSH-tunnel only
 ```
 
-### `/etc/veilgate/rules/ml.yaml`
+### `~/.veilgate/rules/ml.yaml`
 
 ```yaml
 enabled: true

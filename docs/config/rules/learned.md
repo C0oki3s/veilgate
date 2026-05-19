@@ -406,12 +406,13 @@ atomically renaming it. The process user must have **write permission** on the
 rules directory.
 
 **Linux (systemd):** The `veilgate` service user must own or have write access
-to the `rules_dir`. The standard layout (`/etc/veilgate/rules` owned by
-`root:root`, mode `0755`) does not allow writes — either change ownership or
-point `rules_dir` to a directory the service user owns:
+to the `rules_dir`. With the packaged config, `~/.veilgate/rules` expands
+under the service user's home directory, so install community rules there and
+keep the directory writable by `veilgate`:
 
 ```bash
-sudo chown veilgate:veilgate /etc/veilgate/rules
+sudo -u veilgate veilgate update-rules --dir ~veilgate/.veilgate/rules
+sudo chown -R veilgate:veilgate ~veilgate/.veilgate/rules
 ```
 
 **Docker:** Mount the rules directory **without** `:ro`. The container runs as
@@ -424,13 +425,13 @@ WRN miner tick error="miner: write learned.yaml: open .../learned.yaml.tmp: read
 Correct mount — writable, with SELinux relabeling on RHEL/Fedora hosts:
 
 ```bash
--v /etc/veilgate/rules:/home/nonroot/.veilgate/rules:z
+-v ~/.veilgate/rules:/home/nonroot/.veilgate/rules:z
 ```
 
 Incorrect mount — read-only, miner silently disabled:
 
 ```bash
--v /etc/veilgate/rules:/home/nonroot/.veilgate/rules:ro,z   # ❌
+-v ~/.veilgate/rules:/home/nonroot/.veilgate/rules:ro,z   # ❌
 ```
 
 See [Deployment — Docker](../../deployment/README.md#docker--container) for the

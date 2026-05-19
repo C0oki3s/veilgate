@@ -58,8 +58,8 @@ Before deployment, complete the following:
 4. **Copy and review the rule files:**
 
    ```bash
-   cp -r rules/ /etc/veilgate/rules/
-   chmod -R 600 /etc/veilgate/rules/*.yaml
+   cp -r rules/ ~/.veilgate/rules/
+   chmod -R 600 ~/.veilgate/rules/*.yaml
    ```
 
    Review each file before deployment. The rules define your security policy.
@@ -75,7 +75,7 @@ Before deployment, complete the following:
 listen: ":8080"
 upstream: "http://127.0.0.1:3000"
 mode: "observe"
-rules_dir: "/etc/veilgate/rules"
+rules_dir: "~/.veilgate/rules"
 
 detector:
   score_challenge_threshold: 40
@@ -277,10 +277,10 @@ curl -s http://127.0.0.1:9090/metrics | grep 'decision="tarpit"'
 
 ```bash
 # Review rule changes before applying
-diff rules/detector.yaml /etc/veilgate/rules/detector.yaml
+diff rules/detector.yaml ~/.veilgate/rules/detector.yaml
 
 # Apply and reload (hot reload triggers within ~500ms)
-cp rules/detector.yaml /etc/veilgate/rules/detector.yaml
+cp rules/detector.yaml ~/.veilgate/rules/detector.yaml
 ```
 
 Rule files inside `rules_dir` support hot reload via `fsnotify`. Threshold and

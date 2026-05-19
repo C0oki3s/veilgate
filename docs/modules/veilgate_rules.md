@@ -16,7 +16,7 @@ For a step-by-step operator workflow, see the
 ## Example Configuration
 
 ```yaml
-rules_dir: "./rules"
+rules_dir: "~/.veilgate/rules"
 ```
 
 ## Directives
@@ -66,8 +66,8 @@ make install
 make update-rules RULES_DIR=/opt/veilgate/rules
 
 # Or run the subcommand directly
-./veilgate update-rules --dir ./rules
-./veilgate update-rules --dir ./rules --version v1.2.3   # pin a release
+./veilgate update-rules --dir ~/.veilgate/rules
+./veilgate update-rules --dir ~/.veilgate/rules --version v1.2.3   # pin a release
 ./veilgate update-rules --list                           # list available releases
 ```
 
@@ -90,7 +90,7 @@ make update-rules RULES_DIR=/opt/veilgate/rules
 ### Validation
 
 ```bash
-ls -la ./rules
+ls -la ~/.veilgate/rules
 ./veilgate update-rules --list
 ```
 
@@ -240,8 +240,8 @@ the corresponding directory subtree changes, the full `Load*` walk re-runs.
 > watching. To hot-reload other rule subdirs without a restart, touch the
 > trigger file:
 > ```bash
-> touch ./rules/detector.yaml   # re-triggers LoadDetector walk
-> touch ./rules/payloads.yaml   # payloads require restart; touch has no effect
+> touch ~/.veilgate/rules/detector.yaml   # re-triggers LoadDetector walk
+> touch ~/.veilgate/rules/payloads.yaml   # payloads require restart; touch has no effect
 > ```
 
 ### Operational notes
@@ -255,7 +255,7 @@ the corresponding directory subtree changes, the full `Load*` walk re-runs.
 
 ```bash
 # Trigger a hot reload after editing a rule file
-touch ./rules/detector.yaml
+touch ~/.veilgate/rules/detector.yaml
 
 # Check reload metrics
 curl http://127.0.0.1:9090/metrics | grep veilgate_rule_reload_total

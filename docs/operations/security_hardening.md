@@ -223,7 +223,7 @@ Rule files define:
   # kubernetes/configmap.yaml
   readOnly: true
   ```
-- Restrict filesystem ownership: `chown -R root:veilgate /etc/veilgate/rules`
+- Restrict filesystem ownership: `chown -R root:veilgate ~/.veilgate/rules`
   and `chmod 640` on each file.
 
 ---

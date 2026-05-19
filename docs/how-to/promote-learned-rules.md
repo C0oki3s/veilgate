@@ -47,7 +47,7 @@ per candidate. Realistic timeline:
 Check progress:
 
 ```bash
-sudo cat /etc/veilgate/rules/learned.yaml
+sudo cat ~/.veilgate/rules/learned.yaml
 ```
 
 Or query SQLite directly — both are kept in sync:
@@ -101,7 +101,7 @@ workflow.
 ### Way A — edit the YAML
 
 ```bash
-sudo -u veilgate vim /etc/veilgate/rules/learned.yaml
+sudo -u veilgate vim ~/.veilgate/rules/learned.yaml
 # Change `active: false` → `active: true` on the row you want.
 ```
 

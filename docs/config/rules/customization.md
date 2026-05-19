@@ -17,7 +17,7 @@ Repository: <https://github.com/C0oki3s/veilgate>
 listen: ":8080"
 upstream: "http://localhost:3000"
 mode: "observe"
-rules_dir: "./rules"
+rules_dir: "~/.veilgate/rules"
 
 detector:
   score_challenge_threshold: 40
@@ -648,7 +648,7 @@ SQLite `rule_candidates` table when persistence is enabled.
 ### Validation
 
 ```bash
-sed -n '1,40p' ./rules/learned.yaml
+sed -n '1,40p' ~/.veilgate/rules/learned.yaml
 curl http://127.0.0.1:9090/metrics | grep veilgate_miner_candidates_total
 ```
 

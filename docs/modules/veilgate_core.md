@@ -17,7 +17,7 @@ applies.
 listen: ":8080"
 upstream: "http://127.0.0.1:3000"
 mode: "observe"                   # Start here. Move to auto after tuning.
-rules_dir: "/etc/veilgate/rules"  # Leave empty to use embedded defaults.
+rules_dir: "~/.veilgate/rules"  # Leave empty to use embedded defaults.
 
 detector:
   score_challenge_threshold: 40
@@ -265,12 +265,12 @@ Files **not** hot-reloaded (require restart): `veilgate.yaml` itself.
 - Treat `rules/` as security policy; review changes like code.
 - Mount read-only in Kubernetes/container deployments where possible.
 - A parse error in a reload leaves the previous in-memory rules active.
-- Restrict ownership: `chown root:veilgate /etc/veilgate/rules && chmod 640 *.yaml`.
+- Restrict ownership: `chown root:veilgate ~/.veilgate/rules && chmod 640 *.yaml`.
 
 ### Validation
 
 ```bash
-ls -la /etc/veilgate/rules/
+ls -la ~/.veilgate/rules/
 # Edit a rule file, wait ~1s, verify change takes effect without restart
 curl http://127.0.0.1:9090/metrics | grep veilgate_signal_hits_total
 ```
@@ -289,7 +289,7 @@ curl http://127.0.0.1:9090/metrics | grep veilgate_signal_hits_total
 listen: ":8080"
 upstream: "http://localhost:3000"
 mode: "observe"
-rules_dir: "./rules"
+rules_dir: "~/.veilgate/rules"
 ```
 
 ## Directives
@@ -445,7 +445,7 @@ payloads, fake data, challenge rules, ML rules, and dashboard rules.
 ### Validation
 
 ```bash
-ls -la ./rules
+ls -la ~/.veilgate/rules
 curl http://127.0.0.1:9090/metrics | grep veilgate_signal_hits_total
 ```
 

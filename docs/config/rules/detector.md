@@ -1,6 +1,6 @@
 # `rules/detector.yaml`
 
-> **File:** `/etc/veilgate/rules/detector.yaml`
+> **File:** `~/.veilgate/rules/detector.yaml`
 > **Reload:** hot-reload via fsnotify (~500 ms debounce).
 >
 > The rule definitions for every signal in the rule-based scorer.

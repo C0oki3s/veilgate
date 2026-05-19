@@ -52,7 +52,7 @@ docker run -d --name veilgate \
   -p 8080:8080 -p 9090:9090 \
   -e VEILGATE_SECRET=change-me \
   -v "$(pwd)/configs/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro" \
-  -v "$(pwd)/rules:/rules:ro" \
+  -v "$HOME/.veilgate/rules:/home/nonroot/.veilgate/rules" \
   ghcr.io/c0oki3s/veilgate:latest
 ```
 
@@ -105,7 +105,7 @@ Start with [configs/veilgate.yaml](configs/veilgate.yaml):
 listen: ":8080"
 upstream: "http://localhost:3000"
 mode: "observe"
-rules_dir: "./rules"
+rules_dir: "~/.veilgate/rules"
 
 detector:
   score_challenge_threshold: 40
@@ -139,8 +139,8 @@ works out of the box. For longer-term maintenance, rules live in two places:
   # Install the latest pack into ~/.veilgate/rules (the default location)
   veilgate update-rules
 
-  # Or into a specific directory, pinned to a release tag
-  veilgate update-rules --dir /etc/veilgate/rules --version v1.2.0
+  # Or pin to a release tag
+  veilgate update-rules --dir ~/.veilgate/rules --version v1.2.0
 
   # List available releases
   veilgate update-rules --list

@@ -73,11 +73,7 @@ func runUpdateRules(args []string) {
 		return
 	}
 
-	// Determine target directory: explicit flag > config rules_dir > ./rules.
-	targetDir := *dir
-	if targetDir == "" {
-		targetDir = resolveRulesDir(*cfgPath)
-	}
+	targetDir := resolveUpdateRulesTargetDir(*dir, *cfgPath)
 	if err := os.MkdirAll(targetDir, 0700); err != nil {
 		fmt.Fprintf(os.Stderr, "update-rules: cannot create rules dir %q: %v\n", targetDir, err)
 		os.Exit(1)
@@ -130,14 +126,24 @@ func runUpdateRules(args []string) {
 	fmt.Println("             restart veilgate to pick up changes to non-hot-reloadable files (payloads.yaml)")
 }
 
-// resolveRulesDir reads rules_dir from the config file or falls back to ./rules.
+// resolveUpdateRulesTargetDir implements the three supported install methods:
+// explicit --dir, config rules_dir, then ~/.veilgate/rules.
+func resolveUpdateRulesTargetDir(explicitDir, cfgPath string) string {
+	if explicitDir != "" {
+		return expandHomePath(explicitDir)
+	}
+	return resolveRulesDir(cfgPath)
+}
+
+// resolveRulesDir reads rules_dir from the config file or falls back to
+// ~/.veilgate/rules.
 func resolveRulesDir(cfgPath string) string {
 	type partial struct {
 		RulesDir string `yaml:"rules_dir"`
 	}
 	data, err := os.ReadFile(cfgPath) //nolint:gosec
 	if err != nil {
-		return "./rules"
+		return defaultRulesDir()
 	}
 	// Minimal YAML parse using split-on-colon to avoid importing the
 	// full yaml package here — config package isn't imported to keep
@@ -149,7 +155,7 @@ func resolveRulesDir(cfgPath string) string {
 			// Strip YAML quoting if present.
 			v = strings.Trim(v, `"'`)
 			if v != "" {
-				return v
+				return expandHomePath(v)
 			}
 		}
 	}
@@ -165,6 +171,19 @@ func defaultRulesDir() string {
 		return "./rules"
 	}
 	return filepath.Join(home, ".veilgate", "rules")
+}
+
+// expandHomePath mirrors config.expandHome for update-rules without importing
+// the full config package into this subcommand path.
+func expandHomePath(p string) string {
+	if !strings.HasPrefix(p, "~/") && p != "~" {
+		return p
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return p
+	}
+	return filepath.Join(home, p[1:])
 }
 
 // fetchRelease returns release metadata from the GitHub Releases API.

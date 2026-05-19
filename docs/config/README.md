@@ -5,7 +5,7 @@ VeilGate has two configuration surfaces:
 - The top-level config file, normally `/etc/veilgate/veilgate.yaml`, defines
   the proxy listener, upstream, mode, TLS, detector thresholds, challenge
   secret, persistence, capture, metrics, and verifier chain.
-- The rules directory, normally `/etc/veilgate/rules/`, defines detector
+- The rules directory, normally `~/.veilgate/rules/`, defines detector
   matchers, fingerprint labels, tarpit content, challenge presentation, ML
   settings, dashboard layout, and learned candidates.
 

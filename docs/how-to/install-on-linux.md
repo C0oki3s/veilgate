@@ -45,10 +45,10 @@ sudo install -d -o veilgate -g veilgate -m 0700 /var/lib/veilgate
 sudo install -d -o veilgate -g veilgate -m 0700 /var/log/veilgate
 sudo install -m 0640 -o root -g veilgate \
   configs/veilgate.yaml /etc/veilgate/veilgate.yaml
-sudo cp -r rules /etc/veilgate/rules
-sudo chown -R root:veilgate /etc/veilgate/rules
-sudo chmod -R 0640 /etc/veilgate/rules
-sudo find /etc/veilgate/rules -type d -exec chmod 0750 {} +
+sudo -u veilgate /usr/local/bin/veilgate update-rules --dir ~veilgate/.veilgate/rules
+sudo chown -R veilgate:veilgate ~veilgate/.veilgate/rules
+sudo find ~veilgate/.veilgate/rules -type d -exec chmod 0750 {} +
+sudo find ~veilgate/.veilgate/rules -type f -exec chmod 0640 {} +
 ```
 
 This gives you:
@@ -57,7 +57,7 @@ This gives you:
 | --- | --- | --- |
 | `/usr/local/bin/veilgate` | root:root 0755 | binary |
 | `/etc/veilgate/veilgate.yaml` | root:veilgate 0640 | runtime config |
-| `/etc/veilgate/rules/` | root:veilgate 0750 | rule files |
+| `~veilgate/.veilgate/rules/` | veilgate:veilgate 0750 | rule files and miner output |
 | `/var/lib/veilgate/` | veilgate:veilgate 0700 | SQLite, audit log, capture |
 | `/var/log/veilgate/` | veilgate:veilgate 0700 | reserved for future log files |
 
@@ -111,8 +111,8 @@ in `journalctl` for the matching signal.
 The service user doesn't own the rules dir. Fix:
 
 ```bash
-sudo chown -R root:veilgate /etc/veilgate/rules
-sudo chmod -R g+rX /etc/veilgate/rules
+sudo chown -R veilgate:veilgate ~veilgate/.veilgate/rules
+sudo chmod -R u+rwX,g-rwx,o-rwx ~veilgate/.veilgate/rules
 ```
 
 ### Service starts but exits immediately

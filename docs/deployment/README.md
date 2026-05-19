@@ -21,7 +21,7 @@ Recommended filesystem layout:
 | --- | --- |
 | `/usr/local/bin/veilgate` | VeilGate binary. |
 | `/etc/veilgate/veilgate.yaml` | Runtime config. |
-| `/etc/veilgate/rules/` | Rule files. |
+| `~/.veilgate/rules/` | Community rule files. |
 | `/var/lib/veilgate/` | SQLite store, dumps, audit log. |
 
 ## Build And Install
@@ -32,7 +32,7 @@ sudo useradd --system --home /var/lib/veilgate --shell /usr/sbin/nologin veilgat
 sudo install -m 0755 veilgate /usr/local/bin/veilgate
 sudo mkdir -p /etc/veilgate /var/lib/veilgate
 sudo cp configs/veilgate.yaml /etc/veilgate/veilgate.yaml
-sudo cp -r rules /etc/veilgate/rules
+sudo -u veilgate /usr/local/bin/veilgate update-rules --dir ~veilgate/.veilgate/rules
 sudo chown -R veilgate:veilgate /var/lib/veilgate
 sudo chown -R root:root /etc/veilgate
 ```
@@ -42,7 +42,7 @@ Update `/etc/veilgate/veilgate.yaml`:
 ```yaml
 listen: ":8080"
 upstream: "http://127.0.0.1:3000"
-rules_dir: "/etc/veilgate/rules"
+rules_dir: "~/.veilgate/rules"
 
 persist:
   enabled: true
@@ -135,7 +135,7 @@ if the filesystem is read-only.
 docker run -d --name veilgate \
   --network host \
   -v /etc/veilgate/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro \
-  -v /etc/veilgate/rules:/home/nonroot/.veilgate/rules \
+  -v ~/.veilgate/rules:/home/nonroot/.veilgate/rules \
   -e VEILGATE_SECRET=$(openssl rand -hex 32) \
   ghcr.io/c0oki3s/veilgate:latest -config /etc/veilgate/veilgate.yaml
 ```
@@ -145,7 +145,7 @@ docker run -d --name veilgate \
 | Host path | Container path | Flags | Why |
 | --- | --- | --- | --- |
 | `/etc/veilgate/veilgate.yaml` | `/etc/veilgate/veilgate.yaml` | `:ro` | Config is read-only at runtime |
-| `/etc/veilgate/rules` | `/home/nonroot/.veilgate/rules` | *(writable)* | Miner writes `learned.yaml` here every tick |
+| `~/.veilgate/rules` | `/home/nonroot/.veilgate/rules` | *(writable)* | Miner writes `learned.yaml` here every tick |
 | `/etc/veilgate/tokens` | `/etc/veilgate/tokens` | `:ro` | Bearer token files |
 | `/etc/veilgate/clients` | `/etc/veilgate/clients` | `:ro` | HMAC client files |
 | `/var/lib/veilgate` | `/var/lib/veilgate` | *(writable)* | SQLite store and dumps (when `persist.enabled: true`) |
@@ -153,7 +153,7 @@ docker run -d --name veilgate \
 > **SELinux hosts (Fedora, RHEL, CentOS):** append `,z` to writable mounts and
 > `,ro,z` to read-only mounts so Docker relabels the files for container access:
 > ```
-> -v /etc/veilgate/rules:/home/nonroot/.veilgate/rules:z
+> -v ~/.veilgate/rules:/home/nonroot/.veilgate/rules:z
 > -v /etc/veilgate/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro,z
 > ```
 
