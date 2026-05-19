@@ -33,6 +33,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Register on pkg.go.dev
+        run: |
+          MODULE="github.com/C0oki3s/veilgate"
+          VERSION="${GITHUB_REF_NAME}"
+          echo "Pinging proxy.golang.org for ${MODULE}@${VERSION}"
+          curl -sSf "https://proxy.golang.org/${MODULE}/@v/${VERSION}.info" -o /dev/null \
+            && echo "pkg.go.dev will index ${MODULE}@${VERSION} shortly" \
+            || echo "Proxy ping returned non-200 — module will be indexed on next crawl"
+
   docker:
     name: Docker (tagged release)
     runs-on: ubuntu-latest
