@@ -7,12 +7,13 @@
 **On this page:**
 
 1. [Install script (recommended)](#install-script-recommended)
-2. [Manual install from source](#manual-install-from-source)
-3. [Lay out the filesystem](#lay-out-the-filesystem)
-4. [Drop in the systemd unit](#drop-in-the-systemd-unit)
-5. [Verify](#verify)
-6. [Common problems](#common-problems)
-7. [Related](#related)
+2. [Clean Previous Install](#clean-previous-install)
+3. [Manual install from source](#manual-install-from-source)
+4. [Lay out the filesystem](#lay-out-the-filesystem)
+5. [Drop in the systemd unit](#drop-in-the-systemd-unit)
+6. [Verify](#verify)
+7. [Common problems](#common-problems)
+8. [Related](#related)
 
 ## Install script (recommended)
 
@@ -42,6 +43,28 @@ After install:
 ```bash
 systemctl status veilgate
 journalctl -u veilgate -f
+```
+
+## Clean Previous Install
+
+Use this before reinstalling from scratch if an earlier install left stale
+service files, permissions, or rule directories behind:
+
+```bash
+sudo systemctl disable --now veilgate 2>/dev/null || true
+sudo rm -f /etc/systemd/system/veilgate.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed veilgate 2>/dev/null || true
+
+sudo rm -f /usr/local/bin/veilgate
+sudo rm -rf /etc/veilgate /var/lib/veilgate /var/log/veilgate
+sudo userdel veilgate 2>/dev/null || true
+```
+
+Then rerun the installer:
+
+```bash
+curl -sSL https://veilgate.dev/install.sh | sudo bash -s -- --upstream http://localhost:3000
 ```
 
 ## Manual install from source

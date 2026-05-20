@@ -30,11 +30,13 @@ Recommended filesystem layout:
 make build
 sudo useradd --system --home /var/lib/veilgate --shell /usr/sbin/nologin veilgate
 sudo install -m 0755 veilgate /usr/local/bin/veilgate
-sudo mkdir -p /etc/veilgate /var/lib/veilgate
-sudo cp configs/veilgate.yaml /etc/veilgate/veilgate.yaml
+sudo install -d -o root -g veilgate -m 0750 /etc/veilgate
+sudo install -d -o veilgate -g veilgate -m 0700 /var/lib/veilgate
+sudo install -m 0640 -o root -g veilgate configs/veilgate.yaml /etc/veilgate/veilgate.yaml
 sudo -u veilgate /usr/local/bin/veilgate update-rules --dir ~veilgate/.veilgate/rules
 sudo chown -R veilgate:veilgate /var/lib/veilgate
-sudo chown -R root:root /etc/veilgate
+sudo chmod 0750 /etc/veilgate
+sudo chmod 0640 /etc/veilgate/veilgate.yaml
 ```
 
 Update `/etc/veilgate/veilgate.yaml`:

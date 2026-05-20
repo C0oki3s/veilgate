@@ -5,6 +5,133 @@ issue, follow the checklist in order before changing configuration.
 
 ---
 
+## Reinstall keeps using stale files or permissions
+
+**Symptom:** After rerunning the installer, VeilGate still uses an old binary,
+old systemd unit, old rules directory, or old config permissions.
+
+Use a clean reinstall when an earlier install left stale state behind:
+
+```bash
+sudo systemctl disable --now veilgate 2>/dev/null || true
+sudo rm -f /etc/systemd/system/veilgate.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed veilgate 2>/dev/null || true
+
+sudo rm -f /usr/local/bin/veilgate
+sudo rm -rf /etc/veilgate /var/lib/veilgate /var/log/veilgate
+sudo userdel veilgate 2>/dev/null || true
+```
+
+Then reinstall:
+
+```bash
+curl -sSL https://veilgate.dev/install.sh | sudo bash -s -- --upstream http://localhost:3000
+```
+
+Verify the installed binary and service state:
+
+```bash
+/usr/local/bin/veilgate -version
+sudo systemctl status veilgate --no-pager
+```
+
+---
+
+## Permission denied reading `/etc/veilgate/veilgate.yaml`
+
+**Symptom:** The service exits at startup with:
+
+```text
+FTL load config error="read config: open /etc/veilgate/veilgate.yaml: permission denied"
+```
+
+The systemd service runs as user/group `veilgate`, so `/etc/veilgate` must be
+searchable by that group and the config must be group-readable:
+
+```bash
+sudo chown root:veilgate /etc/veilgate
+sudo chmod 750 /etc/veilgate
+sudo chown root:veilgate /etc/veilgate/veilgate.yaml
+sudo chmod 640 /etc/veilgate/veilgate.yaml
+sudo restorecon -Rv /etc/veilgate 2>/dev/null || true
+```
+
+Confirm the service user can read the config:
+
+```bash
+sudo -u veilgate test -r /etc/veilgate/veilgate.yaml && echo config-ok
+sudo systemctl restart veilgate
+```
+
+On SELinux hosts such as Fedora or RHEL, if the direct read test passes but
+systemd still logs permission errors, check AVC denials:
+
+```bash
+sudo ausearch -m avc -ts recent | tail -40
+```
+
+---
+
+## `update-rules` or miner cannot write rules
+
+**Symptom:** `veilgate update-rules` fails with permission errors, or logs show
+the miner cannot write `learned.yaml`.
+
+The packaged config uses `rules_dir: "~/.veilgate/rules"`. Under systemd, that
+resolves to `/var/lib/veilgate/.veilgate/rules` because the `veilgate` user's
+home is `/var/lib/veilgate`.
+
+Fix ownership and modes:
+
+```bash
+sudo install -d -o veilgate -g veilgate -m 0750 /var/lib/veilgate/.veilgate/rules
+sudo chown -R veilgate:veilgate /var/lib/veilgate/.veilgate
+sudo find /var/lib/veilgate/.veilgate/rules -type d -exec chmod 0750 {} +
+sudo find /var/lib/veilgate/.veilgate/rules -type f -exec chmod 0640 {} +
+```
+
+Run updates as the same user that runs the service:
+
+```bash
+sudo -u veilgate /usr/local/bin/veilgate update-rules --dir /var/lib/veilgate/.veilgate/rules --no-backup
+```
+
+If `update-rules` reports `download failed: download: HTTP 415`, the installed
+binary predates the GitHub zipball Accept-header fix. Install a newer VeilGate
+release or a locally built binary that includes that fix.
+
+---
+
+## Docker rules mount is read-only or mislabeled
+
+**Symptom:** Container logs show miner write errors, rules do not update, or
+Fedora/RHEL hosts show permission denied for mounted rules.
+
+The rules mount must be writable. Do not use `:ro` for it:
+
+```bash
+docker run -d --name veilgate \
+  --network host \
+  -v /etc/veilgate/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro \
+  -v ~/.veilgate/rules:/home/nonroot/.veilgate/rules \
+  -e VEILGATE_SECRET=$(openssl rand -hex 32) \
+  ghcr.io/c0oki3s/veilgate:latest -config /etc/veilgate/veilgate.yaml
+```
+
+On SELinux hosts, add `z` relabel flags:
+
+```bash
+docker run -d --name veilgate \
+  --network host \
+  -v /etc/veilgate/veilgate.yaml:/etc/veilgate/veilgate.yaml:ro,z \
+  -v ~/.veilgate/rules:/home/nonroot/.veilgate/rules:z \
+  -e VEILGATE_SECRET=$(openssl rand -hex 32) \
+  ghcr.io/c0oki3s/veilgate:latest -config /etc/veilgate/veilgate.yaml
+```
+
+---
+
 ## Normal browser traffic is challenged or tarpitted
 
 **Symptom:** Real users receive the proof-of-work challenge page or see
