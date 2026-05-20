@@ -10,8 +10,9 @@ BINARY="veilgate"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/veilgate"
 DATA_DIR="/var/lib/veilgate"
+# Matches rules_dir: "~/.veilgate/rules" at runtime because the veilgate
+# service user's home directory is DATA_DIR.
 RULES_DIR="${DATA_DIR}/.veilgate/rules"
-RULES_REPO="https://github.com/C0oki3s/veilgate-rules.git"
 SERVICE_FILE="/etc/systemd/system/veilgate.service"
 
 # ── colours ──────────────────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ Flags:
   --listen ADDR           Proxy listen address          (default: :8080)
   --metrics-listen ADDR   Metrics listener address      (default: 127.0.0.1:9090)
   --no-service            Skip systemd service install
-  --no-rules              Skip community rules clone
+  --no-rules              Skip community rules install
   -h, --help              Show this help
 
 Examples:
@@ -325,30 +326,14 @@ chmod 750 "$CONFIG_DIR"
 
 # Community rules
 if [[ "$NO_RULES" == false ]]; then
-  if command -v git &>/dev/null; then
-    if [[ -d "${RULES_DIR}/.git" ]]; then
-      info "Updating community rules…"
-      git -C "${RULES_DIR}" pull --ff-only -q
-    else
-      # Do NOT pre-create the directory — git clone creates it itself.
-      # Pre-creating it causes "already exists" errors on some git versions.
-      info "Cloning community rules…"
-      mkdir -p "$(dirname "$RULES_DIR")"
-      git clone --depth 1 "$RULES_REPO" "${RULES_DIR}" -q
-    fi
-    chown -R veilgate:veilgate "${DATA_DIR}/.veilgate"
-    chmod -R g+r "${RULES_DIR}"
-    # Rules dir must be writable by the veilgate user so the ML miner can
-    # write learned.yaml on every tick.
-    chmod g+w "${RULES_DIR}"
-  else
-    warn "git not found — skipping community rules. Install git and re-run, or clone manually:"
-    warn "  git clone --depth 1 ${RULES_REPO} ${RULES_DIR}"
-    # Create an empty dir so VeilGate starts without crashing on missing rules_dir.
-    mkdir -p "${RULES_DIR}"
-    chown -R veilgate:veilgate "${DATA_DIR}/.veilgate"
-    chmod 770 "${RULES_DIR}"
-  fi
+  info "Installing community rules…"
+  mkdir -p "${RULES_DIR}"
+  "${INSTALL_DIR}/${BINARY}" update-rules --dir "${RULES_DIR}" --no-backup
+  chown -R veilgate:veilgate "${DATA_DIR}/.veilgate"
+  chmod -R g+r "${RULES_DIR}"
+  # Rules dir must be writable by the veilgate user so the ML miner can
+  # write learned.yaml on every tick.
+  chmod g+w "${RULES_DIR}"
 else
   # --no-rules: create an empty dir so VeilGate has a valid rules_dir to watch.
   mkdir -p "${RULES_DIR}"
