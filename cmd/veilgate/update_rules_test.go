@@ -40,3 +40,17 @@ func TestResolveUpdateRulesTargetDirDefaultsToHomeRules(t *testing.T) {
 		t.Fatalf("resolveUpdateRulesTargetDir() = %q, want %q", got, want)
 	}
 }
+
+func TestDownloadAcceptHeaderUsesGitHubMediaTypeForAPIZipball(t *testing.T) {
+	rawURL := rulesAPIBase + "/zipball/v0.1.0"
+	if got := downloadAcceptHeader(rawURL); got != "application/vnd.github+json" {
+		t.Fatalf("downloadAcceptHeader() = %q, want GitHub JSON media type", got)
+	}
+}
+
+func TestDownloadAcceptHeaderUsesOctetStreamForReleaseAsset(t *testing.T) {
+	rawURL := rulesHTMLBase + "/releases/download/v0.1.0/rules.zip"
+	if got := downloadAcceptHeader(rawURL); got != "application/octet-stream" {
+		t.Fatalf("downloadAcceptHeader() = %q, want octet-stream", got)
+	}
+}

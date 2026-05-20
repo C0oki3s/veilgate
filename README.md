@@ -40,7 +40,7 @@ tokens, and attention on believable dead ends.
 
 ### Option 1 — Install script (recommended)
 
-Downloads the binary, installs a systemd service, clones community rules, and
+Downloads the binary, installs a systemd service, installs community rules, and
 writes a starter config in `observe` mode.
 
 ```bash
@@ -60,7 +60,11 @@ Flags:
 | `--listen ADDR` | `:8080` | Proxy listen address |
 | `--metrics-listen ADDR` | `127.0.0.1:9090` | Metrics (keep private) |
 | `--no-service` | — | Skip systemd service |
-| `--no-rules` | — | Skip community rules clone |
+| `--no-rules` | — | Skip community rules install |
+
+The packaged config uses `rules_dir: "~/.veilgate/rules"`. Under systemd,
+VeilGate runs as the `veilgate` user whose home is `/var/lib/veilgate`, so this
+resolves to `/var/lib/veilgate/.veilgate/rules`.
 
 After install:
 

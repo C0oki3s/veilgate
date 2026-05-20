@@ -16,7 +16,7 @@
 
 ## Install script (recommended)
 
-The quickest path — downloads the binary, installs a systemd service, clones
+The quickest path — downloads the binary, installs a systemd service, installs
 community rules, and writes a starter config in `observe` mode:
 
 ```bash
@@ -31,7 +31,11 @@ Available flags:
 | `--listen ADDR` | `:8080` | Proxy listen address |
 | `--metrics-listen ADDR` | `127.0.0.1:9090` | Metrics (keep private) |
 | `--no-service` | — | Skip systemd service |
-| `--no-rules` | — | Skip community rules clone |
+| `--no-rules` | — | Skip community rules install |
+
+The generated config keeps `rules_dir: "~/.veilgate/rules"`. Because the
+systemd service runs as the `veilgate` user with home `/var/lib/veilgate`, that
+path resolves at runtime to `/var/lib/veilgate/.veilgate/rules`.
 
 After install:
 

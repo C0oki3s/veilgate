@@ -281,7 +281,8 @@ func secureDownload(rawURL string) ([]byte, error) {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("User-Agent", "veilgate-update-rules/1")
-	req.Header.Set("Accept", "application/octet-stream")
+	req.Header.Set("Accept", downloadAcceptHeader(rawURL))
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
 	// Follow GitHub's redirect to objects.githubusercontent.com.
 	client := &http.Client{
@@ -310,6 +311,13 @@ func secureDownload(rawURL string) ([]byte, error) {
 		return nil, errors.New("downloaded file is not a ZIP archive")
 	}
 	return data, nil
+}
+
+func downloadAcceptHeader(rawURL string) string {
+	if strings.HasPrefix(strings.ToLower(rawURL), strings.ToLower(rulesAPIBase)+"/zipball/") {
+		return "application/vnd.github+json"
+	}
+	return "application/octet-stream"
 }
 
 // validateGitHubURL checks that a URL is HTTPS and points to github.com
