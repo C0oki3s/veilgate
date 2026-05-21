@@ -27,6 +27,15 @@ func TestScorerZeroWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestScorerNilConfigDisabled(t *testing.T) {
+	s := NewScorer(rules.NewHolder[rules.ML](nil))
+	r := s.Score(Vec{Categorical: []Feature{{Name: "ua", Bucket: "x"}}})
+	if r.Points != 0 || r.Fired {
+		t.Fatalf("nil-config scorer fired: %+v", r)
+	}
+	s.RefitIsoForest()
+}
+
 func TestScorerBurnInSuppressesScore(t *testing.T) {
 	cfg := baseMLConfig()
 	cfg.BurnInEvents = 10

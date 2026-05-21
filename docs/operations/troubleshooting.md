@@ -29,6 +29,14 @@ Then reinstall:
 curl -sSL https://veilgate.dev/install.sh | sudo bash -s -- --upstream http://localhost:3000
 ```
 
+For non-interactive production installs, pass the challenge secret explicitly:
+
+```bash
+curl -sSL https://veilgate.dev/install.sh | sudo bash -s -- \
+  --upstream http://localhost:3000 \
+  --secret "$(openssl rand -hex 32)"
+```
+
 Verify the installed binary and service state:
 
 ```bash

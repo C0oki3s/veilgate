@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -144,5 +145,22 @@ func TestMinerDisabledNoWrite(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "learned.yaml")); !os.IsNotExist(err) {
 		t.Fatalf("learned.yaml should not exist when miner disabled")
+	}
+}
+
+func TestMinerNilConfigNoWrite(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBayes(1.0)
+	b.Update(Vec{Categorical: []Feature{{Name: "ua", Bucket: "x"}}}, "agent")
+
+	mn := NewMiner(b, rules.NewHolder[rules.ML](nil), nil, dir)
+	if got := mn.interval(); got != time.Hour {
+		t.Fatalf("interval() = %s, want %s", got, time.Hour)
+	}
+	if err := mn.Tick(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "learned.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("learned.yaml should not exist when miner config is nil")
 	}
 }

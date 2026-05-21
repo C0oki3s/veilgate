@@ -22,6 +22,9 @@ declines.
 - [Why a verifier chain](#why-a-verifier-chain)
 - [Tarpit override](#tarpit-override)
 - [`hmac:`](#hmac)
+- [`bearer:`](#bearer)
+- [`cookies:`](#cookies)
+- [`headers:`](#headers)
 - [Example](#example)
 - [Related](#related)
 
@@ -49,9 +52,8 @@ to pick one universal scheme; it provides a chain so you can stack
 multiple verifiers and let the operator decide which credential
 applies where.
 
-Today the chain ships one verifier: HMAC (the `hmac:` block below).
-[Future verifiers](#related) are sketched in the design doc but not
-yet implemented.
+The chain ships four verifier blocks: `hmac:`, `bearer:`, `cookies:`, and
+`headers:`. All are documented below.
 
 ## Tarpit override
 
@@ -159,6 +161,96 @@ than the cap fail signature verification (because the body-hash
 doesn't match) - they don't OOM the proxy. Set this higher only if
 you have legitimate large uploads going through the verifier path.
 
+## `bearer:`
+
+Accepts opaque static tokens carried in a request header (GitHub PAT / Stripe
+API key model). Tokens are compared via SHA-256 — no per-request replay
+protection; rely on TLS and rotate on compromise.
+
+Full reference: [`docs/reference/verifiers/bearer.md`](../reference/verifiers/bearer.md)
+
+| Key | Type | Default | Purpose |
+|-----|------|---------|---------|
+| `enabled` | bool | `false` | Install the verifier when `true`. |
+| `header` | string | `Authorization` | Request header carrying the credential. |
+| `scheme` | string | `Bearer` (auto when `header=Authorization`) | Prefix stripped before lookup. Set to `""` for raw-token headers with no scheme. |
+| `tokens_dir` | string | required | One `.token` file per client. Hot-reloaded on directory mtime change. |
+
+```yaml
+verifiers:
+  bearer:
+    enabled:    true
+    header:     Authorization
+    scheme:     Bearer
+    tokens_dir: /etc/veilgate/tokens
+```
+
+---
+
+## `cookies:`
+
+A list of cookie verifiers. Each entry binds a cookie name to a validator;
+entries are evaluated in declaration order and the first acceptance wins.
+
+Full reference: [`docs/reference/verifiers/cookie.md`](../reference/verifiers/cookie.md)
+
+### Fields per entry
+
+| Field | Default | Notes |
+|-------|---------|-------|
+| `name` | required | Cookie name. Case-sensitive, exact match. |
+| `validator` | `opaque` | `opaque`, `jwt`, or `callout`. |
+| `tokens_dir` | required when `validator: opaque` | Same layout as bearer's `tokens_dir`. |
+| `jwks_url` | required when `validator: jwt` | JWKS endpoint URL. |
+| `issuer` | — | Expected `iss` claim (JWT). |
+| `audience` | — | Expected `aud` claim (JWT). |
+| `client_claim` | — | JWT claim used as the client id in audit logs. |
+| `algorithms` | — | Allowed signing algorithms; HS\* always stripped. |
+| `refresh_interval` | `1h` | How often to re-fetch the JWKS. |
+| `url` | required when `validator: callout` | HTTP endpoint to call. |
+| `cache_ttl` | `30s` | How long to cache a positive callout response. |
+| `timeout` | `5s` | Per-callout HTTP timeout. |
+| `auth_header` | — | Header to add to outbound callout requests. |
+| `auth_value` | — | Value for `auth_header`. |
+
+```yaml
+verifiers:
+  cookies:
+    - name:       SESSION
+      validator:  opaque
+      tokens_dir: /etc/veilgate/sessions
+
+    - name:       AUTH_JWT
+      validator:  jwt
+      jwks_url:   https://auth.example.com/.well-known/jwks.json
+      audience:   veilgate
+```
+
+---
+
+## `headers:`
+
+A list of header verifiers. Each entry binds a request header name to a
+validator. The header name is canonicalised — `X-Foo`, `x-foo`, and `X-FOO`
+all match. Fields are identical to [`cookies:`](#cookies) entries, substituting
+`name` for the header name instead of a cookie name.
+
+Full reference: [`docs/reference/verifiers/header.md`](../reference/verifiers/header.md)
+
+```yaml
+verifiers:
+  headers:
+    - name:       CF-Access-Jwt-Assertion
+      validator:  jwt
+      jwks_url:   https://team.cloudflareaccess.com/cdn-cgi/access/certs
+
+    - name:       X-Internal-Service-Token
+      validator:  opaque
+      tokens_dir: /etc/veilgate/services
+```
+
+---
+
 ## Example
 
 A production deployment with one client (`payment-service`) accepting
@@ -236,6 +328,11 @@ def sign(secret: bytes, method: str, path: str, body: bytes) -> str:
 
 ## Related
 
+- [Bearer verifier reference](../reference/verifiers/bearer.md)
+- [Cookie verifier reference](../reference/verifiers/cookie.md)
+- [Header verifier reference](../reference/verifiers/header.md)
+- [JWT validator reference](../reference/verifiers/jwt-validator.md)
+- [Callout validator reference](../reference/verifiers/callout-validator.md)
 - [How-to: Server-to-server HMAC](../how-to/server-to-server-hmac.md)
   - task-oriented walkthrough including secret rotation
 - [How-to: Multi-origin SPA](../how-to/protect-multi-origin.md)
@@ -244,6 +341,7 @@ def sign(secret: bytes, method: str, path: str, body: bytes) -> str:
   token transport, the *other* credential path
 - [`detector.score_tarpit_threshold`](detector.md#score_tarpit_threshold)
   - the threshold that bounds verifier bypass
+- [Credential verifiers — design tracker](../design/credential-verifiers.md)
 - [docs/security/challenge-solution-design.md](../security/challenge-solution-design.md)
   - the design context for why this exists
 

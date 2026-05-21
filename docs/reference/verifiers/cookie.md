@@ -107,8 +107,7 @@ Cookie: MY_AUTH_SESSION=session-abc-123
   `Domain` / `SameSite` / `Path` attributes allow it. The cookie verifier
   does not set the cookie — your auth system does, and you must ensure it is
   scoped to reach the VeilGate-fronted origin. For the SPA-on-different-origin
-  case, see [Challege.md](../../../Challege.md) and ship #7
-  (`/__veilgate/start`).
+  case, see [`/__veilgate/start`](../endpoints/start.md) (ship #7).
 
 ## Examples
 

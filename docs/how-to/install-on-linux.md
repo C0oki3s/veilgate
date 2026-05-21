@@ -31,12 +31,19 @@ Available flags:
 | `--upstream URL` | `http://127.0.0.1:3000` | Your upstream application |
 | `--listen ADDR` | `:8080` | Proxy listen address |
 | `--metrics-listen ADDR` | `127.0.0.1:9090` | Metrics (keep private) |
+| `--secret SECRET` | prompt or generated | Challenge signing secret |
+| `--user USER` | `veilgate` | Service user to run VeilGate |
 | `--no-service` | — | Skip systemd service |
 | `--no-rules` | — | Skip community rules install |
 
 The generated config keeps `rules_dir: "~/.veilgate/rules"`. Because the
 systemd service runs as the `veilgate` user with home `/var/lib/veilgate`, that
 path resolves at runtime to `/var/lib/veilgate/.veilgate/rules`.
+
+If `--secret` is omitted on a new install, the installer prompts on interactive
+terminals and otherwise generates a random secret. If the service user does not
+exist, the installer asks before creating it on interactive terminals and
+defaults to creation for non-interactive installs.
 
 After install:
 

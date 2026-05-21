@@ -62,6 +62,9 @@ func (m *Miner) Run(ctx context.Context, onError func(error)) {
 
 func (m *Miner) interval() time.Duration {
 	mc := m.cfg.Load()
+	if mc == nil {
+		return time.Hour
+	}
 	mins := mc.Miner.IntervalMinutes
 	if mins <= 0 {
 		mins = 60
@@ -73,6 +76,9 @@ func (m *Miner) interval() time.Duration {
 // goroutine.
 func (m *Miner) Tick() error {
 	mc := m.cfg.Load()
+	if mc == nil {
+		return nil
+	}
 	if !mc.Miner.Enabled {
 		return nil
 	}
