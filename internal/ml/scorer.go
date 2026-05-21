@@ -37,9 +37,9 @@ type Scorer struct {
 
 	// Ring buffer of recent numeric vectors for the next IF refit.
 	// Protected by bufMu; the refit goroutine drains it.
-	bufMu   sync.Mutex
-	recent  [][]float64
-	bufCap  int
+	bufMu  sync.Mutex
+	recent [][]float64
+	bufCap int
 
 	// observed counts labeled examples sent to Bayes — the burn-in gate.
 	observed atomic.Int64
@@ -87,7 +87,7 @@ func (s *Scorer) Bayes() *Bayes { return s.bayes }
 // Returns zeros when ML is disabled or still in burn-in.
 func (s *Scorer) Score(v Vec) Result {
 	m := s.cfg.Load()
-	if !m.Enabled {
+	if m == nil || !m.Enabled {
 		return Result{}
 	}
 	if int(s.observed.Load()) < m.BurnInEvents {
@@ -218,7 +218,7 @@ func (s *Scorer) Observe(v Vec, ruleScore, agentThreshold int) {
 // bounded as ingestion volume grows.
 func (s *Scorer) RefitIsoForest() {
 	m := s.cfg.Load()
-	if !m.Enabled {
+	if m == nil || !m.Enabled {
 		return
 	}
 	s.bufMu.Lock()

@@ -10,6 +10,8 @@ BINARY="veilgate"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/veilgate"
 DATA_DIR="/var/lib/veilgate"
+SERVICE_USER="veilgate"
+SERVICE_GROUP="veilgate"
 # Matches rules_dir: "~/.veilgate/rules" at runtime because the veilgate
 # service user's home directory is DATA_DIR.
 RULES_DIR="${DATA_DIR}/.veilgate/rules"
@@ -36,6 +38,8 @@ Flags:
   --upstream URL          Upstream application address  (default: http://127.0.0.1:3000)
   --listen ADDR           Proxy listen address          (default: :8080)
   --metrics-listen ADDR   Metrics listener address      (default: 127.0.0.1:9090)
+  --secret SECRET         Challenge signing secret      (default: prompt or generate)
+  --user USER             Service user                  (default: veilgate)
   --no-service            Skip systemd service install
   --no-rules              Skip community rules install
   -h, --help              Show this help
@@ -50,6 +54,8 @@ EOF
 UPSTREAM=""
 LISTEN=":8080"
 METRICS_LISTEN="127.0.0.1:9090"
+SECRET=""
+SECRET_PROVIDED=false
 NO_SERVICE=false
 NO_RULES=false
 
@@ -58,6 +64,8 @@ while [[ $# -gt 0 ]]; do
     --upstream)       UPSTREAM="$2";        shift 2 ;;
     --listen)         LISTEN="$2";          shift 2 ;;
     --metrics-listen) METRICS_LISTEN="$2";  shift 2 ;;
+    --secret)         SECRET="$2"; SECRET_PROVIDED=true; shift 2 ;;
+    --user)           SERVICE_USER="$2"; SERVICE_GROUP="$2"; shift 2 ;;
     --no-service)     NO_SERVICE=true;      shift ;;
     --no-rules)       NO_RULES=true;        shift ;;
     -h|--help)        usage; exit 0 ;;
@@ -158,6 +166,128 @@ build_from_source() {
   BIN_TMPDIR="$tmpdir"
 }
 
+generate_secret() {
+  openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 32
+}
+
+read_from_tty() {
+  local prompt="$1" default="$2" reply=""
+  if [[ -r /dev/tty ]]; then
+    read -r -p "$prompt" reply </dev/tty || true
+  else
+    read -r -p "$prompt" reply || true
+  fi
+  if [[ -z "$reply" ]]; then
+    reply="$default"
+  fi
+  printf '%s' "$reply"
+}
+
+resolve_secret() {
+  if [[ -n "$SECRET" ]]; then
+    :
+  elif [[ -r /dev/tty ]]; then
+    local reply=""
+    read -r -s -p "Enter VeilGate challenge secret (blank to generate): " reply </dev/tty || true
+    echo >/dev/tty
+    SECRET="$reply"
+  fi
+
+  if [[ -z "$SECRET" ]]; then
+    SECRET="$(generate_secret)"
+    info "Generated challenge secret."
+  else
+    info "Using provided challenge secret."
+  fi
+
+  if [[ ${#SECRET} -lt 32 ]]; then
+    error "Challenge secret must be at least 32 characters."
+  fi
+  if [[ "$SECRET" =~ [[:space:]\"\\] ]]; then
+    error "Challenge secret must not contain whitespace, quotes, or backslashes."
+  fi
+}
+
+ensure_service_user() {
+  if id "$SERVICE_USER" &>/dev/null; then
+    SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
+    local existing_home
+    existing_home="$(getent passwd "$SERVICE_USER" | cut -d: -f6)"
+    if [[ "$existing_home" != "$DATA_DIR" ]]; then
+      warn "User ${SERVICE_USER} already exists with home ${existing_home}; systemd rules_dir '~/.veilgate/rules' will resolve there at runtime."
+      RULES_DIR="${existing_home}/.veilgate/rules"
+      warn "Installing community rules into ${RULES_DIR} to match that runtime expansion."
+    fi
+    return
+  fi
+
+  local create="y"
+  if [[ -r /dev/tty ]]; then
+    create="$(read_from_tty "Create system user '${SERVICE_USER}' with home '${DATA_DIR}'? [Y/n] " "y")"
+  fi
+  case "$create" in
+    y|Y|yes|YES)
+      useradd --system --user-group --home "$DATA_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
+      SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
+      info "Created service user: ${SERVICE_USER}"
+      ;;
+    *)
+      error "Service user ${SERVICE_USER} is required. Re-run with --user <existing-user> or allow creation."
+      ;;
+  esac
+}
+
+run_as_service_user() {
+  if command -v runuser &>/dev/null; then
+    runuser -u "$SERVICE_USER" -- "$@"
+  elif command -v sudo &>/dev/null; then
+    sudo -u "$SERVICE_USER" "$@"
+  else
+    error "Need runuser or sudo to run commands as ${SERVICE_USER}."
+  fi
+}
+
+restore_selinux_contexts() {
+  if command -v restorecon &>/dev/null; then
+    restorecon -R "$CONFIG_DIR" "$DATA_DIR" /var/log/veilgate 2>/dev/null || true
+  fi
+}
+
+update_config_secret() {
+  local cfg="${CONFIG_DIR}/veilgate.yaml" tmp
+  tmp="$(mktemp)"
+  awk -v secret="$SECRET" '
+    BEGIN { in_challenge=0; wrote=0 }
+    /^challenge:[[:space:]]*$/ {
+      in_challenge=1
+      print
+      next
+    }
+    in_challenge && /^[^[:space:]]/ {
+      if (!wrote) {
+        print "  secret: \"" secret "\""
+        wrote=1
+      }
+      in_challenge=0
+    }
+    in_challenge && /^[[:space:]]+secret:[[:space:]]*/ {
+      if (!wrote) {
+        print "  secret: \"" secret "\""
+        wrote=1
+      }
+      next
+    }
+    { print }
+    END {
+      if (in_challenge && !wrote) {
+        print "  secret: \"" secret "\""
+      }
+    }
+  ' "$cfg" > "$tmp"
+  install -m 0640 -o root -g "$SERVICE_GROUP" "$tmp" "$cfg"
+  rm -f "$tmp"
+}
+
 # ── write default config ──────────────────────────────────────────────────────
 write_config() {
   local upstream="$1" secret="$2"
@@ -201,7 +331,7 @@ EOF
 
 # ── systemd service ───────────────────────────────────────────────────────────
 write_service() {
-  cat > "$SERVICE_FILE" <<'UNIT'
+  cat > "$SERVICE_FILE" <<UNIT
 [Unit]
 Description=VeilGate — tarpit + deception proxy for AI pentest agents
 Documentation=https://veilgate.dev/docs
@@ -210,8 +340,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=veilgate
-Group=veilgate
+User=${SERVICE_USER}
+Group=${SERVICE_GROUP}
 
 ExecStart=/usr/local/bin/veilgate -config /etc/veilgate/veilgate.yaml
 Restart=on-failure
@@ -262,6 +392,8 @@ SyslogIdentifier=veilgate
 [Install]
 WantedBy=multi-user.target
 UNIT
+  chown root:root "$SERVICE_FILE"
+  chmod 0644 "$SERVICE_FILE"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -313,48 +445,48 @@ rm -rf "$BIN_TMPDIR"
 info "Installed to ${INSTALL_DIR}/${BINARY}"
 
 step "5/6  Setting up config and data directories…"
-# Service user
-if ! id veilgate &>/dev/null; then
-  useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin veilgate
-  info "Created service user: veilgate"
-fi
+ensure_service_user
 
-mkdir -p "$CONFIG_DIR" "$DATA_DIR" "${DATA_DIR}/dumps" /var/log/veilgate
-chown -R veilgate:veilgate "$DATA_DIR" /var/log/veilgate
-chown root:veilgate "$CONFIG_DIR"
-chmod 750 "$CONFIG_DIR"
+install -d -o root -g "$SERVICE_GROUP" -m 0750 "$CONFIG_DIR"
+install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 0700 "$DATA_DIR" "${DATA_DIR}/dumps" /var/log/veilgate
+install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 0750 "${DATA_DIR}/.veilgate" "$RULES_DIR"
 
 # Community rules
 if [[ "$NO_RULES" == false ]]; then
   info "Installing community rules…"
-  mkdir -p "${RULES_DIR}"
-  "${INSTALL_DIR}/${BINARY}" update-rules --dir "${RULES_DIR}" --no-backup
-  chown -R veilgate:veilgate "${DATA_DIR}/.veilgate"
-  chmod -R g+r "${RULES_DIR}"
+  run_as_service_user "${INSTALL_DIR}/${BINARY}" update-rules --dir "${RULES_DIR}" --no-backup
+  chown -R "$SERVICE_USER:$SERVICE_GROUP" "${DATA_DIR}/.veilgate"
+  find "${RULES_DIR}" -type d -exec chmod 0750 {} +
+  find "${RULES_DIR}" -type f -exec chmod 0640 {} +
   # Rules dir must be writable by the veilgate user so the ML miner can
   # write learned.yaml on every tick.
-  chmod g+w "${RULES_DIR}"
+  chmod u+w "${RULES_DIR}"
 else
   # --no-rules: create an empty dir so VeilGate has a valid rules_dir to watch.
-  mkdir -p "${RULES_DIR}"
-  chown -R veilgate:veilgate "${DATA_DIR}/.veilgate"
-  chmod 770 "${RULES_DIR}"
+  chown -R "$SERVICE_USER:$SERVICE_GROUP" "${DATA_DIR}/.veilgate"
+  chmod 0750 "${RULES_DIR}"
 fi
 
 # Config (only write if it doesn't already exist)
 if [[ ! -f "${CONFIG_DIR}/veilgate.yaml" ]]; then
+  resolve_secret
   if [[ -z "$UPSTREAM" ]]; then
     warn "No --upstream provided. Defaulting to http://127.0.0.1:3000 — edit ${CONFIG_DIR}/veilgate.yaml to change."
     UPSTREAM="http://127.0.0.1:3000"
   fi
-  SECRET="$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 32)"
   write_config "$UPSTREAM" "$SECRET"
-  chmod 640 "${CONFIG_DIR}/veilgate.yaml"
-  chown root:veilgate "${CONFIG_DIR}/veilgate.yaml"
   info "Config written to ${CONFIG_DIR}/veilgate.yaml"
 else
   info "Config already exists — skipping (${CONFIG_DIR}/veilgate.yaml)"
+  if [[ "$SECRET_PROVIDED" == true ]]; then
+    resolve_secret
+    update_config_secret
+    info "Updated challenge secret in ${CONFIG_DIR}/veilgate.yaml"
+  fi
 fi
+chown root:"$SERVICE_GROUP" "${CONFIG_DIR}/veilgate.yaml"
+chmod 0640 "${CONFIG_DIR}/veilgate.yaml"
+restore_selinux_contexts
 
 step "6/6  Installing systemd service…"
 if [[ "$NO_SERVICE" == false ]] && command -v systemctl &>/dev/null; then

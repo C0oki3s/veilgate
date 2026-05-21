@@ -313,7 +313,11 @@ func main() {
 	vulnVal, _ := rules.LoadVulnerabilities(cfg.RulesDir)
 	strategyVal, _ := rules.LoadInjectionStrategy(cfg.RulesDir)
 	challengeVal, _ := rules.LoadChallenge(cfg.RulesDir)
-	mlVal, _ := rules.LoadML(cfg.RulesDir)
+	mlVal, err := rules.LoadML(cfg.RulesDir)
+	if err != nil {
+		log.Warn().Err(err).Msg("load ml rules failed; online ML and miner disabled until ml.yaml loads")
+		mlVal = &rules.ML{}
+	}
 	dashboardVal, _ := rules.LoadDashboard(cfg.RulesDir)
 
 	templatesHolder := rules.NewHolder(templatesVal)
