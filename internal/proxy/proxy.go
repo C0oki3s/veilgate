@@ -57,8 +57,9 @@ type Server struct {
 	challengeHandler ChallengeHandler
 	verifiers        *verifier.Chain
 	realProxy        http.Handler
-	grpcProxy        http.Handler  // like realProxy but no ResponseHeaderTimeout + immediate flush
-	upstreamURL      *url.URL      // stored for WebSocket TCP dial
+	grpcProxy        http.Handler   // like realProxy but no ResponseHeaderTimeout + immediate flush
+	uploadProxies    []http.Handler // route-specific proxies for upload policies
+	upstreamURL      *url.URL       // stored for WebSocket TCP dial
 	dashboard        *telemetry.Dashboard
 	capture          *telemetry.Capture
 	persist          *persist.Store
@@ -191,6 +192,14 @@ func NewServer(cfg *config.Config, scorer *detector.Scorer, tarpit http.Handler,
 	grpcRP.Transport = grpcTransport
 	grpcRP.FlushInterval = -1
 	grpcRP.ErrorHandler = errHandler
+	uploadProxies := make([]http.Handler, len(cfg.UploadPolicies))
+	for i, p := range cfg.UploadPolicies {
+		urp := httputil.NewSingleHostReverseProxy(upstream)
+		urp.Director = rp.Director
+		urp.Transport = uploadTransport(p.UpstreamResponseTimeout)
+		urp.ErrorHandler = uploadErrorHandler(errHandler)
+		uploadProxies[i] = urp
+	}
 
 	return &Server{
 		cfg:              cfg,
@@ -199,6 +208,7 @@ func NewServer(cfg *config.Config, scorer *detector.Scorer, tarpit http.Handler,
 		challengeHandler: ch,
 		realProxy:        rp,
 		grpcProxy:        grpcRP,
+		uploadProxies:    uploadProxies,
 		upstreamURL:      upstream,
 		dashboard:        dash,
 		trustedProxies:   ParseTrustedProxies(cfg.Detector.TrustedProxies),
@@ -215,8 +225,8 @@ func (s *Server) Handler() http.Handler {
 // Optional fields are emitted only when populated so older clients
 // safely ignore new fields.
 type discoveryDoc struct {
-	Challenge   *challenge.ChallengeDescriptor    `json:"challenge,omitempty"`
-	Credentials []verifier.CredentialDescriptor   `json:"credentials,omitempty"`
+	Challenge   *challenge.ChallengeDescriptor  `json:"challenge,omitempty"`
+	Credentials []verifier.CredentialDescriptor `json:"credentials,omitempty"`
 }
 
 // serveDiscovery emits the well-known JSON. It is callable
@@ -254,6 +264,38 @@ func jsonEncode(w http.ResponseWriter, v any) error {
 }
 
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
+	if rejectBadRequestFraming(w, r) {
+		return
+	}
+
+	// CORS OPTIONS preflight — must run before routing, scoring, and challenge
+	// logic. Browsers send these before every credentialed cross-origin request
+	// and cannot carry cookies or challenge solutions, so blocking them only
+	// prevents real traffic from reaching the proxy.
+	if r.Method == http.MethodOptions &&
+		r.Header.Get("Origin") != "" &&
+		r.Header.Get("Access-Control-Request-Method") != "" {
+		if strings.HasPrefix(r.URL.Path, "/__veilgate/") {
+			// VeilGate-internal paths are served here, not by the upstream.
+			// Synthesise the preflight response directly.
+			w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			if v := r.Header.Get("Access-Control-Request-Headers"); v != "" {
+				w.Header().Set("Access-Control-Allow-Headers", v)
+			}
+			w.Header().Set("Access-Control-Max-Age", "3600")
+			w.Header().Set("Vary", "Origin")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		// All other paths: proxy the preflight to the upstream without
+		// scoring or challenging. The upstream controls which origins and
+		// headers it allows; VeilGate should not interfere.
+		s.realProxy.ServeHTTP(w, r)
+		return
+	}
+
 	// Let the challenge verify endpoint through untouched.
 	if s.challengeHandler != nil && r.URL.Path == "/__veilgate/verify" {
 		s.challengeHandler.ServeHTTP(w, r)
@@ -276,6 +318,19 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			cs.ServeStart(w, r)
 			return
 		}
+	}
+
+	uploadPolicy, uploadPolicyIndex, hasUploadPolicy := s.matchUploadPolicy(r)
+	uploadAuthAccepted := false
+	var uploadAuthResult verifier.Result
+	if hasUploadPolicy {
+		blocked, accepted, res := s.enforceUploadPolicy(w, r, uploadPolicy)
+		if blocked {
+			return
+		}
+		uploadAuthAccepted = accepted
+		uploadAuthResult = res
+		r = withUploadBodyLimit(r, uploadPolicy)
 	}
 
 	clientID := resolveClientIP(r, s.trustedProxies)
@@ -347,21 +402,19 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// stolen cookie can't whitewash attack-tier behaviour. The score
 	// stays in charge of the worst-case outcome.
 	if decision != DecisionTarpit {
-		passed := false
-		if s.verifiers != nil {
-			if res := s.verifiers.Verify(r); res.Accepted {
-				passed = true
+		passed := uploadAuthAccepted
+		res := uploadAuthResult
+		if !passed {
+			passed, res = s.credentialAccepted(r, uploadVerifierPolicy(uploadPolicy))
+		}
+		if passed {
+			if res.Name != "" {
 				s.log.Debug().
 					Str("verifier", res.Name).
 					Str("client", res.Client).
 					Str("reason", res.Reason).
 					Msg("verifier accepted request")
 			}
-		}
-		if !passed && s.challengeHandler != nil && s.challengeHandler.Passed(r) {
-			passed = true
-		}
-		if passed {
 			decision = DecisionReal
 		}
 	}
@@ -438,9 +491,13 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// (challenged/tarpitted requests are rejected) but replace the
 	// response body with machine-readable errors — HTML challenge pages
 	// are useless to non-browser callers.
+	if isHTTP2WebSocketConnect(r) {
+		serveHTTP2WebSocketUnsupported(w, r)
+		return
+	}
 	if isWebSocketUpgrade(r) {
 		if decision == DecisionTarpit || decision == DecisionChallenge {
-			serveUpgradeBlocked(w, decision)
+			serveUpgradeBlocked(w, r, decision)
 		} else {
 			s.serveWebSocket(w, r)
 		}
@@ -448,7 +505,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	if isGRPC(r) {
 		if decision == DecisionTarpit || decision == DecisionChallenge {
-			serveGRPCBlocked(w, decision)
+			serveGRPCBlocked(w, r, decision)
 		} else {
 			rec := &statusRecorder{ResponseWriter: w}
 			s.grpcProxy.ServeHTTP(rec, r)
@@ -459,6 +516,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	proxyHandler := s.realProxy
+	if hasUploadPolicy && uploadPolicyIndex >= 0 && uploadPolicyIndex < len(s.uploadProxies) && s.uploadProxies[uploadPolicyIndex] != nil {
+		proxyHandler = s.uploadProxies[uploadPolicyIndex]
+	}
 	rec := &statusRecorder{ResponseWriter: w}
 	switch decision {
 	case DecisionTarpit:
@@ -467,10 +528,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		if s.challengeHandler != nil {
 			s.challengeHandler.ServeHTTP(rec, r)
 		} else {
-			s.realProxy.ServeHTTP(rec, r)
+			proxyHandler.ServeHTTP(rec, r)
 		}
 	default:
-		s.realProxy.ServeHTTP(rec, r)
+		proxyHandler.ServeHTTP(rec, r)
 	}
 
 	// Feed the response status into the per-client tracker so the
@@ -634,6 +695,12 @@ func isGRPC(r *http.Request) bool {
 	return strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc")
 }
 
+func isHTTP2WebSocketConnect(r *http.Request) bool {
+	return r.ProtoMajor == 2 &&
+		r.Method == http.MethodConnect &&
+		strings.EqualFold(r.Header.Get(":protocol"), "websocket")
+}
+
 func containsFold(s, sub string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(sub))
 }
@@ -684,7 +751,9 @@ func (s *Server) serveWebSocket(w http.ResponseWriter, r *http.Request) {
 	outReq := r.Clone(r.Context())
 	outReq.Host = s.upstreamURL.Host
 	outReq.Header.Del("Te")
+	outReq.Header.Del("Trailer")
 	outReq.Header.Del("Trailers")
+	outReq.Header.Del("Transfer-Encoding")
 	if err := outReq.Write(upstreamConn); err != nil {
 		s.wsRawError(clientConn, http.StatusBadGateway, "bad gateway")
 		return
@@ -730,13 +799,16 @@ func (s *Server) wsRawError(conn net.Conn, code int, msg string) {
 
 // serveUpgradeBlocked rejects a WebSocket upgrade with a machine-readable
 // JSON body. HTML challenge pages are useless to WebSocket/RPC callers.
-func serveUpgradeBlocked(w http.ResponseWriter, decision Decision) {
+func serveUpgradeBlocked(w http.ResponseWriter, r *http.Request, decision Decision) {
+	applyCORSHeaders(w, r)
 	w.Header().Set("Content-Type", "application/json")
 	if decision == DecisionTarpit {
-		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error":"forbidden"}`)) //nolint:errcheck
 		return
 	}
-	http.Error(w, `{"error":"challenge_required"}`, http.StatusServiceUnavailable)
+	w.WriteHeader(http.StatusServiceUnavailable)
+	w.Write([]byte(`{"error":"challenge_required"}`)) //nolint:errcheck
 }
 
 // serveGRPCBlocked terminates a gRPC or gRPC-Web call with the appropriate
@@ -745,7 +817,8 @@ func serveUpgradeBlocked(w http.ResponseWriter, decision Decision) {
 //   - PERMISSION_DENIED (7) when the client is tarpitted.
 //
 // The HTTP status is 200 per the gRPC spec; the gRPC status lives in headers.
-func serveGRPCBlocked(w http.ResponseWriter, decision Decision) {
+func serveGRPCBlocked(w http.ResponseWriter, r *http.Request, decision Decision) {
+	applyCORSHeaders(w, r)
 	w.Header().Set("Content-Type", "application/grpc")
 	if decision == DecisionTarpit {
 		w.Header().Set("grpc-status", "7") // PERMISSION_DENIED
@@ -755,4 +828,23 @@ func serveGRPCBlocked(w http.ResponseWriter, decision Decision) {
 		w.Header().Set("grpc-message", "challenge_required")
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func serveHTTP2WebSocketUnsupported(w http.ResponseWriter, r *http.Request) {
+	applyCORSHeaders(w, r)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotImplemented)
+	w.Write([]byte(`{"error":"http2_websocket_unsupported"}`)) //nolint:errcheck
+}
+
+// applyCORSHeaders echoes the Origin as Access-Control-Allow-Origin when the
+// request is cross-origin. Called on every response that VeilGate itself
+// generates (blocked WebSocket/gRPC, challenge, tarpit) so that browsers can
+// read error responses instead of seeing an opaque network error.
+func applyCORSHeaders(w http.ResponseWriter, r *http.Request) {
+	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Vary", "Origin")
+	}
 }

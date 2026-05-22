@@ -26,6 +26,30 @@ rules_dir: "~/.veilgate/rules"
 | `mode` | string | `observe` | One of `observe`, `challenge`, `tarpit`, `auto`. |
 | `rules_dir` | string | empty | Directory containing editable YAML rules. |
 
+## Upload Policies
+
+```yaml
+upload_policies:
+  - name: "user-files"
+    paths:
+      - "/api/upload"
+      - "/api/upload/*"
+    methods: ["POST", "PUT"]
+    max_body_bytes: 104857600
+    allowed_content_types:
+      - "multipart/form-data"
+      - "application/pdf"
+      - "image/"
+    require_auth: true
+    verifier_policy: "skip_body_hmac"
+    upstream_response_timeout: "5m"
+```
+
+Upload policies explicitly mark routes that can carry file bodies. They reject
+wrong methods, declared bodies above `max_body_bytes`, unsupported declared
+content types, and unauthenticated uploads before proxying. See
+[upload policy config](../config/upload-policies.md).
+
 ## Modes
 
 | Mode | Behavior |

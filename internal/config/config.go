@@ -21,6 +21,10 @@ type Config struct {
 	Metrics   MetricsConfig   `yaml:"metrics"`
 	Capture   CaptureConfig   `yaml:"capture"`
 	Persist   PersistConfig   `yaml:"persist"`
+	// UploadPolicies define explicit upload routes. They let operators
+	// allow large request bodies only on known paths, with method,
+	// content-type, size, and authentication gates before proxying.
+	UploadPolicies []UploadPolicyConfig `yaml:"upload_policies"`
 	// Verifiers configure the short-circuit authenticator chain that
 	// runs ahead of the score system. Used for server-to-server
 	// (HMAC, JWT), service-mesh (mTLS header), and other
@@ -118,6 +122,28 @@ type HMACVerifierConfig struct {
 	ClockSkewSec    int    `yaml:"clock_skew_sec"`   // default 300
 	MaxBodyBytes    int64  `yaml:"max_body_bytes"`   // default 1 MiB
 	ClientsDir      string `yaml:"clients_dir"`      // required when enabled
+}
+
+// UploadPolicyConfig describes one explicit file-upload route policy.
+// Path matching is intentionally NGINX-like but small: exact paths match
+// literally, and entries ending in "/*" match that path prefix.
+type UploadPolicyConfig struct {
+	Name                string   `yaml:"name"`
+	Paths               []string `yaml:"paths"`
+	Methods             []string `yaml:"methods"`
+	MaxBodyBytes        int64    `yaml:"max_body_bytes"`
+	AllowedContentTypes []string `yaml:"allowed_content_types"`
+	RequireAuth         bool     `yaml:"require_auth"`
+	// VerifierPolicy controls verifier use on this upload route.
+	// "" / "normal" use the full verifier chain. "skip_body_hmac"
+	// skips the HMAC verifier so large request bodies are not read and
+	// truncated while checking upload authentication.
+	VerifierPolicy string `yaml:"verifier_policy"`
+	// UpstreamResponseTimeout overrides the normal reverse-proxy
+	// ResponseHeaderTimeout for this upload policy. Use "0" or empty
+	// to disable the response-header timeout, which is often required
+	// when an upstream processes the upload before responding.
+	UpstreamResponseTimeout string `yaml:"upstream_response_timeout"`
 }
 
 // PersistConfig is the SQLite event store. When enabled, takes the place

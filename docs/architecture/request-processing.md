@@ -319,6 +319,7 @@ rules. Operators must tune it against their traffic.
 - [Detector signal flow](../internals/detector_signal_flow.md)
 - [Tarpit rendering flow](../internals/tarpit_rendering_flow.md)
 - [Persistence flow](../internals/persistence_flow.md)
+- [Request classification: SPA, browser page, server-to-server](../functionalities/request-classification.md)
 
 ## Example Configuration
 

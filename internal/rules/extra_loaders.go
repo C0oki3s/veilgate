@@ -148,6 +148,14 @@ type ChallengeRules struct {
 	// page solves the challenge and postMessages the token back to the
 	// parent. Defaults to "/__veilgate/start" when empty.
 	StartPath string `yaml:"start_path"`
+
+	// StartPageTemplate is the HTML template for the iframe-loadable
+	// PoW interstitial served at StartPath. Uses the same Go text/template
+	// syntax and {{.Config}} injection as HTMLTemplate. When empty the
+	// built-in default page is used, which is sufficient for most
+	// deployments. Set this only to customise the iframe page branding
+	// or add additional JS instrumentation.
+	StartPageTemplate string `yaml:"start_page_template"`
 }
 
 // ML is the parsed ml.yaml.

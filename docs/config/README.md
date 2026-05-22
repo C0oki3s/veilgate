@@ -36,6 +36,7 @@ require a process restart unless the page states otherwise.
 | `tarpit:` | [tarpit.md](tarpit.md) | `internal/tarpit.Handler` |
 | `challenge:` | [challenge.md](challenge.md) | `internal/challenge.Handler` |
 | `verifiers:` | [verifiers.md](verifiers.md) | `internal/verifier`, `internal/proxy.Server.SetVerifiers` |
+| `upload_policies:` | [upload-policies.md](upload-policies.md) | `internal/config.UploadPolicyConfig`, `internal/proxy/upload.go` |
 | `metrics:` | [metrics.md](metrics.md) | `internal/telemetry` |
 | `persist:` | [persist.md](persist.md) | `internal/persist.Store` |
 | `capture:` | [capture.md](capture.md) | `internal/telemetry.CaptureWriter` |

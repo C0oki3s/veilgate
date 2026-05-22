@@ -194,4 +194,5 @@ proxy configuration.
 - [Module veilgate_detector](../modules/veilgate_detector.md)
 - [Module veilgate_verifier](../modules/veilgate_verifier.md)
 - [How-to: server-to-server HMAC](../how-to/server-to-server-hmac.md)
+- [Request classification: SPA, browser page, server-to-server](./request-classification.md)
 

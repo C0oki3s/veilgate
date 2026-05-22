@@ -19,13 +19,14 @@ import (
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
 
-// startPageTmpl is the self-contained HTML+JS page served at
-// /__veilgate/start. It is loaded in a hidden iframe by a cross-origin
-// SPA; it solves the PoW nonce search, posts the proof to verify_path,
-// and postMessages the resulting token back to the parent window.
-// The entire challenge configuration is injected as a JSON blob at
-// serve time — no secondary fetch required.
-const startPageTmpl = `<!DOCTYPE html>
+// defaultStartPageTmpl is the built-in HTML+JS page served at
+// /__veilgate/start when challenge.yaml does not set start_page_template.
+// It is loaded in a hidden iframe by a cross-origin SPA; it solves the
+// PoW nonce search, posts the proof to verify_path, and postMessages the
+// resulting token back to the parent window. The entire challenge
+// configuration is injected as a JSON blob at serve time — no secondary
+// fetch required.
+const defaultStartPageTmpl = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -216,7 +217,11 @@ func (h *Handler) ServeStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl, err := htmltmpl.New("start").Parse(startPageTmpl)
+	src := cr.StartPageTemplate
+	if src == "" {
+		src = defaultStartPageTmpl
+	}
+	tmpl, err := htmltmpl.New("start").Parse(src)
 	if err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
@@ -345,6 +350,14 @@ func (h *Handler) serveChallenge(w http.ResponseWriter, r *http.Request, cr *rul
 	sc := cr.StatusCode
 	if sc == 0 {
 		sc = http.StatusServiceUnavailable
+	}
+	// CORS: cross-origin callers (XHR/fetch from a different domain) must be
+	// able to read this response. Without ACAO the browser shows only "CORS
+	// error" and the challenge page is never visible to the client JS.
+	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Vary", "Origin")
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
