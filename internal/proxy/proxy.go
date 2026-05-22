@@ -1,8 +1,11 @@
 package proxy
 
 import (
+	"bufio"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -54,6 +57,8 @@ type Server struct {
 	challengeHandler ChallengeHandler
 	verifiers        *verifier.Chain
 	realProxy        http.Handler
+	grpcProxy        http.Handler  // like realProxy but no ResponseHeaderTimeout + immediate flush
+	upstreamURL      *url.URL      // stored for WebSocket TCP dial
 	dashboard        *telemetry.Dashboard
 	capture          *telemetry.Capture
 	persist          *persist.Store
@@ -159,9 +164,33 @@ func NewServer(cfg *config.Config, scorer *detector.Scorer, tarpit http.Handler,
 			MinVersion: tls.VersionTLS12,
 		},
 	}
-	rp.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, _ error) {
+	errHandler := func(w http.ResponseWriter, _ *http.Request, _ error) {
 		http.Error(w, "bad gateway", http.StatusBadGateway)
 	}
+	rp.ErrorHandler = errHandler
+
+	// gRPC proxy: same director/host-rewrite as realProxy but with no
+	// ResponseHeaderTimeout (gRPC streams are arbitrarily long) and
+	// FlushInterval=-1 (flush each write immediately for streaming RPCs).
+	grpcTransport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:   true,
+		MaxIdleConns:        100,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 5 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
+	grpcRP := httputil.NewSingleHostReverseProxy(upstream)
+	grpcRP.Director = rp.Director
+	grpcRP.Transport = grpcTransport
+	grpcRP.FlushInterval = -1
+	grpcRP.ErrorHandler = errHandler
 
 	return &Server{
 		cfg:              cfg,
@@ -169,6 +198,8 @@ func NewServer(cfg *config.Config, scorer *detector.Scorer, tarpit http.Handler,
 		tarpitHandler:    tarpit,
 		challengeHandler: ch,
 		realProxy:        rp,
+		grpcProxy:        grpcRP,
+		upstreamURL:      upstream,
 		dashboard:        dash,
 		trustedProxies:   ParseTrustedProxies(cfg.Detector.TrustedProxies),
 		log:              log,
@@ -402,6 +433,32 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// WebSocket upgrades and gRPC streams need protocol-specific handling.
+	// The scoring/decision pipeline has already run above; we honour it
+	// (challenged/tarpitted requests are rejected) but replace the
+	// response body with machine-readable errors — HTML challenge pages
+	// are useless to non-browser callers.
+	if isWebSocketUpgrade(r) {
+		if decision == DecisionTarpit || decision == DecisionChallenge {
+			serveUpgradeBlocked(w, decision)
+		} else {
+			s.serveWebSocket(w, r)
+		}
+		return
+	}
+	if isGRPC(r) {
+		if decision == DecisionTarpit || decision == DecisionChallenge {
+			serveGRPCBlocked(w, decision)
+		} else {
+			rec := &statusRecorder{ResponseWriter: w}
+			s.grpcProxy.ServeHTTP(rec, r)
+			if s.tracker != nil && rec.status > 0 {
+				s.tracker.RecordStatus(clientID, rec.status, r.URL.Path, r.Method)
+			}
+		}
+		return
+	}
+
 	rec := &statusRecorder{ResponseWriter: w}
 	switch decision {
 	case DecisionTarpit:
@@ -559,4 +616,143 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(b[i:])
+}
+
+// ── protocol detection ────────────────────────────────────────────────────────
+
+// isWebSocketUpgrade reports whether r is an HTTP/1.1 WebSocket upgrade
+// handshake. Both headers must be present; comparison is case-insensitive.
+func isWebSocketUpgrade(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket") &&
+		containsFold(r.Header.Get("Connection"), "upgrade")
+}
+
+// isGRPC reports whether r carries a gRPC content-type.
+// Covers application/grpc, application/grpc+proto, application/grpc+json,
+// and the gRPC-Web variants (application/grpc-web*).
+func isGRPC(r *http.Request) bool {
+	return strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc")
+}
+
+func containsFold(s, sub string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(sub))
+}
+
+// ── WebSocket tunnel ──────────────────────────────────────────────────────────
+
+// serveWebSocket tunnels a WebSocket connection to the upstream. The
+// decision pipeline has already run; this is only called for Real/Observe
+// decisions. It:
+//  1. Dials the upstream (TLS when the upstream URL is https/wss).
+//  2. Hijacks the incoming connection.
+//  3. Forwards the upgrade request and proxies the upstream 101 response.
+//  4. Bidirectionally copies bytes until either side closes.
+func (s *Server) serveWebSocket(w http.ResponseWriter, r *http.Request) {
+	addr := s.upstreamURL.Host
+
+	var upstreamConn net.Conn
+	var err error
+	switch strings.ToLower(s.upstreamURL.Scheme) {
+	case "https", "wss":
+		upstreamConn, err = tls.Dial("tcp", addr, &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			ServerName: s.upstreamURL.Hostname(),
+		})
+	default:
+		upstreamConn, err = net.DialTimeout("tcp", addr, 10*time.Second)
+	}
+	if err != nil {
+		s.log.Error().Err(err).Str("upstream", addr).Msg("websocket: dial upstream")
+		http.Error(w, "bad gateway", http.StatusBadGateway)
+		return
+	}
+	defer upstreamConn.Close()
+
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "server does not support hijacking", http.StatusInternalServerError)
+		return
+	}
+	clientConn, clientBuf, err := hj.Hijack()
+	if err != nil {
+		s.log.Error().Err(err).Msg("websocket: hijack")
+		return
+	}
+	defer clientConn.Close()
+
+	// Clone, rewrite Host, strip hop-by-hop headers, then send to upstream.
+	outReq := r.Clone(r.Context())
+	outReq.Host = s.upstreamURL.Host
+	outReq.Header.Del("Te")
+	outReq.Header.Del("Trailers")
+	if err := outReq.Write(upstreamConn); err != nil {
+		s.wsRawError(clientConn, http.StatusBadGateway, "bad gateway")
+		return
+	}
+
+	// Read the upstream's upgrade response and forward it verbatim.
+	upstreamBuf := bufio.NewReader(upstreamConn)
+	resp, err := http.ReadResponse(upstreamBuf, outReq)
+	if err != nil {
+		s.wsRawError(clientConn, http.StatusBadGateway, "bad gateway")
+		return
+	}
+	if err := resp.Write(clientConn); err != nil {
+		return
+	}
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		// Upstream refused the upgrade; response already forwarded.
+		return
+	}
+
+	// Handshake complete — tunnel raw bytes in both directions.
+	done := make(chan struct{}, 2)
+	go func() {
+		defer func() { done <- struct{}{} }()
+		io.Copy(upstreamConn, clientBuf) // clientBuf wraps clientConn
+	}()
+	go func() {
+		defer func() { done <- struct{}{} }()
+		io.Copy(clientConn, upstreamBuf) // upstreamBuf wraps upstreamConn
+	}()
+	<-done
+}
+
+// wsRawError writes a minimal HTTP error response to a hijacked connection
+// (the normal http.Error helper won't work once hijacked).
+func (s *Server) wsRawError(conn net.Conn, code int, msg string) {
+	resp := fmt.Sprintf("HTTP/1.1 %d %s\r\nContent-Length: %d\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n%s",
+		code, http.StatusText(code), len(msg), msg)
+	conn.Write([]byte(resp)) //nolint:errcheck
+}
+
+// ── blocked-protocol responses ────────────────────────────────────────────────
+
+// serveUpgradeBlocked rejects a WebSocket upgrade with a machine-readable
+// JSON body. HTML challenge pages are useless to WebSocket/RPC callers.
+func serveUpgradeBlocked(w http.ResponseWriter, decision Decision) {
+	w.Header().Set("Content-Type", "application/json")
+	if decision == DecisionTarpit {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+	http.Error(w, `{"error":"challenge_required"}`, http.StatusServiceUnavailable)
+}
+
+// serveGRPCBlocked terminates a gRPC or gRPC-Web call with the appropriate
+// gRPC status code:
+//   - UNAUTHENTICATED (16) when the request needs to solve a challenge first.
+//   - PERMISSION_DENIED (7) when the client is tarpitted.
+//
+// The HTTP status is 200 per the gRPC spec; the gRPC status lives in headers.
+func serveGRPCBlocked(w http.ResponseWriter, decision Decision) {
+	w.Header().Set("Content-Type", "application/grpc")
+	if decision == DecisionTarpit {
+		w.Header().Set("grpc-status", "7") // PERMISSION_DENIED
+		w.Header().Set("grpc-message", "forbidden")
+	} else {
+		w.Header().Set("grpc-status", "16") // UNAUTHENTICATED
+		w.Header().Set("grpc-message", "challenge_required")
+	}
+	w.WriteHeader(http.StatusOK)
 }
