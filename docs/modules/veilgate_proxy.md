@@ -11,6 +11,19 @@ the bypass chain, dispatches the selected handler, and records post-response
 telemetry. The handler never blocks on persistence or metrics; all writes are
 asynchronous or counter-increments.
 
+## Client Protocols
+
+VeilGate accepts HTTP/1.1 and HTTP/2 on the client-facing listener.
+
+| Listener mode | Supported client protocols | Notes |
+| --- | --- | --- |
+| `tls.enabled: true` | HTTP/1.1 and HTTP/2 | TLS advertises `h2` and `http/1.1` with ALPN. |
+| `tls.enabled: false` | HTTP/1.1 and h2c | The plain listener is wrapped with `h2c.NewHandler`, so prior-knowledge HTTP/2 and h2c upgrade requests enter the same proxy pipeline. |
+
+WebSocket tunnelling currently supports the HTTP/1.1 upgrade flow. HTTP/2
+WebSocket extended CONNECT is detected and returns `501` JSON rather than
+falling through to the HTTP/1.1 hijacker path.
+
 ## How the Proxy Differs from NGINX `proxy_pass`
 
 | NGINX concept | VeilGate equivalent | Difference |
@@ -384,4 +397,3 @@ of or downstream from VeilGate.
 - [Module veilgate_verifier](veilgate_verifier.md)
 - [Decision Flow](../internals/decision_flow.md)
 - [How VeilGate Processes a Request](../architecture/request-processing.md)
-

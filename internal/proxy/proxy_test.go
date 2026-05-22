@@ -110,11 +110,31 @@ func TestIsGRPC(t *testing.T) {
 	}
 }
 
+func TestIsHTTP2WebSocketConnect(t *testing.T) {
+	r := httptest.NewRequest(http.MethodConnect, "https://example.com/chat", nil)
+	r.Proto = "HTTP/2.0"
+	r.ProtoMajor = 2
+	r.ProtoMinor = 0
+	r.Header.Set(":protocol", "websocket")
+
+	if !isHTTP2WebSocketConnect(r) {
+		t.Fatal("expected HTTP/2 extended CONNECT websocket to be detected")
+	}
+
+	h1 := httptest.NewRequest(http.MethodConnect, "https://example.com/chat", nil)
+	h1.Header.Set(":protocol", "websocket")
+	if isHTTP2WebSocketConnect(h1) {
+		t.Fatal("HTTP/1 CONNECT must not be treated as HTTP/2 websocket CONNECT")
+	}
+}
+
 // ── blocked-protocol responses ────────────────────────────────────────────────
 
 func TestServeUpgradeBlockedChallenge(t *testing.T) {
 	w := httptest.NewRecorder()
-	serveUpgradeBlocked(w, DecisionChallenge)
+	r := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	r.Header.Set("Origin", "https://app.example.com")
+	serveUpgradeBlocked(w, r, DecisionChallenge)
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", w.Code)
@@ -126,11 +146,15 @@ func TestServeUpgradeBlockedChallenge(t *testing.T) {
 	if body["error"] != "challenge_required" {
 		t.Fatalf("error = %q, want challenge_required", body["error"])
 	}
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Fatalf("ACAO = %q, want https://app.example.com", got)
+	}
 }
 
 func TestServeUpgradeBlockedTarpit(t *testing.T) {
 	w := httptest.NewRecorder()
-	serveUpgradeBlocked(w, DecisionTarpit)
+	r := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	serveUpgradeBlocked(w, r, DecisionTarpit)
 
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", w.Code)
@@ -139,7 +163,9 @@ func TestServeUpgradeBlockedTarpit(t *testing.T) {
 
 func TestServeGRPCBlockedChallenge(t *testing.T) {
 	w := httptest.NewRecorder()
-	serveGRPCBlocked(w, DecisionChallenge)
+	r := httptest.NewRequest(http.MethodPost, "/svc", nil)
+	r.Header.Set("Origin", "https://app.example.com")
+	serveGRPCBlocked(w, r, DecisionChallenge)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("HTTP status = %d, want 200 (gRPC uses 200 with grpc-status header)", w.Code)
@@ -150,16 +176,41 @@ func TestServeGRPCBlockedChallenge(t *testing.T) {
 	if got := w.Header().Get("Content-Type"); got != "application/grpc" {
 		t.Fatalf("Content-Type = %q, want application/grpc", got)
 	}
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Fatalf("ACAO = %q, want https://app.example.com", got)
+	}
 }
 
 func TestServeGRPCBlockedTarpit(t *testing.T) {
 	w := httptest.NewRecorder()
-	serveGRPCBlocked(w, DecisionTarpit)
+	r := httptest.NewRequest(http.MethodPost, "/svc", nil)
+	serveGRPCBlocked(w, r, DecisionTarpit)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("HTTP status = %d, want 200", w.Code)
 	}
 	if got := w.Header().Get("grpc-status"); got != "7" {
 		t.Fatalf("grpc-status = %q, want 7 (PERMISSION_DENIED)", got)
+	}
+}
+
+func TestServeHTTP2WebSocketUnsupported(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodConnect, "https://example.com/chat", nil)
+	r.Header.Set("Origin", "https://app.example.com")
+	serveHTTP2WebSocketUnsupported(w, r)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want 501", w.Code)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Fatalf("ACAO = %q, want origin", got)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response not valid JSON: %v", err)
+	}
+	if body["error"] != "http2_websocket_unsupported" {
+		t.Fatalf("error = %q, want http2_websocket_unsupported", body["error"])
 	}
 }

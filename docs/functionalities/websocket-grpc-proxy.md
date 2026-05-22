@@ -12,7 +12,8 @@ Source: `internal/proxy/proxy.go` — `serveWebSocket`, `serveUpgradeBlocked`,
 
 ### How it works
 
-VeilGate detects a WebSocket upgrade when the incoming request carries both:
+VeilGate's WebSocket tunnelling supports the HTTP/1.1 upgrade form. It detects
+a WebSocket upgrade when the incoming request carries both:
 
 ```
 Upgrade: websocket
@@ -21,6 +22,19 @@ Connection: Upgrade
 
 Detection is case-insensitive on both headers. The check happens after the full
 scoring pipeline and verifier chain have run, so the decision is already final.
+
+HTTP/2 WebSocket extended CONNECT (RFC 8441) is detected separately and returns
+`501` JSON:
+
+```
+{"error":"http2_websocket_unsupported"}
+```
+
+This is deliberate. Go's normal HTTP/2 server path does not expose
+`http.Hijacker`, and RFC 8441 is a stream-level CONNECT tunnel rather than the
+HTTP/1.1 `101 Switching Protocols` flow used by `serveWebSocket`. VeilGate does
+not try to fake this as an HTTP/1.1 upgrade; a future implementation should use
+a dedicated HTTP/2 stream tunnel.
 
 When the decision is `real` or `observe`:
 
@@ -105,6 +119,11 @@ before socket.io connects there.
 ---
 
 ## gRPC and gRPC-Web
+
+gRPC over HTTP/2 works on both TLS listeners and plain h2c listeners. When TLS
+is enabled, HTTP/2 is negotiated by ALPN. When TLS is disabled, VeilGate wraps
+the plain listener with h2c support so HTTP/2 prior-knowledge and h2c upgrade
+clients can reach the normal request pipeline.
 
 ### How it works
 

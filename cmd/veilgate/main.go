@@ -16,6 +16,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	"github.com/C0oki3s/veilgate/internal/audit"
 	"github.com/C0oki3s/veilgate/internal/challenge"
@@ -225,7 +227,7 @@ func listenTLS(srv *http.Server, cfg *config.Config, store *tlsfp.Store) error {
 		NextProtos:   []string{"h2", "http/1.1"},
 	}
 	tlsLn := tls.NewListener(sniffed, tlsCfg)
-	return srv.Serve(tlsLn)
+	return srv.Serve(proxy.NewFramingGuardListener(tlsLn))
 }
 
 // version is set at build time via -ldflags "-X main.version=<tag>".
@@ -796,7 +798,16 @@ func main() {
 				log.Fatal().Err(err).Msg("proxy server")
 			}
 		} else {
-			if err := mainSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			ln, err := net.Listen("tcp", cfg.Listen)
+			if err != nil {
+				log.Fatal().Err(err).Msg("proxy listen")
+			}
+			// Plain HTTP mode still accepts HTTP/2 clients via h2c. The
+			// framing guard remains outside the HTTP server so ambiguous
+			// HTTP/1.x CL/TE requests are rejected before net/http parses them,
+			// while h2c prior-knowledge traffic is replayed into h2c.NewHandler.
+			mainSrv.Handler = h2c.NewHandler(srv.Handler(), &http2.Server{})
+			if err := mainSrv.Serve(proxy.NewFramingGuardListener(ln)); err != nil && err != http.ErrServerClosed {
 				log.Fatal().Err(err).Msg("proxy server")
 			}
 		}

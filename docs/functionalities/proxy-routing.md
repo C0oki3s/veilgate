@@ -38,6 +38,11 @@ When `tls.enabled` is false, the listener accepts plain HTTP. When
 wraps it with `internal/tlsfp.Listener`, and then serves TLS. That is the mode
 required for JA3/JA4 fingerprint extraction at VeilGate.
 
+The plain listener also supports h2c. `cmd/veilgate/main.go` wraps the handler
+with `h2c.NewHandler`, so HTTP/2 prior-knowledge clients and h2c upgrade
+requests are accepted even when TLS is disabled. TLS mode continues to use ALPN
+with `h2` and `http/1.1`.
+
 ### Code path
 
 - [`internal/config/config.go`](../../internal/config/config.go) defines the field and default.
@@ -50,6 +55,8 @@ required for JA3/JA4 fingerprint extraction at VeilGate.
 - Keep the proxy listener and metrics listener separate.
 - If TLS is terminated before VeilGate, TLS fingerprint signals will not fire
   at this layer.
+- h2c support does not provide TLS fingerprints because the client connection
+  is cleartext.
 - Binding to `:443` normally requires service privileges or a fronting
   load balancer.
 
@@ -178,4 +185,4 @@ curl http://127.0.0.1:9090/metrics | grep veilgate_signal_hits_total
 - [Module veilgate_rules](../modules/veilgate_rules.md)
 - [How VeilGate Processes a Request](../architecture/request-processing.md)
 - [Top-level config reference](../config/top-level.md)
-
+- [Upload policies](./upload-policies.md)

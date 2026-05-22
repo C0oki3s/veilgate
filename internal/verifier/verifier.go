@@ -106,6 +106,24 @@ func (c *Chain) Verify(r *http.Request) Result {
 	return Result{}
 }
 
+// VerifyExcept walks the chain while skipping verifiers named in skip.
+// It is used by upload policies that must avoid body-sensitive
+// verifiers such as HMAC on large streaming request bodies.
+func (c *Chain) VerifyExcept(r *http.Request, skip map[string]struct{}) Result {
+	if c == nil {
+		return Result{}
+	}
+	for _, v := range c.verifiers {
+		if _, ok := skip[v.Name()]; ok {
+			continue
+		}
+		if res := v.Verify(r); res.Accepted {
+			return res
+		}
+	}
+	return Result{}
+}
+
 // Len returns the number of installed verifiers. Useful for tests and
 // for the audit log so we can emit "chain has N verifiers configured"
 // at startup.

@@ -117,6 +117,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(k, v)
 	}
 	w.Header().Set("Content-Type", resp.ContentType)
+	// Cross-origin clients (e.g. an SPA on a different domain) must be able
+	// to read the tarpit response, otherwise the browser shows only "CORS
+	// error" and the fake content never reaches the attacker.
+	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Vary", "Origin")
+	}
 	w.WriteHeader(resp.Status)
 	n, _ := w.Write([]byte(resp.Body))
 	telemetry.TarpitBytesServed.Add(float64(n))

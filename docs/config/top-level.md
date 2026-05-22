@@ -13,6 +13,7 @@ real requests, and where it loads detection rules from.
 - [`listen`](#listen)
 - [`upstream`](#upstream)
 - [`rules_dir`](#rules_dir)
+- [`upload_policies`](upload-policies.md)
 - [Example](#example)
 - [Related](#related)
 
