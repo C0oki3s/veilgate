@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [1.1.0] — 2026-05-22
+
 ### Added
 - **WebSocket tunnelling** (`internal/proxy`): VeilGate now proxies WebSocket
   upgrade connections. The full scoring and decision pipeline runs on the
@@ -127,6 +131,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/C0oki3s/veilgate/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/C0oki3s/veilgate/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/C0oki3s/veilgate/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/C0oki3s/veilgate/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/C0oki3s/veilgate/releases/tag/v0.1.0
