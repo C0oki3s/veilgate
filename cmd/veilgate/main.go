@@ -242,6 +242,9 @@ func main() {
 		case "update-rules":
 			runUpdateRules(os.Args[2:])
 			return
+		case "update":
+			runUpdate(os.Args[2:])
+			return
 		case "-version", "--version", "version":
 			fmt.Println(version)
 			return

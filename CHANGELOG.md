@@ -9,6 +9,16 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **`veilgate update` subcommand**: self-update the binary from the latest
+  (or a pinned) GitHub release. Downloads the platform-specific tar.gz,
+  verifies the SHA-256 checksum against `checksums.txt`, extracts the binary,
+  and atomically replaces the running executable. Requires write permission to
+  the install directory (typically `sudo veilgate update`).
+  - `--version v1.x.y` — install a specific release instead of latest.
+  - `--check` — print whether an update is available and exit without
+    installing (exits 2 when an update exists, 0 when up to date).
+
 ---
 
 ## [1.1.0] — 2026-05-22
