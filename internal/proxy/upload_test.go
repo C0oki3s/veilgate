@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -18,14 +19,14 @@ import (
 	"github.com/C0oki3s/veilgate/internal/verifier"
 )
 
-func uploadReadingUpstream(t *testing.T) (*httptest.Server, *int, *int64) {
+func uploadReadingUpstream(t *testing.T) (*httptest.Server, *atomic.Int64, *atomic.Int64) {
 	t.Helper()
-	hits := 0
-	var bytesRead int64
+	var hits atomic.Int64
+	var bytesRead atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hits++
+		hits.Add(1)
 		n, _ := io.Copy(io.Discard, r.Body)
-		bytesRead += n
+		bytesRead.Add(n)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("upstream-ok"))
 	}))
@@ -119,8 +120,8 @@ func TestUploadPolicyRejectsStreamingBodyOverLimit(t *testing.T) {
 	if rr.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413 (body=%q)", rr.Code, rr.Body.String())
 	}
-	if *hits > 1 {
-		t.Fatalf("expected at most one partial upstream attempt, got %d", *hits)
+	if got := hits.Load(); got > 1 {
+		t.Fatalf("expected at most one partial upstream attempt, got %d", got)
 	}
 }
 
@@ -143,11 +144,11 @@ func TestUploadPolicyAllowsStreamingBodyUnderLimit(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want upstream 200 (body=%q)", rr.Code, rr.Body.String())
 	}
-	if *hits != 1 {
-		t.Fatalf("expected one upstream hit, got %d", *hits)
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("expected one upstream hit, got %d", got)
 	}
-	if *bytesRead != 4 {
-		t.Fatalf("upstream read %d bytes, want 4", *bytesRead)
+	if got := bytesRead.Load(); got != 4 {
+		t.Fatalf("upstream read %d bytes, want 4", got)
 	}
 }
 
@@ -412,8 +413,8 @@ func TestRawHTTP11ContentLengthTransferEncodingRejected(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", resp.StatusCode)
 	}
-	if *hits != 0 {
-		t.Fatalf("CL+TE request reached upstream (%d hits)", *hits)
+	if got := hits.Load(); got != 0 {
+		t.Fatalf("CL+TE request reached upstream (%d hits)", got)
 	}
 }
 
