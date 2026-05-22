@@ -27,6 +27,7 @@ feature-oriented navigation.
 | Rules and hot reload | [rules-hot-reload.md](rules-hot-reload.md) |
 | Online ML and learned rules | [online-ml.md](online-ml.md) |
 | HMAC verifier | [hmac-verifier.md](hmac-verifier.md) |
+| WebSocket and gRPC proxying | [websocket-grpc-proxy.md](websocket-grpc-proxy.md) |
 | Audit and forget command | [audit-and-forget.md](audit-and-forget.md) |
 | Operator and test tools | [operator-tools.md](operator-tools.md) |
 

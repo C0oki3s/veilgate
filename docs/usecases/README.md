@@ -18,6 +18,7 @@ This section is one page per objective. Each page covers:
 | [LLM-agent defence](llm-agent-defense.md) | Security architect | 8 min |
 | [API recon blocking](api-recon-blocking.md) | Platform / API team | 6 min |
 | [Compliance & audit evidence](compliance-evidence.md) | CISO / GRC | 7 min |
+| [Replace your WAF with VeilGate](replace-your-waf.md) | Platform engineer / SecOps | 10 min |
 
 ## Reading order
 

@@ -35,6 +35,7 @@ Repository: <https://github.com/C0oki3s/veilgate>
 | [how-to/](how-to/README.md) | Task-oriented operator guides |
 | [operations/](operations/README.md) | Runtime checks, dashboards, alerts, and Prometheus queries |
 | [reference/](reference/README.md) | Full lookup pages |
+| [usecases/](usecases/README.md) | Use-case guides including WAF replacement |
 | [product/](product/README.md) | Public narrative and business case |
 | [internals/](internals/README.md) | Code map, tooling, and engineering notes |
 
@@ -120,8 +121,10 @@ Repository: <https://github.com/C0oki3s/veilgate>
 
 ## Security Notes
 
-- VeilGate is not a replacement for patching, authentication, authorization,
-  rate limiting, secure coding, or WAF controls.
+- VeilGate covers automated-traffic threats (scanners, bots, AI agents). It is
+  not a substitute for patching, authentication, authorisation, or payload-based
+  WAF signature coverage. See [Replace your WAF](usecases/replace-your-waf.md)
+  for the full coverage map and migration path.
 - Deploy it only in front of systems you own or are authorized to protect.
 - Keep metrics, SQLite persistence, and JSONL capture private.
 - Treat rule files as security policy. Version and review them like code.
