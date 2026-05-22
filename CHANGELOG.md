@@ -9,6 +9,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+No unreleased changes yet.
+
+---
+
+## [1.1.1] — 2026-05-22
+
 ### Added
 - **`veilgate update` subcommand**: self-update the binary from the latest
   (or a pinned) GitHub release. Downloads the platform-specific tar.gz,
@@ -18,6 +24,38 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `--version v1.x.y` — install a specific release instead of latest.
   - `--check` — print whether an update is available and exit without
     installing (exits 2 when an update exists, 0 when up to date).
+- **Upload policies** (`upload_policies`): explicit path-based upload rules
+  with method allowlists, maximum body size, MIME prefix checks,
+  `require_auth`, route-specific upstream response timeout, and optional
+  `skip_body_hmac` verifier policy for large streaming uploads.
+- **h2c support**: plain HTTP listeners now accept HTTP/2 prior-knowledge and
+  h2c upgrade clients while preserving the HTTP/1.x framing guard.
+- **Configurable start interstitial template**: `challenge.yaml` can now set
+  `start_page_template`; the built-in `/__veilgate/start` HTML remains the
+  fallback.
+
+### Fixed
+- **CORS handling for challenged/tarpitted cross-origin traffic**: VeilGate now
+  handles CORS preflights for `/__veilgate/*`, forwards application preflights
+  upstream, and emits CORS headers on challenge, tarpit, WebSocket block, gRPC
+  block, and upload policy block responses.
+- **Upload streaming limit responses**: chunked HTTP/1.1 and HTTP/2 uploads
+  with unknown `Content-Length` are counted while proxying and return `413`
+  instead of surfacing as a generic `502`.
+- **HTTP request smuggling hardening**: ambiguous HTTP/1.x framing is rejected
+  before `net/http` normalization, including CL+TE, duplicate
+  `Content-Length`, obsolete folded headers, HTTP/1.0 transfer coding, and
+  non-`chunked` transfer codings.
+- **HTTP/2 WebSocket extended CONNECT handling**: detected separately and
+  rejected with `501 {"error":"http2_websocket_unsupported"}` rather than
+  falling into the HTTP/1.1 `Hijacker` path.
+
+### Documentation
+- Added upload policy configuration and functionality documentation.
+- Added request classification documentation for authentication, CORS, uploads,
+  WebSocket/gRPC, tarpit, and HTTP version handling.
+- Updated proxy routing and WebSocket/gRPC docs for h2c and HTTP/2 extended
+  CONNECT behavior.
 
 ---
 
@@ -141,7 +179,8 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/C0oki3s/veilgate/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/C0oki3s/veilgate/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/C0oki3s/veilgate/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/C0oki3s/veilgate/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/C0oki3s/veilgate/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/C0oki3s/veilgate/releases/tag/v0.1.0
