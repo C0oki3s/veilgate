@@ -29,10 +29,33 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean
+          args: release --clean --skip=publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ github.token }}
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          create_notes_args=(--generate-notes)
+          edit_notes_args=()
+          if [ -f dist/CHANGELOG.md ]; then
+            create_notes_args=(--notes-file dist/CHANGELOG.md)
+            edit_notes_args=(--notes-file dist/CHANGELOG.md)
+          fi
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" dist/*.tar.gz dist/checksums.txt --clobber
+            gh release edit "$TAG_NAME" --draft=false --latest "${edit_notes_args[@]}"
+          else
+            gh release create "$TAG_NAME" dist/*.tar.gz dist/checksums.txt \
+              --verify-tag \
+              --title "$TAG_NAME" \
+              --latest \
+              "${create_notes_args[@]}"
+          fi
 
       - name: Register on pkg.go.dev
         run: |
