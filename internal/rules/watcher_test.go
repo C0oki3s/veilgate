@@ -1,9 +1,6 @@
 package rules
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,15 +8,11 @@ import (
 
 func TestWatcherDebouncedReload(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "sample.yaml")
-	if err := os.WriteFile(path, []byte("a: 1\n"), 0o644); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-
 	w, err := NewWatcher(dir)
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
+	defer w.fsw.Close()
 	w.debounce = 30 * time.Millisecond
 
 	var calls atomic.Int64
@@ -28,15 +21,9 @@ func TestWatcherDebouncedReload(t *testing.T) {
 		return nil
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go w.Run(ctx, nil)
-
-	// Three rapid writes must coalesce into a single reload.
+	// Three rapid schedules must coalesce into a single reload.
 	for i := 0; i < 3; i++ {
-		if err := os.WriteFile(path, []byte("a: 2\n"), 0o644); err != nil {
-			t.Fatalf("write: %v", err)
-		}
+		w.schedule("sample.yaml", nil)
 		time.Sleep(5 * time.Millisecond)
 	}
 	time.Sleep(200 * time.Millisecond)
