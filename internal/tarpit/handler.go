@@ -1,6 +1,8 @@
 package tarpit
 
 import (
+	"bytes"
+	"io"
 	"math/rand"
 	"net"
 	"net/http"
@@ -10,9 +12,17 @@ import (
 	"time"
 
 	"github.com/C0oki3s/veilgate/internal/config"
+	"github.com/C0oki3s/veilgate/internal/fakeauth"
 	"github.com/C0oki3s/veilgate/internal/rules"
 	"github.com/C0oki3s/veilgate/internal/telemetry"
 )
+
+// CanaryRegistrar is implemented by persist.Store. After serving a tarpit
+// response the handler extracts any token-shaped strings from the body and
+// registers each one so that scoreCanaryReplay can detect replays.
+type CanaryRegistrar interface {
+	InsertCanary(token, clientID string, ttl time.Duration) error
+}
 
 // Handler is the phase-2 shadow-app handler.
 type Handler struct {
@@ -31,6 +41,11 @@ type Handler struct {
 	regexMu  sync.RWMutex
 	regexes  map[string]*regexp.Regexp
 	stratVer *rules.InjectionStrategy
+
+	// canaryReg receives every token we serve so the scorer can detect
+	// replay later. Optional — nil disables registration (detection still
+	// works for any tokens pre-seeded into the table by other means).
+	canaryReg CanaryRegistrar
 }
 
 // PayloadInjector is implemented by the payloads package (phase 3).
@@ -66,6 +81,10 @@ func NewHandler(cfg *config.TarpitConfig, store *ProfileStore, injector PayloadI
 		regexes:  make(map[string]*regexp.Regexp),
 	}
 }
+
+// SetCanaryRegistrar wires the persist store for canary token registration.
+// Call this once from main after wiring persist.Store.
+func (h *Handler) SetCanaryRegistrar(r CanaryRegistrar) { h.canaryReg = r }
 
 // SetRules wires in rule holders for hot-reload. Any nil holder is
 // ignored (the handler keeps its current holder).
@@ -113,6 +132,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.Body = resp.Body[:h.cfg.MaxBodyBytes]
 	}
 
+	// Register every token-shaped string in the response body so that a
+	// subsequent request carrying the same token fires canary_replay.
+	// Fire-and-forget in a goroutine — the hot path must not stall on DB I/O.
+	if h.canaryReg != nil {
+		if toks := fakeauth.ExtractCanaries(resp.Body); len(toks) > 0 {
+			reg := h.canaryReg
+			go func() {
+				for _, tok := range toks {
+					_ = reg.InsertCanary(tok, clientID, 24*time.Hour)
+				}
+			}()
+		}
+	}
+
 	for k, v := range resp.Headers {
 		w.Header().Set(k, v)
 	}
@@ -137,23 +170,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) route(r *http.Request, p *ShadowProfile) Response {
 	path := strings.ToLower(r.URL.Path)
 	query := r.URL.RawQuery
+	body := readSmallBody(r)
 	strat := h.strategy.Load()
 	vuln := h.vuln.Load()
 
 	extra := map[string]any{
 		"Path":  r.URL.Path,
 		"Query": query,
+		"Body":  body,
 	}
 
 	for _, rt := range strat.Routes {
-		if h.routeMatches(rt, path, query, vuln) {
+		if h.routeMatches(rt, path, query, body, vuln) {
 			return h.renderer.Render(rt.Template, p, extra)
 		}
 	}
 	return h.renderer.Render("generic_not_found", p, extra)
 }
 
-func (h *Handler) routeMatches(rt rules.Route, path, query string, vuln *rules.Vulnerabilities) bool {
+func (h *Handler) routeMatches(rt rules.Route, path, query, body string, vuln *rules.Vulnerabilities) bool {
+	haystack := path + " " + strings.ToLower(query) + " " + strings.ToLower(body)
+	if vuln == nil {
+		vuln = &rules.Vulnerabilities{}
+	}
 	switch rt.Match {
 	case "exact":
 		for _, v := range rt.Values {
@@ -180,12 +219,15 @@ func (h *Handler) routeMatches(rt rules.Route, path, query string, vuln *rules.V
 			}
 		}
 	case "sqli":
-		return hasSQLInjectionPattern(path, vuln) || hasSQLInjectionPattern(query, vuln)
+		return hasPattern(path, vuln.SQLInjectionPatterns) ||
+			hasPattern(query, vuln.SQLInjectionPatterns) ||
+			hasPattern(body, vuln.SQLInjectionPatterns)
 	case "list":
-		// `values` is a list of list-names in vulnerabilities.yaml.
+		// `values` is a list of list-names in vulnerabilities.yaml. Path-like
+		// lists match only the path; payload-pattern lists match path+query+body.
 		for _, listName := range rt.Values {
 			for _, entry := range vuln.Lookup(listName) {
-				if path == strings.ToLower(entry) || strings.Contains(path, strings.ToLower(entry)) {
+				if listMatches(listName, entry, path, haystack) {
 					return true
 				}
 			}
@@ -194,6 +236,19 @@ func (h *Handler) routeMatches(rt rules.Route, path, query string, vuln *rules.V
 		return true
 	}
 	return false
+}
+
+func listMatches(listName, entry, path, haystack string) bool {
+	needle := strings.ToLower(entry)
+	if needle == "" {
+		return false
+	}
+	switch listName {
+	case "honeypot_paths", "fake_git_paths", "fake_env_paths":
+		return path == needle || strings.Contains(path, needle)
+	default:
+		return strings.Contains(haystack, needle)
+	}
 }
 
 // compileRegex returns a cached compiled regex. On strategy swap the cache
@@ -229,13 +284,29 @@ func hasSQLInjectionPattern(s string, v *rules.Vulnerabilities) bool {
 	if v == nil {
 		return false
 	}
+	return hasPattern(s, v.SQLInjectionPatterns)
+}
+
+func hasPattern(s string, patterns []string) bool {
 	lower := strings.ToLower(s)
-	for _, pat := range v.SQLInjectionPatterns {
+	for _, pat := range patterns {
 		if strings.Contains(lower, strings.ToLower(pat)) {
 			return true
 		}
 	}
 	return false
+}
+
+func readSmallBody(r *http.Request) string {
+	if r == nil || r.Body == nil || r.ContentLength < 0 || r.ContentLength > 64*1024 {
+		return ""
+	}
+	body, err := io.ReadAll(r.Body)
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	if err != nil {
+		return ""
+	}
+	return string(body)
 }
 
 func randBetween(min, max int) int {

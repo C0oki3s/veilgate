@@ -7,6 +7,7 @@ import (
 	"sync"
 	"text/template"
 
+	"github.com/C0oki3s/veilgate/internal/fakeauth"
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
 
@@ -165,13 +166,19 @@ func (r *Renderer) compileAll(t *rules.Templates) map[string]*compiledResponse {
 	return out
 }
 
-// templateFuncs is the small, opinionated helper set templates can call.
-// Everything here is deterministic so the per-client illusion stays coherent.
+// templateFuncs is the helper set available in every template.
+// Everything is deterministic on seed — same seed → same output — so the
+// per-client fake identity stays coherent across requests.
 var templateFuncs = template.FuncMap{
-	"add":    func(a, b int) int { return a + b },
-	"mul":    func(a, b int64) int64 { return a * b },
-	"mod":    func(a, b int) int { return a % b },
-	"hex64":  func(n int64) string { return fmt.Sprintf("%x", uint64(n)) },
+	// ── arithmetic ────────────────────────────────────────────────────────
+	"add": func(a, b int) int { return a + b },
+	"mul": func(a, b int64) int64 { return a * b },
+	"mod": func(a, b int) int { return a % b },
+
+	// ── legacy hex helper (kept for backwards compat in templates) ─────────
+	"hex64": func(n int64) string { return fmt.Sprintf("%016x", uint64(n)) },
+
+	// ── string helpers ─────────────────────────────────────────────────────
 	"sanitize": func(s string) string {
 		s = strings.ReplaceAll(s, "<", "&lt;")
 		s = strings.ReplaceAll(s, ">", "&gt;")
@@ -180,18 +187,61 @@ var templateFuncs = template.FuncMap{
 		}
 		return s
 	},
-	// Deterministic RNG helpers — salt is hashed with the profile seed
-	// inside the renderer pipeline when we build the per-request profile.
+
+	// ── deterministic RNG ─────────────────────────────────────────────────
 	"rand_int": func(max int, salt string) int {
 		if max <= 0 {
 			return 0
 		}
-		h := hash32(salt)
-		return int(h % uint32(max))
+		return int(hash32(salt) % uint32(max))
 	},
-	// users_list renders a small JSON user list. We implement this here
-	// rather than as a template loop because the body format is fixed
-	// and the iteration count is dynamic.
+
+	// ── auth token generators (real crypto, deterministic on seed) ─────────
+
+	// jwt_admin(email, seed) — HS256 JWT with admin role.
+	// Use: {{jwt_admin .AdminUser .Seed}}
+	"jwt_admin": fakeauth.JWTAdmin,
+
+	// jwt_user(seed) — HS256 JWT with customer role.
+	// Use: {{jwt_user .Seed}}
+	"jwt_user": fakeauth.JWTUser,
+
+	// jwt_svc(name, seed) — HS256 JWT for a service account.
+	// Use: {{jwt_svc "monitoring" .Seed}}
+	"jwt_svc": fakeauth.JWTSvc,
+
+	// api_key(seed) — Stripe-style sk_live_<24 b62> key.
+	"api_key": fakeauth.APIKey,
+
+	// aws_key_id(seed) — AWS AKIA + 16 Base32 chars.
+	"aws_key_id": fakeauth.AWSKeyID,
+
+	// aws_secret(seed) — 40-char base64 AWS secret.
+	"aws_secret": fakeauth.AWSSecret,
+
+	// jwt_secret(seed) — 64-char base64url signing secret for JWT_SECRET.
+	"jwt_secret": fakeauth.JWTSecret,
+
+	// redis_pass(seed) — 32 hex-char Redis AUTH password.
+	"redis_pass": fakeauth.RedisPass,
+
+	// sendgrid_key(seed) — SG.<22>.<43> SendGrid API key.
+	"sendgrid_key": fakeauth.SendGridKey,
+
+	// session_id(seed) — Express.js connect.sid style session token.
+	"session_id": fakeauth.SessionID,
+
+	// request_id(seed) — UUID v4 for X-Request-Id headers.
+	"request_id": fakeauth.RequestID,
+
+	// user_id(seed) — usr_<14 b62 chars>.
+	"user_id": fakeauth.UserID,
+
+	// slug_id(prefix, seed) — prefix_<12 b62 chars> for ord_/tkt_ IDs.
+	"slug_id": fakeauth.SlugID,
+
+	// ── compound renderers ─────────────────────────────────────────────────
+	// users_list renders a fake JSON user list (body fixed, count dynamic).
 	"users_list": func(n int) string {
 		if n < 0 {
 			n = 0

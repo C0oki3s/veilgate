@@ -456,10 +456,12 @@ func (h *Handler) verify(w http.ResponseWriter, r *http.Request, cr *rules.Chall
 	ts := time.Now().Format(time.RFC3339)
 	mac := h.sign(ts)
 	tokenValue := ts + "." + mac
-	ttl := time.Duration(cr.TokenTTLMinutes) * time.Minute
-	if ttl <= 0 {
-		ttl = 30 * time.Minute
-	}
+	// Use the same TTL that verifyPOW uses (capped at 10 min) so the
+	// cookie and the HMAC validation window stay in sync. Previously
+	// the cookie could have a 30-min lifetime while the HMAC rejected
+	// the same token after 10 min — a confusing state where the browser
+	// presented a valid-looking cookie that was always rejected.
+	ttl := challengeTTL(cr)
 	cookiePath := cr.CookiePath
 	if cookiePath == "" {
 		cookiePath = "/"

@@ -63,10 +63,18 @@ type FakeData struct {
 
 // Vulnerabilities is the parsed vulnerabilities.yaml.
 type Vulnerabilities struct {
-	HoneypotPaths         []string `yaml:"honeypot_paths"`
-	SQLInjectionPatterns  []string `yaml:"sql_injection_patterns"`
-	FakeGitPaths          []string `yaml:"fake_git_paths"`
-	FakeEnvPaths          []string `yaml:"fake_env_paths"`
+	HoneypotPaths            []string `yaml:"honeypot_paths"`
+	SQLInjectionPatterns     []string `yaml:"sql_injection_patterns"`
+	SSRFPatterns             []string `yaml:"ssrf_patterns"`
+	XSSPatterns              []string `yaml:"xss_patterns"`
+	PathTraversalPatterns    []string `yaml:"path_traversal_patterns"`
+	CommandInjectionPatterns []string `yaml:"command_injection_patterns"`
+	XXEPatterns              []string `yaml:"xxe_patterns"`
+	SSTIPatterns             []string `yaml:"ssti_patterns"`
+	NoSQLPatterns            []string `yaml:"nosql_patterns"`
+	PrototypePollution       []string `yaml:"prototype_pollution_patterns"`
+	FakeGitPaths             []string `yaml:"fake_git_paths"`
+	FakeEnvPaths             []string `yaml:"fake_env_paths"`
 }
 
 // Lookup returns a vulnerabilities.yaml list by name.
@@ -82,23 +90,39 @@ func (v *Vulnerabilities) Lookup(name string) []string {
 		return v.FakeGitPaths
 	case "fake_env_paths":
 		return v.FakeEnvPaths
+	case "ssrf_patterns":
+		return v.SSRFPatterns
+	case "xss_patterns":
+		return v.XSSPatterns
+	case "path_traversal_patterns":
+		return v.PathTraversalPatterns
+	case "command_injection_patterns":
+		return v.CommandInjectionPatterns
+	case "xxe_patterns":
+		return v.XXEPatterns
+	case "ssti_patterns":
+		return v.SSTIPatterns
+	case "nosql_patterns":
+		return v.NoSQLPatterns
+	case "prototype_pollution_patterns":
+		return v.PrototypePollution
 	}
 	return nil
 }
 
 // Route is one entry in injection_strategy.yaml -> routes[].
 type Route struct {
-	Match    string   `yaml:"match"`    // prefix|exact|contains|sqli|regex|list|any
+	Match    string   `yaml:"match"` // prefix|exact|contains|sqli|regex|list|any
 	Values   []string `yaml:"values"`
 	Template string   `yaml:"template"`
 }
 
 // InjectorConfig is the injector: section of injection_strategy.yaml.
 type InjectorConfig struct {
-	MaxPayloadsPerResponse int                          `yaml:"max_payloads_per_response"`
-	VisitBucketRotation    bool                         `yaml:"visit_bucket_rotation"`
-	StyleWeights           map[string]map[string]int    `yaml:"style_weights"`
-	CategoryOrder          []string                     `yaml:"category_order"`
+	MaxPayloadsPerResponse int                       `yaml:"max_payloads_per_response"`
+	VisitBucketRotation    bool                      `yaml:"visit_bucket_rotation"`
+	StyleWeights           map[string]map[string]int `yaml:"style_weights"`
+	CategoryOrder          []string                  `yaml:"category_order"`
 }
 
 // InjectionStrategy is the parsed injection_strategy.yaml.
@@ -253,32 +277,32 @@ type CandidateInfo struct {
 //
 // Minimal (miner output, no metadata):
 //
-//	- feature: ua_token
-//	  bucket: python-requests
-//	  posterior: 0.98
-//	  support: 47
-//	  active: false
+//   - feature: ua_token
+//     bucket: python-requests
+//     posterior: 0.98
+//     support: 47
+//     active: false
 //
 // Full (community rule with metadata):
 //
-//	- id: VG-UA-001
-//	  feature: ua_token
-//	  bucket: python-requests
-//	  posterior: 0.98
-//	  support: 47
-//	  active: true
-//	  info:
-//	    name: python-requests library default UA
-//	    author: community
-//	    severity: medium
-//	    description: |
-//	      Default User-Agent emitted by the Python requests library when no
-//	      custom UA is set. Heavily used by automated scanners and LLM agents.
-//	    tags: [scanner, python, automation]
-//	    metadata:
-//	      verified: "true"
-//	      source: community
-//	      false_positive_rate: low
+//   - id: VG-UA-001
+//     feature: ua_token
+//     bucket: python-requests
+//     posterior: 0.98
+//     support: 47
+//     active: true
+//     info:
+//     name: python-requests library default UA
+//     author: community
+//     severity: medium
+//     description: |
+//     Default User-Agent emitted by the Python requests library when no
+//     custom UA is set. Heavily used by automated scanners and LLM agents.
+//     tags: [scanner, python, automation]
+//     metadata:
+//     verified: "true"
+//     source: community
+//     false_positive_rate: low
 type LearnedCandidate struct {
 	// ID is an optional unique rule identifier, e.g. "VG-UA-001" or
 	// "COMMUNITY-JA4-CHROME-BOT". Used for deduplication and referencing.
@@ -417,6 +441,14 @@ func mergeVulnerabilitiesDir(dir string, v *Vulnerabilities) error {
 		}
 		v.HoneypotPaths = append(v.HoneypotPaths, patch.HoneypotPaths...)
 		v.SQLInjectionPatterns = append(v.SQLInjectionPatterns, patch.SQLInjectionPatterns...)
+		v.SSRFPatterns = append(v.SSRFPatterns, patch.SSRFPatterns...)
+		v.XSSPatterns = append(v.XSSPatterns, patch.XSSPatterns...)
+		v.PathTraversalPatterns = append(v.PathTraversalPatterns, patch.PathTraversalPatterns...)
+		v.CommandInjectionPatterns = append(v.CommandInjectionPatterns, patch.CommandInjectionPatterns...)
+		v.XXEPatterns = append(v.XXEPatterns, patch.XXEPatterns...)
+		v.SSTIPatterns = append(v.SSTIPatterns, patch.SSTIPatterns...)
+		v.NoSQLPatterns = append(v.NoSQLPatterns, patch.NoSQLPatterns...)
+		v.PrototypePollution = append(v.PrototypePollution, patch.PrototypePollution...)
 		v.FakeGitPaths = append(v.FakeGitPaths, patch.FakeGitPaths...)
 		v.FakeEnvPaths = append(v.FakeEnvPaths, patch.FakeEnvPaths...)
 		return nil
@@ -442,6 +474,7 @@ func LoadInjectionStrategy(dir string) (*InjectionStrategy, error) {
 	if err := mergeInjectionStrategyDir(filepath.Join(dir, "injection_strategy"), &i); err != nil {
 		return nil, err
 	}
+	i.Routes = moveCatchAllRoutesLast(i.Routes)
 	return &i, nil
 }
 
@@ -478,6 +511,22 @@ func mergeInjectionStrategyDir(dir string, i *InjectionStrategy) error {
 		i.Routes = append(extra, i.Routes...)
 	}
 	return nil
+}
+
+func moveCatchAllRoutesLast(routes []Route) []Route {
+	if len(routes) == 0 {
+		return routes
+	}
+	out := make([]Route, 0, len(routes))
+	var catchAll []Route
+	for _, rt := range routes {
+		if rt.Match == "any" {
+			catchAll = append(catchAll, rt)
+			continue
+		}
+		out = append(out, rt)
+	}
+	return append(out, catchAll...)
 }
 
 // LoadChallenge reads challenge.yaml from dir.
@@ -672,19 +721,19 @@ type DashboardColours struct {
 
 // Dashboard is the parsed dashboard.yaml.
 type Dashboard struct {
-	RefreshSeconds    int                        `yaml:"refresh_seconds" json:"refresh_seconds"`
-	MaxEvents         int                        `yaml:"max_events" json:"max_events"`
-	MaxHistoryPoints  int                        `yaml:"max_history_points" json:"max_history_points"`
-	PageReloadSeconds int                        `yaml:"page_reload_seconds" json:"page_reload_seconds"`
-	ChartJSCDN       string                     `yaml:"chartjs_cdn" json:"chartjs_cdn"`
-	Colours           DashboardColours           `yaml:"colours" json:"colours"`
-	StatCards         []DashboardStatCard        `yaml:"stat_cards" json:"stat_cards"`
-	IPRotation        DashboardIPRotation        `yaml:"ip_rotation" json:"ip_rotation"`
-	PublicIPRotation  DashboardPublicIPRotation  `yaml:"public_ip_rotation" json:"public_ip_rotation"`
-	Cardinality       DashboardCardinality       `yaml:"cardinality" json:"cardinality"`
-	SearchTags        []DashboardSearchTag       `yaml:"search_tags" json:"search_tags"`
-	Graphs            []DashboardGraph           `yaml:"graphs" json:"graphs"`
-	ScoreThresholds   DashboardScoreThresholds   `yaml:"score_thresholds" json:"score_thresholds"`
+	RefreshSeconds    int                       `yaml:"refresh_seconds" json:"refresh_seconds"`
+	MaxEvents         int                       `yaml:"max_events" json:"max_events"`
+	MaxHistoryPoints  int                       `yaml:"max_history_points" json:"max_history_points"`
+	PageReloadSeconds int                       `yaml:"page_reload_seconds" json:"page_reload_seconds"`
+	ChartJSCDN        string                    `yaml:"chartjs_cdn" json:"chartjs_cdn"`
+	Colours           DashboardColours          `yaml:"colours" json:"colours"`
+	StatCards         []DashboardStatCard       `yaml:"stat_cards" json:"stat_cards"`
+	IPRotation        DashboardIPRotation       `yaml:"ip_rotation" json:"ip_rotation"`
+	PublicIPRotation  DashboardPublicIPRotation `yaml:"public_ip_rotation" json:"public_ip_rotation"`
+	Cardinality       DashboardCardinality      `yaml:"cardinality" json:"cardinality"`
+	SearchTags        []DashboardSearchTag      `yaml:"search_tags" json:"search_tags"`
+	Graphs            []DashboardGraph          `yaml:"graphs" json:"graphs"`
+	ScoreThresholds   DashboardScoreThresholds  `yaml:"score_thresholds" json:"score_thresholds"`
 }
 
 // LoadDashboard reads dashboard.yaml from dir.

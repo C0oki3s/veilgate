@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/C0oki3s/veilgate/internal/fakeauth"
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
 
@@ -102,17 +103,35 @@ func compileTemplate(cat Category, t rules.PayloadTemplate, gens map[string]func
 }
 
 // renderPlaceholders supports:
-//   {seed}         -> int64 seed
-//   {seed_mod:N}   -> seed % N, zero-padded to width of N
-//   {ticket_id}    -> 1000 + seed%9000 (rabbit-hole SEC tickets)
+//
+//	{seed}        -> int64 seed value
+//	{seed_mod:N}  -> seed % N, zero-padded to width of N
+//	{ticket_id}   -> 1000 + seed%9000 (rabbit-hole SEC tickets)
+//	{jwt_admin}   -> real HS256 admin JWT (deterministic on seed)
+//	{jwt_user}    -> real HS256 customer JWT
+//	{jwt_svc}     -> real HS256 service-account JWT ("monitoring")
+//	{api_key}     -> Stripe-style sk_live_<24 b62> key
+//	{session}     -> Express.js connect.sid-style session token
+//	{request_id}  -> UUID v4 request ID
 func renderPlaceholders(text string, seed int64) string {
 	if !strings.Contains(text, "{") {
 		return text
 	}
 	out := text
+
+	// Real auth token substitutions — must precede {seed} to avoid
+	// partial replacement of overlapping placeholder names.
+	out = strings.ReplaceAll(out, "{jwt_admin}", fakeauth.JWTAdminGeneric(seed))
+	out = strings.ReplaceAll(out, "{jwt_user}", fakeauth.JWTUser(seed))
+	out = strings.ReplaceAll(out, "{jwt_svc}", fakeauth.JWTSvc("monitoring", seed))
+	out = strings.ReplaceAll(out, "{api_key}", fakeauth.APIKey(seed))
+	out = strings.ReplaceAll(out, "{session}", fakeauth.SessionID(seed))
+	out = strings.ReplaceAll(out, "{request_id}", fakeauth.RequestID(seed))
+
 	out = strings.ReplaceAll(out, "{seed}", strconv.FormatInt(seed, 10))
 	out = strings.ReplaceAll(out, "{ticket_id}", strconv.FormatInt(1000+seed%9000, 10))
-	// {seed_mod:N} — find all occurrences
+
+	// {seed_mod:N} — replace all occurrences with seed%N, zero-padded.
 	for {
 		start := strings.Index(out, "{seed_mod:")
 		if start < 0 {

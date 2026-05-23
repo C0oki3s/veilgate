@@ -247,6 +247,9 @@ func main() {
 		case "update":
 			runUpdate(os.Args[2:])
 			return
+		case "cert-create":
+			runCertCreate(os.Args[2:])
+			return
 		case "-version", "--version", "version":
 			fmt.Println(version)
 			return
@@ -577,6 +580,9 @@ func main() {
 
 	tp := tarpit.NewHandler(&cfg.Tarpit, profileStore, injector)
 	tp.SetRules(templatesHolder, vulnHolder, strategyHolder)
+	if store != nil {
+		tp.SetCanaryRegistrar(store)
+	}
 
 	ch := challenge.NewHandler(
 		cfg.Challenge.Secret,

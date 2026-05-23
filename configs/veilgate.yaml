@@ -46,8 +46,8 @@ tls:
   key_file: "key.pem"
 
 detector:
-  score_tarpit_threshold: 70
-  score_challenge_threshold: 40
+  score_tarpit_threshold: 60
+  score_challenge_threshold: 30
   window_seconds: 90
   trusted_ips: []   # exact IPs to never score. Do NOT add 127.0.0.1 when smoke-testing tools from localhost.
   # Comma-separated CIDR list of proxies whose X-Forwarded-For we respect.

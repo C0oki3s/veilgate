@@ -1,6 +1,8 @@
 package payloads
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"strings"
 
 	"github.com/C0oki3s/veilgate/internal/tarpit"
@@ -10,9 +12,9 @@ import (
 // It picks N payloads per request and splices them into the body in
 // appropriate places for the response's content type.
 type Injector struct {
-	lib           *Library
-	perResponse   int
-	diversify     bool // alternate categories so repeated scans see variety
+	lib         *Library
+	perResponse int
+	diversify   bool // alternate categories so repeated scans see variety
 }
 
 func NewInjector(lib *Library, perResponse int, diversify bool) *Injector {
@@ -34,6 +36,7 @@ func (i *Injector) Inject(contentType, body string, ctx tarpit.InjectionContext)
 		bucket := ctx.Visits / 3
 		salt = salt + ":" + itoa(bucket)
 	}
+	seed := seedFromSalt(salt)
 
 	picked := i.lib.Pick(salt, i.perResponse*2) // overpick, then filter by style
 	if len(picked) == 0 {
@@ -42,18 +45,20 @@ func (i *Injector) Inject(contentType, body string, ctx tarpit.InjectionContext)
 
 	switch {
 	case strings.Contains(contentType, "html"):
-		return injectHTML(body, picked, i.perResponse)
+		return injectHTML(body, picked, i.perResponse, seed)
 	case strings.Contains(contentType, "json"):
-		return injectJSON(body, picked, i.perResponse)
+		return injectJSON(body, picked, i.perResponse, seed)
+	case strings.Contains(contentType, "javascript"):
+		return injectJS(body, picked, i.perResponse, seed)
 	case strings.Contains(contentType, "text/plain"):
-		return injectPlain(body, picked, i.perResponse)
+		return injectPlain(body, picked, i.perResponse, seed)
 	default:
 		return body
 	}
 }
 
 // injectHTML splices comment-style and hidden-div payloads into HTML.
-func injectHTML(body string, candidates []Payload, n int) string {
+func injectHTML(body string, candidates []Payload, n int, seed int64) string {
 	var chosen []Payload
 	for _, p := range candidates {
 		if p.Style == "html_comment" || p.Style == "html_hidden" || p.Style == "log_noise" {
@@ -66,10 +71,6 @@ func injectHTML(body string, candidates []Payload, n int) string {
 	if len(chosen) == 0 {
 		return body
 	}
-
-	// Seed chosen payloads with a deterministic seed-ish value. Length of body
-	// is good enough for the seed here since the caller already varied salt.
-	seed := int64(len(body))
 
 	// Inject near the top of <body> or after <html> if no body tag.
 	var top, bottom strings.Builder
@@ -107,7 +108,7 @@ func injectHTML(body string, candidates []Payload, n int) string {
 
 // injectJSON adds payload fields to the top-level JSON object. Assumes the body
 // ends with a closing `}`. If it doesn't parse as object, leaves it alone.
-func injectJSON(body string, candidates []Payload, n int) string {
+func injectJSON(body string, candidates []Payload, n int, seed int64) string {
 	body = strings.TrimSpace(body)
 	if len(body) == 0 || body[len(body)-1] != '}' {
 		return body
@@ -126,7 +127,6 @@ func injectJSON(body string, candidates []Payload, n int) string {
 		return body
 	}
 
-	seed := int64(len(body))
 	var inject strings.Builder
 	for idx, p := range chosen {
 		inject.WriteString(p.Render(seed + int64(idx)))
@@ -134,8 +134,48 @@ func injectJSON(body string, candidates []Payload, n int) string {
 	return body[:len(body)-1] + inject.String() + "}"
 }
 
+// injectJS splices canary and rabbit-hole payloads into a JavaScript body.
+// js_comment payloads are wrapped in /* ... */; js_string_literal payloads
+// are embedded inside an IIFE comment block that appears to be dead config.
+// Both are placed near the start so grepping the first N bytes catches them.
+func injectJS(body string, candidates []Payload, n int, seed int64) string {
+	var chosen []Payload
+	for _, p := range candidates {
+		if p.Style == "js_comment" || p.Style == "js_string_literal" || p.Style == "html_comment" {
+			chosen = append(chosen, p)
+			if len(chosen) >= n {
+				break
+			}
+		}
+	}
+	if len(chosen) == 0 {
+		return body
+	}
+
+	var header strings.Builder
+	for idx, p := range chosen {
+		rendered := p.Render(seed + int64(idx))
+		switch p.Style {
+		case "js_comment":
+			header.WriteString(rendered)
+			header.WriteString("\n")
+		case "js_string_literal":
+			// Embed as a dead variable assignment that looks like forgotten config.
+			header.WriteString("var __vg_cfg = {")
+			header.WriteString(rendered)
+			header.WriteString("}; // dev-only\n")
+		case "html_comment":
+			// Wrap HTML comments as JS block comments so they're syntactically valid.
+			header.WriteString("/* ")
+			header.WriteString(strings.ReplaceAll(rendered, "*/", "* /"))
+			header.WriteString(" */\n")
+		}
+	}
+	return header.String() + body
+}
+
 // injectPlain appends payloads as commented-looking noise at the end.
-func injectPlain(body string, candidates []Payload, n int) string {
+func injectPlain(body string, candidates []Payload, n int, seed int64) string {
 	var chosen []Payload
 	for _, p := range candidates {
 		if p.Style == "log_noise" || p.Style == "html_comment" {
@@ -148,7 +188,6 @@ func injectPlain(body string, candidates []Payload, n int) string {
 	if len(chosen) == 0 {
 		return body
 	}
-	seed := int64(len(body))
 	var b strings.Builder
 	b.WriteString(body)
 	b.WriteString("\n# --- \n")
@@ -158,6 +197,11 @@ func injectPlain(body string, candidates []Payload, n int) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+func seedFromSalt(salt string) int64 {
+	h := sha256.Sum256([]byte(salt))
+	return int64(binary.BigEndian.Uint64(h[:8]))
 }
 
 func itoa(i int) string {
