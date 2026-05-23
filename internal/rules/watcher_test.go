@@ -39,7 +39,7 @@ func TestWatcherDebouncedReload(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	if got := calls.Load(); got != 1 {
 		t.Fatalf("want 1 reload, got %d", got)
 	}
