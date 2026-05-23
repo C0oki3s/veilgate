@@ -591,6 +591,7 @@ func main() {
 		cfg.Challenge.Secret,
 		cfg.Challenge.Difficulty,
 		time.Duration(cfg.Challenge.TTLMinutes)*time.Minute,
+		time.Duration(cfg.Challenge.MaxTTLMinutes)*time.Minute,
 	)
 	ch.SetRules(challengeHolder)
 

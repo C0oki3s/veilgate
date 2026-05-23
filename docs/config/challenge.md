@@ -64,18 +64,18 @@ challenge:
 | --- | --- | --- |
 | int | no | `4` |
 
-Number of leading hex zeros required on the challenge solution.
+Number of leading hex zeros required on the SHA-256 proof-of-work solution.
+Valid range: **1–4**. Values above 4 are clamped to 4 by the runtime.
 
-| Difficulty | Approx solve time on a real browser |
-| --- | --- |
-| 3 | <100 ms |
-| 4 | ~500 ms |
-| 5 | ~5 s |
-| 6 | ~80 s - too slow for real users |
+| Difficulty | Avg. hash attempts | Typical browser solve time | When to use |
+| --- | --- | --- | --- |
+| 1 | ~16 | <1 ms | Dev/testing only — no real protection |
+| 2 | ~256 | <1 ms | Dev/testing only |
+| 3 | ~4,096 | 5–50 ms | Recommended default — imperceptible to users |
+| 4 | ~65,536 | 50–500 ms | Higher-security APIs where a brief pause is acceptable |
 
-`4` is the sweet spot. Raise to `5` only if your traffic is
-overwhelmingly desktop browsers and you don't mind the visible delay
-on solve.
+`3` is the recommended default. Use `4` only when your API is a high-value
+target and a short visible delay is acceptable to your users.
 
 ---
 
@@ -85,17 +85,52 @@ on solve.
 | --- | --- | --- |
 | int | no | `30` |
 
-How long an issued challenge token stays valid before the client must
-solve a fresh one. Longer TTLs are friendlier to real users; shorter
-TTLs reduce the value of stealing a solved cookie.
+How long an issued challenge token stays valid. Capped by
+`max_ttl_minutes` (see below).
+
+When a token expires the browser SDK re-solves the challenge
+**automatically** on the next API call — the user does not see a manual
+prompt. The `@veilgate/client` SDK intercepts the 401, opens a hidden
+zero-size iframe, solves the proof-of-work in the background, and
+retries the original request. Your `onChallenge` overlay fires for the
+duration of the solve (~5–50 ms at difficulty 3), then disappears.
+
+The SDK also renews 60 seconds before expiry on any call to
+`getToken()`, so sessions stay warm as long as the page is active.
+
+---
+
+### `max_ttl_minutes`
+
+| Type | Required | Default |
+| --- | --- | --- |
+| int | no | `60` |
+
+The maximum token lifetime the runtime will issue, regardless of what
+`ttl_minutes` or `rules/challenge.yaml` request. If `ttl_minutes`
+exceeds this value it is silently clamped to `max_ttl_minutes`.
+
+Set this to whatever ceiling makes sense for your threat model:
+
+| `max_ttl_minutes` | `ttl_minutes` | Effective TTL | Re-solve frequency |
+| --- | --- | --- | --- |
+| 60 (default) | 30 | 30 min | Every ~29 min |
+| 60 | 60 | 60 min | Every ~59 min |
+| 60 | 120 | 60 min (capped) | Every ~59 min |
+| 10 | 30 | 10 min (capped) | Every ~9 min |
+| 10 | 5 | 5 min | Every ~4 min |
+
+Shorter `max_ttl_minutes` limits how long a stolen token is usable.
+Longer values reduce background re-solve frequency for real users.
 
 ## Example
 
 ```yaml
 challenge:
   secret: ${VEILGATE_SECRET}
-  difficulty: 4
+  difficulty: 3
   ttl_minutes: 30
+  max_ttl_minutes: 60
 ```
 
 ## Related

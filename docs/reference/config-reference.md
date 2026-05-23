@@ -106,7 +106,7 @@ spoofed `X-Forwarded-For` unless the direct peer is in this list.
 ```yaml
 challenge:
   secret: "set-with-VEILGATE_SECRET-or-config"
-  difficulty: 4
+  difficulty: 3
   ttl_minutes: 30
 ```
 

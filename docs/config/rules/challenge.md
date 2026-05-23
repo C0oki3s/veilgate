@@ -20,7 +20,7 @@
 
 | Key | Type | Default | Purpose |
 | --- | --- | --- | --- |
-| `difficulty` | int | inherits from `challenge.difficulty` (4) | leading-zero hex digits required on the solution |
+| `difficulty` | int (1–4) | inherits from `challenge.difficulty` (3) | leading-zero hex digits required on the solution; values above 4 are clamped |
 | `token_ttl_minutes` | int | inherits from `challenge.ttl_minutes` (30) | cookie / token TTL once solved |
 | `cookie_name` | string | `veilgate_pow` | cookie set when the client successfully solves |
 | `cookie_path` | string | `/` | cookie `Path=` attribute |
@@ -198,8 +198,8 @@ Common operator changes:
 ## Example
 
 ```yaml
-difficulty: 4
-token_ttl_minutes: 30
+difficulty: 3
+token_ttl_minutes: 10
 cookie_name: veilgate_pow
 status_code: 503
 content_type: "text/html; charset=utf-8"

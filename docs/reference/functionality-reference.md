@@ -425,7 +425,7 @@ and checks the prefix matches.
 **YAML:**
 ```yaml
 challenge:
-  difficulty: 4
+  difficulty: 3
 ```
 
 **Defaults to `4`.**

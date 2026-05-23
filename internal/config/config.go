@@ -191,9 +191,10 @@ type TLSConfig struct {
 }
 
 type ChallengeConfig struct {
-	Secret     string `yaml:"secret"`
-	Difficulty int    `yaml:"difficulty"`
-	TTLMinutes int    `yaml:"ttl_minutes"`
+	Secret        string `yaml:"secret"`
+	Difficulty    int    `yaml:"difficulty"`
+	TTLMinutes    int    `yaml:"ttl_minutes"`
+	MaxTTLMinutes int    `yaml:"max_ttl_minutes"`
 }
 
 type DetectorConfig struct {
@@ -266,6 +267,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Challenge.TTLMinutes == 0 {
 		c.Challenge.TTLMinutes = 30
+	}
+	if c.Challenge.MaxTTLMinutes == 0 {
+		c.Challenge.MaxTTLMinutes = 60
 	}
 	if len(c.Detector.HoneypotPaths) == 0 {
 		c.Detector.HoneypotPaths = []string{

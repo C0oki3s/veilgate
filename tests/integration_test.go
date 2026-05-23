@@ -58,7 +58,7 @@ func TestRepositoryConfigAndRulesLoad(t *testing.T) {
 }
 
 func TestChallengeHandlerRejectsUnsignedVerifyPOST(t *testing.T) {
-	h, err := challenge.NewHandlerFromDir("integration-secret", repoPath("rules"), 1, time.Minute)
+	h, err := challenge.NewHandlerFromDir("integration-secret", repoPath("rules"), 1, time.Minute, 0)
 	if err != nil {
 		t.Fatalf("NewHandlerFromDir: %v", err)
 	}

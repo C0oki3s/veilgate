@@ -17,15 +17,15 @@ mode: "challenge"
 
 challenge:
   secret: "${VEILGATE_SECRET}"
-  difficulty: 4
+  difficulty: 3
   ttl_minutes: 30
 ```
 
 Example `rules/challenge.yaml` fields:
 
 ```yaml
-difficulty: 4
-token_ttl_minutes: 30
+difficulty: 3
+token_ttl_minutes: 10
 cookie_name: "veilgate_challenge"
 verify_path: "/__veilgate/verify"
 token_header_name: "X-Veilgate-Token"

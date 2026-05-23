@@ -38,7 +38,7 @@ tls:
 
 challenge:
   secret: "${VEILGATE_SECRET}"
-  difficulty: 4
+  difficulty: 3
   ttl_minutes: 30
 
 tarpit:

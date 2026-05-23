@@ -14,7 +14,7 @@ import (
 // request carries an Origin header.  Without these headers the browser
 // reports "CORS error" and the challenge page is never visible to JS.
 func TestServeChallengeCORSOnHTMLPath(t *testing.T) {
-	h := NewHandler("cors-test-secret", 0, 0)
+	h := NewHandler("cors-test-secret", 0, 0, 0)
 	// SPAAwareResponse defaults to false → HTML path.
 
 	// Request without XHR markers: no Sec-Fetch-Dest, no X-Requested-With,
@@ -40,7 +40,7 @@ func TestServeChallengeCORSOnHTMLPath(t *testing.T) {
 // TestServeChallengeCORSAbsentWithoutOrigin verifies that CORS headers are
 // not injected when the request has no Origin (same-origin or CLI tool).
 func TestServeChallengeCORSAbsentWithoutOrigin(t *testing.T) {
-	h := NewHandler("cors-test-secret", 0, 0)
+	h := NewHandler("cors-test-secret", 0, 0, 0)
 
 	r := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
 	// No Origin header.
@@ -57,7 +57,7 @@ func TestServeChallengeCORSAbsentWithoutOrigin(t *testing.T) {
 // path (spa_aware_response: true + XHR-shaped request) still sets CORS
 // headers. This is a regression guard — the HTML-path fix must not break it.
 func TestServeSPAChallengePreservesCORS(t *testing.T) {
-	h := NewHandler("cors-test-secret", 0, 0)
+	h := NewHandler("cors-test-secret", 0, 0, 0)
 	h.SetRules(rules.NewHolder(&rules.ChallengeRules{
 		SPAAwareResponse: true,
 		VerifyPath:       "/__veilgate/verify",
@@ -87,7 +87,7 @@ func TestServeSPAChallengePreservesCORS(t *testing.T) {
 // TestServeStartUsesDefaultTemplate verifies that ServeStart renders the
 // built-in template when challenge.yaml does not set start_page_template.
 func TestServeStartUsesDefaultTemplate(t *testing.T) {
-	h := NewHandler("cors-test-secret", 0, 0)
+	h := NewHandler("cors-test-secret", 0, 0, 0)
 	// No StartPageTemplate set → must fall back to defaultStartPageTmpl.
 
 	r := httptest.NewRequest(http.MethodGet, "/__veilgate/start", nil)
@@ -109,7 +109,7 @@ func TestServeStartUsesDefaultTemplate(t *testing.T) {
 // TestServeStartUsesRulesTemplate verifies that a custom start_page_template
 // from challenge.yaml is used instead of the built-in default.
 func TestServeStartUsesRulesTemplate(t *testing.T) {
-	h := NewHandler("cors-test-secret", 0, 0)
+	h := NewHandler("cors-test-secret", 0, 0, 0)
 	h.SetRules(rules.NewHolder(&rules.ChallengeRules{
 		VerifyPath:        "/__veilgate/verify",
 		StartPageTemplate: `<html><body>custom-start:{{.Config}}</body></html>`,
@@ -134,7 +134,7 @@ func TestServeStartUsesRulesTemplate(t *testing.T) {
 // TestVerifyEndpointPreservesCORS confirms that the /verify POST response
 // still carries CORS headers (regression guard for the existing behaviour).
 func TestVerifyEndpointPreservesCORS(t *testing.T) {
-	h := NewHandler("cors-test-secret", 0, 0)
+	h := NewHandler("cors-test-secret", 0, 0, 0)
 	h.SetRules(rules.NewHolder(&rules.ChallengeRules{
 		VerifyPath: "/__veilgate/verify",
 		CookieName: "veilgate_pow",

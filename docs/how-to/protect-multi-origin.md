@@ -129,8 +129,8 @@ visit still works transparently.
 
 ```yaml
 # ~/.veilgate/rules/challenge.yaml
-difficulty: 4
-token_ttl_minutes: 30
+difficulty: 3
+token_ttl_minutes: 10
 cookie_name: veilgate_pow
 cookie_path: /
 cookie_domain: ".example.com"      # ← parent-domain cookie
@@ -250,12 +250,11 @@ Almost always a CORS issue. Check:
 
 ### "The token expires too quickly"
 
-`token_ttl_minutes` defaults to 30 — fine for human session length,
-aggressive for an SPA that wants long-lived background polling. Raise
-it carefully; longer TTLs extend the value of any stolen token. If
-you raise it above ~60, consider also binding the token to a coarse
-client fingerprint (see
-[docs/security/defending-headless-browsers.md §1.1](../security/defending-headless-browsers.md#11-bind-the-cookie-to-a-coarse-client-fingerprint)).
+The runtime caps `token_ttl_minutes` at **10 minutes** regardless of
+what you set. The `@veilgate/client` SDK re-solves automatically on
+the next API call after expiry — the user sees the `onChallenge`
+overlay for ~5–50 ms at difficulty 3, then the request continues. Set
+`token_ttl_minutes: 10` (the effective maximum) and leave it there.
 
 ### "Mobile webviews don't carry the cookie"
 

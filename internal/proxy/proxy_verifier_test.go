@@ -74,7 +74,7 @@ func buildTestServer(t *testing.T, upstreamURL string, withVerifier bool) (*Serv
 		scorer.SetIPReputation(ip)
 	}
 
-	ch, err := challenge.NewHandlerFromDir("test-secret-not-default", testRulesDir, 0, 0)
+	ch, err := challenge.NewHandlerFromDir("test-secret-not-default", testRulesDir, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewHandlerFromDir: %v", err)
 	}
@@ -328,7 +328,7 @@ func buildDiscoveryServer(t *testing.T, upstreamURL string) *Server {
 	// NewHandler uses embedded-default ChallengeRules (zero value).
 	// Override the important descriptor fields via SetRules so the
 	// discovery assertions have well-known values to check.
-	ch := challenge.NewHandler("disc-test-secret", 0, 0)
+	ch := challenge.NewHandler("disc-test-secret", 0, 0, 0)
 	ch.SetRules(rules.NewHolder(&rules.ChallengeRules{
 		VerifyPath:      "/__veilgate/verify",
 		CookieName:      "veilgate_pow",

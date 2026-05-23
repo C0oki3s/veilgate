@@ -19,7 +19,7 @@ const testRulesDir = "../../veilgate-rules"
 
 func testNewHandler(t *testing.T, secret string) *Handler {
 	t.Helper()
-	h, err := NewHandlerFromDir(secret, testRulesDir, 0, 0)
+	h, err := NewHandlerFromDir(secret, testRulesDir, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewHandlerFromDir: %v", err)
 	}
@@ -347,10 +347,25 @@ func mustJSON(t *testing.T, v any) *bytes.Reader {
 	return bytes.NewReader(b)
 }
 
-func TestChallengeTTLIsCapped(t *testing.T) {
+func TestChallengeTTLRespectsMaxTTL(t *testing.T) {
 	cr := &rules.ChallengeRules{TokenTTLMinutes: 60}
-	if got := challengeTTL(cr); got != 10*time.Minute {
-		t.Fatalf("expected cap at 10m, got %v", got)
+
+	// maxTTL=30m: TTL should be capped at 30m, not the rule value of 60m.
+	h30 := &Handler{maxTTL: 30 * time.Minute}
+	if got := h30.challengeTTL(cr); got != 30*time.Minute {
+		t.Fatalf("expected cap at 30m, got %v", got)
+	}
+
+	// maxTTL=0: falls back to the 60m default ceiling; rule value 60m passes through.
+	h0 := &Handler{maxTTL: 0}
+	if got := h0.challengeTTL(cr); got != 60*time.Minute {
+		t.Fatalf("expected 60m with zero maxTTL, got %v", got)
+	}
+
+	// Rule value below the cap: returned as-is.
+	cr5 := &rules.ChallengeRules{TokenTTLMinutes: 5}
+	if got := h30.challengeTTL(cr5); got != 5*time.Minute {
+		t.Fatalf("expected 5m when rule < cap, got %v", got)
 	}
 }
 
