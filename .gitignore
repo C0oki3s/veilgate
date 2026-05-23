@@ -27,6 +27,7 @@ SKILL.md
 .vscode/
 vendor/
 graphify-out/
+veilgate-rules/
 
 # Local/private docs
 docs/BUSINESS_CASE.md
