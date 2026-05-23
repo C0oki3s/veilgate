@@ -15,7 +15,7 @@ import (
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
 
-const testRulesDir = "../../rules"
+const testRulesDir = "../../veilgate-rules"
 
 func testNewHandler(t *testing.T, secret string) *Handler {
 	t.Helper()
@@ -404,9 +404,9 @@ func TestServeStartReturnsHTML(t *testing.T) {
 
 func TestServeStartInjectsOriginParam(t *testing.T) {
 	h := newHandlerWithRules("start-secret", &rules.ChallengeRules{
-		Difficulty:  1,
-		VerifyPath:  "/__veilgate/verify",
-		CookieName:  "veilgate_pow",
+		Difficulty: 1,
+		VerifyPath: "/__veilgate/verify",
+		CookieName: "veilgate_pow",
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start?origin=https://app.example.com", nil)

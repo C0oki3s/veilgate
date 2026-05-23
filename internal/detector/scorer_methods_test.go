@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/C0oki3s/veilgate/internal/fakeauth"
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
 
@@ -298,6 +299,17 @@ func TestCanaryReplaySignalsAndCandidates(t *testing.T) {
 		if !strings.Contains(candidates, want) {
 			t.Fatalf("candidate %q missing from %q", want, candidates)
 		}
+	}
+
+	bodyToken := fakeauth.JWTAdminGeneric(42)
+	r = httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"token":"`+bodyToken+`"}`))
+	r.Header.Set("Content-Type", "application/json")
+	candidates = strings.Join(canaryCandidates(r), "|")
+	if !strings.Contains(candidates, bodyToken) {
+		t.Fatalf("body token candidate missing from %q", candidates)
+	}
+	if r.Body == nil {
+		t.Fatal("request body was not restored")
 	}
 }
 

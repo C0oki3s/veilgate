@@ -25,7 +25,6 @@ on:
       - "LICENSE"
       - ".gitignore"
       - ".github/ISSUE_TEMPLATE/**"
-      - ".github/PULL_REQUEST_TEMPLATE.md"
   workflow_dispatch:
 
 permissions:
@@ -52,12 +51,13 @@ jobs:
 
       - name: Pull latest community rules
         run: |
-          mkdir -p rules
+          rm -rf veilgate-rules
+          mkdir -p veilgate-rules
           TAG=$(curl -fsSL https://api.github.com/repos/C0oki3s/veilgate-rules/releases/latest \
             | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
           echo "Installing veilgate-rules ${TAG}"
           curl -fsSL "https://github.com/C0oki3s/veilgate-rules/archive/refs/tags/${TAG}.tar.gz" \
-            | tar -xz --strip-components=1 -C rules/
+            | tar -xz --strip-components=1 -C veilgate-rules/
 
       - name: Run tests
         run: go test -race ./...

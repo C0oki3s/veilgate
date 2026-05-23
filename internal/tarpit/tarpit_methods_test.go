@@ -21,7 +21,7 @@ func (i *suffixInjector) Inject(_ string, body string, ctx InjectionContext) str
 }
 
 func TestRouteMatchesEveryMode(t *testing.T) {
-	h := newTestHandler()
+	h := newTestHandler(t)
 	vuln := &rules.Vulnerabilities{
 		HoneypotPaths:        []string{"/hidden-admin"},
 		SQLInjectionPatterns: []string{"union select", " or 1=1"},
@@ -46,7 +46,7 @@ func TestRouteMatchesEveryMode(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := h.routeMatches(tc.route, strings.ToLower(tc.path), tc.query, vuln); got != tc.want {
+			if got := h.routeMatches(tc.route, strings.ToLower(tc.path), tc.query, "", vuln); got != tc.want {
 				t.Fatalf("routeMatches() = %v, want %v", got, tc.want)
 			}
 		})
@@ -197,7 +197,11 @@ func TestRandBetweenAndClientIPFallbacks(t *testing.T) {
 }
 
 func handlerWithRulesForTarpitTests() *Handler {
-	h := newTestHandler()
+	h := NewHandler(&config.TarpitConfig{
+		MinLatencyMs: 0,
+		MaxLatencyMs: 0,
+		MaxBodyBytes: 1024 * 1024,
+	}, NewProfileStore(), nil)
 	templates, vuln, strategy := tarpitTestRules()
 	h.SetRules(rules.NewHolder(templates), rules.NewHolder(vuln), rules.NewHolder(strategy))
 	return h

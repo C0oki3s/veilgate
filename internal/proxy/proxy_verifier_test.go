@@ -24,7 +24,7 @@ import (
 	"github.com/C0oki3s/veilgate/internal/verifier"
 )
 
-const testRulesDir = "../../rules"
+const testRulesDir = "../../veilgate-rules"
 
 // Integration tests for the verifier chain wiring in serve().
 //
@@ -501,4 +501,3 @@ func hmacSign(t *testing.T, secret, payload string) string {
 	m.Write([]byte(payload))
 	return hex.EncodeToString(m.Sum(nil))
 }
-

@@ -1,12 +1,15 @@
 package detector
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/C0oki3s/veilgate/internal/fakeauth"
 	"github.com/C0oki3s/veilgate/internal/ml"
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
@@ -303,6 +306,11 @@ func (s *Scorer) Score(clientID string, r *http.Request) Score {
 		result.Signals = append(result.Signals, sig)
 	}
 	if sig := s.scoreToolchainHMM(events); sig.Points > 0 {
+		result.Signals = append(result.Signals, sig)
+	}
+
+	// Bundle-mining: JS asset fetch followed by rapid /api/* probing.
+	if sig := s.scoreBundleMining(state); sig.Points > 0 {
 		result.Signals = append(result.Signals, sig)
 	}
 
@@ -618,6 +626,13 @@ func (s *Scorer) scoreInjection(r *http.Request) Signal {
 	haystacks := []string{
 		strings.ToLower(r.URL.Path),
 		strings.ToLower(r.URL.RawQuery),
+	}
+	if r.Body != nil && (r.ContentLength >= 0 && r.ContentLength <= 64*1024) {
+		body, err := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		if err == nil && len(body) > 0 {
+			haystacks = append(haystacks, strings.ToLower(string(body)))
+		}
 	}
 	if len(cfg.Headers) == 0 {
 		for _, vs := range r.Header {
@@ -1057,6 +1072,56 @@ func (s *Scorer) scoreCanaryReplay(clientID string, r *http.Request) Signal {
 	return Signal{}
 }
 
+// scoreBundleMining fires when a client fetched a JavaScript asset and
+// then issued several /api/* requests within 60 seconds without any
+// intervening HTML document navigation. This is the canonical
+// "LLM agent downloaded the SPA bundle, ran js-beautify + grep to
+// extract API routes, then began probing them" pattern observed in
+// automated pentesting runs (e.g. demo-veilgate-dev_2b03).
+// Real users open the SPA which makes the API calls for them; they
+// never independently probe the API surface immediately after fetching
+// the bundle with a raw HTTP client.
+func (s *Scorer) scoreBundleMining(state *ClientState) Signal {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.LastJSAssetAt.IsZero() {
+		return Signal{}
+	}
+	since := time.Since(state.LastJSAssetAt)
+	if since > 60*time.Second {
+		return Signal{}
+	}
+	// Count distinct /api/* paths hit since the JS bundle was fetched,
+	// excluding subresource fetches the SPA itself would generate.
+	apiHits := 0
+	seen := make(map[string]struct{}, 8)
+	for _, e := range state.Events {
+		if e.Timestamp.Before(state.LastJSAssetAt) {
+			continue
+		}
+		if !strings.HasPrefix(e.Path, "/api/") {
+			continue
+		}
+		if _, dup := seen[e.Path]; dup {
+			continue
+		}
+		seen[e.Path] = struct{}{}
+		apiHits++
+	}
+	switch {
+	case apiHits >= 12:
+		return Signal{Name: "bundle_mining", Points: 30,
+			Reason: fmt.Sprintf("%d distinct /api/ paths probed within %ds of JS bundle fetch (agent recon)", apiHits, int(since.Seconds()))}
+	case apiHits >= 6:
+		return Signal{Name: "bundle_mining", Points: 20,
+			Reason: fmt.Sprintf("%d distinct /api/ paths probed within %ds of JS bundle fetch", apiHits, int(since.Seconds()))}
+	case apiHits >= 3:
+		return Signal{Name: "bundle_mining", Points: 10,
+			Reason: fmt.Sprintf("%d /api/ requests within %ds of JS bundle fetch", apiHits, int(since.Seconds()))}
+	}
+	return Signal{}
+}
+
 // canaryCandidates extracts the strings we want to test against the
 // canary table. Conservative — we don't want to fire on legitimate
 // short tokens that collide with canary values.
@@ -1093,6 +1158,17 @@ func canaryCandidates(r *http.Request) []string {
 			if v := q.Get(name); v != "" {
 				out = append(out, v)
 			}
+		}
+	}
+	// JSON/form bodies are where auth scanners often replay leaked JWTs:
+	// {"token":"..."}, {"apiKey":"..."}, {"password":"..."}.
+	// Only inspect small bodies and always restore r.Body so upstream proxying
+	// and ML extraction still see the original bytes.
+	if r.Body != nil && (r.ContentLength >= 0 && r.ContentLength <= 64*1024) {
+		body, err := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		if err == nil && len(body) > 0 {
+			out = append(out, fakeauth.ExtractCanaries(string(body))...)
 		}
 	}
 	return out

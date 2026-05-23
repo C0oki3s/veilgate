@@ -10,7 +10,7 @@ import (
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
 
-const testRulesDir = "../../rules"
+const testRulesDir = "../../veilgate-rules"
 
 func mustDatabase(t *testing.T) *Database {
 	t.Helper()

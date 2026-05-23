@@ -538,7 +538,21 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// failure-recovery signal can compare with the next request shape.
 	if s.tracker != nil && rec.status > 0 {
 		s.tracker.RecordStatus(clientID, rec.status, r.URL.Path, r.Method)
+		// Arm the bundle-mining signal when the upstream delivered a JS
+		// asset successfully. Path check is fast; it avoids the overhead
+		// of inspecting the response content-type on the hot path.
+		if decision == DecisionReal && rec.status/100 == 2 && isJSAssetPath(r.URL.Path) {
+			s.tracker.RecordJSAsset(clientID)
+		}
 	}
+}
+
+// isJSAssetPath returns true for paths that are almost certainly a
+// JavaScript bundle (ends in .js or .js.gz) and not a legitimate
+// browser subresource that wouldn't give away API structure.
+func isJSAssetPath(path string) bool {
+	p := strings.ToLower(path)
+	return strings.HasSuffix(p, ".js") || strings.HasSuffix(p, ".js.gz") || strings.HasSuffix(p, ".mjs")
 }
 
 func (s *Server) decide(score int) Decision {

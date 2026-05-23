@@ -1,20 +1,27 @@
 package rules
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 )
 
-// rulesDir resolves the repo-root rules/ directory relative to this test file.
+// rulesDir resolves the repo-root rules directory relative to this test file.
 func rulesDir(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	// internal/rules/ → ../../rules/
-	return filepath.Join(filepath.Dir(file), "..", "..", "rules")
+	// internal/rules/ -> ../../veilgate-rules/ after the community rules were
+	// split into github.com/C0oki3s/veilgate-rules. Fall back to ../../rules/
+	// for older checkouts and downstream packagers.
+	root := filepath.Join(filepath.Dir(file), "..", "..")
+	if dir := filepath.Join(root, "veilgate-rules"); dirExists(dir) {
+		return dir
+	}
+	return filepath.Join(root, "rules")
 }
 
 // TestLoadLearnedSubdirTree verifies that LoadLearned walks the nested
@@ -56,7 +63,11 @@ func BenchmarkLoadLearned(b *testing.B) {
 	if !ok {
 		b.Fatal("runtime.Caller failed")
 	}
-	dir := filepath.Join(filepath.Dir(file), "..", "..", "rules")
+	root := filepath.Join(filepath.Dir(file), "..", "..")
+	dir := filepath.Join(root, "veilgate-rules")
+	if !dirExists(dir) {
+		dir = filepath.Join(root, "rules")
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -64,4 +75,9 @@ func BenchmarkLoadLearned(b *testing.B) {
 			b.Fatalf("LoadLearned: %v", err)
 		}
 	}
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }

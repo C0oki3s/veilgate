@@ -36,6 +36,7 @@ type Watcher struct {
 
 	pendingMu sync.Mutex
 	pending   map[string]*time.Timer
+	seq       map[string]uint64
 	stats     WatcherStats
 }
 
@@ -67,6 +68,7 @@ func NewWatcher(dir string) (*Watcher, error) {
 		debounce:  500 * time.Millisecond,
 		subdirMap: make(map[string]string),
 		pending:   make(map[string]*time.Timer),
+		seq:       make(map[string]uint64),
 	}, nil
 }
 
@@ -151,11 +153,20 @@ func (w *Watcher) Run(ctx context.Context, onError func(filename string, err err
 
 func (w *Watcher) schedule(name string, onError func(string, error)) {
 	w.pendingMu.Lock()
-	defer w.pendingMu.Unlock()
+	w.seq[name]++
+	seq := w.seq[name]
 	if t, ok := w.pending[name]; ok {
 		t.Stop()
 	}
 	w.pending[name] = time.AfterFunc(w.debounce, func() {
+		w.pendingMu.Lock()
+		if w.seq[name] != seq {
+			w.pendingMu.Unlock()
+			return
+		}
+		delete(w.pending, name)
+		w.pendingMu.Unlock()
+
 		if err := w.handlers[name](); err != nil {
 			w.stats.ReloadFail.Add(1)
 			if onError != nil {
@@ -165,6 +176,7 @@ func (w *Watcher) schedule(name string, onError func(string, error)) {
 		}
 		w.stats.ReloadOK.Add(1)
 	})
+	w.pendingMu.Unlock()
 }
 
 // Holder[T] wraps an atomic.Pointer with a typed Load/Store API. Every

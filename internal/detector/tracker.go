@@ -61,8 +61,14 @@ type ClientState struct {
 
 	// CookiesSent / RequestsTotal track the cookie-ecology ratio.
 	// Reset on the same window evictions as Events.
-	CookiesSent    int
-	RequestsTotal  int
+	CookiesSent   int
+	RequestsTotal int
+
+	// LastJSAssetAt is the timestamp of the most recent response that was a
+	// JavaScript asset (path ends in .js, content-type javascript). Used by
+	// scoreBundleMining to detect the "fetch JS bundle then immediately probe
+	// API endpoints" pattern characteristic of LLM agents that grep source.
+	LastJSAssetAt time.Time
 
 	// SubresourceFetches / DocumentFetches feed the request-graph
 	// topology signal. Real browsers post a tree-shaped pattern of
@@ -74,10 +80,10 @@ type ClientState struct {
 
 // Tracker holds per-client state across the process.
 type Tracker struct {
-	mu       sync.RWMutex
-	clients  map[string]*ClientState
-	window   time.Duration
-	maxHist  int
+	mu      sync.RWMutex
+	clients map[string]*ClientState
+	window  time.Duration
+	maxHist int
 }
 
 func NewTracker(windowSeconds int) *Tracker {
@@ -155,6 +161,24 @@ func (t *Tracker) Get(clientID string) *ClientState {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.clients[clientID]
+}
+
+// RecordJSAsset marks that the client just fetched a JavaScript bundle
+// asset. Called from the proxy when the upstream response has a JS
+// content-type. This arms the scoreBundleMining signal for the next 60s.
+func (t *Tracker) RecordJSAsset(clientID string) {
+	if t == nil {
+		return
+	}
+	t.mu.RLock()
+	st := t.clients[clientID]
+	t.mu.RUnlock()
+	if st == nil {
+		return
+	}
+	st.mu.Lock()
+	st.LastJSAssetAt = time.Now()
+	st.mu.Unlock()
 }
 
 // RecordStatus annotates the previous request's response status. Called
