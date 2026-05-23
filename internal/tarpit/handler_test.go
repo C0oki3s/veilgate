@@ -2,6 +2,9 @@ package tarpit
 
 import (
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -9,18 +12,31 @@ import (
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
 
-const testRulesDir = "../../rules"
+func testRulesDir(t testing.TB) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Join(filepath.Dir(file), "..", "..")
+	if dir := filepath.Join(root, "veilgate-rules"); dirExists(dir) {
+		return dir
+	}
+	return filepath.Join(root, "rules")
+}
 
-func newTestHandler() *Handler {
+func newTestHandler(t testing.TB) *Handler {
+	t.Helper()
 	cfg := &config.TarpitConfig{
 		MinLatencyMs: 1, // fast for tests
 		MaxLatencyMs: 2,
 		MaxBodyBytes: 1024 * 1024,
 	}
 	h := NewHandler(cfg, NewProfileStore(), nil)
-	if tpls, err := rules.LoadTemplates(testRulesDir); err == nil {
-		vuln, _ := rules.LoadVulnerabilities(testRulesDir)
-		strat, _ := rules.LoadInjectionStrategy(testRulesDir)
+	dir := testRulesDir(t)
+	if tpls, err := rules.LoadTemplates(dir); err == nil {
+		vuln, _ := rules.LoadVulnerabilities(dir)
+		strat, _ := rules.LoadInjectionStrategy(dir)
 		var vh *rules.Holder[rules.Vulnerabilities]
 		var sh *rules.Holder[rules.InjectionStrategy]
 		if vuln != nil {
@@ -34,8 +50,13 @@ func newTestHandler() *Handler {
 	return h
 }
 
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
 func TestRouteLoginPage(t *testing.T) {
-	h := newTestHandler()
+	h := newTestHandler(t)
 	r := httptest.NewRequest("GET", "/login", nil)
 	r.RemoteAddr = "10.0.0.1:1234"
 	w := httptest.NewRecorder()
@@ -54,8 +75,8 @@ func TestRouteLoginPage(t *testing.T) {
 }
 
 func TestRouteSQLErrorOnInjection(t *testing.T) {
-	h := newTestHandler()
-	r := httptest.NewRequest("GET", "/api/users?id=1'+or+1=1--", nil)
+	h := newTestHandler(t)
+	r := httptest.NewRequest("GET", "/api/users?id=1%20or%201=1--", nil)
 	r.RemoteAddr = "10.0.0.2:1234"
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -64,13 +85,14 @@ func TestRouteSQLErrorOnInjection(t *testing.T) {
 		t.Errorf("SQL injection pattern should return 500, got %d", w.Code)
 	}
 	body := w.Body.String()
-	if !strings.Contains(strings.ToLower(body), "sql") {
-		t.Error("SQL error body should mention SQL")
+	lower := strings.ToLower(body)
+	if !strings.Contains(lower, "prisma") && !strings.Contains(lower, "database query error") {
+		t.Error("SQL injection should return a realistic database error body")
 	}
 }
 
 func TestRouteGitConfig(t *testing.T) {
-	h := newTestHandler()
+	h := newTestHandler(t)
 	r := httptest.NewRequest("GET", "/.git/config", nil)
 	r.RemoteAddr = "10.0.0.3:1234"
 	w := httptest.NewRecorder()
@@ -83,7 +105,7 @@ func TestRouteGitConfig(t *testing.T) {
 }
 
 func TestRoutePersistenceSameProfile(t *testing.T) {
-	h := newTestHandler()
+	h := newTestHandler(t)
 	r1 := httptest.NewRequest("GET", "/login", nil)
 	r1.RemoteAddr = "10.0.0.4:1111"
 	w1 := httptest.NewRecorder()

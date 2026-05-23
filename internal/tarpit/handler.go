@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -169,7 +170,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // The previously-hardcoded switch statement lives entirely in YAML now.
 func (h *Handler) route(r *http.Request, p *ShadowProfile) Response {
 	path := strings.ToLower(r.URL.Path)
-	query := r.URL.RawQuery
+	query := decodedQuery(r.URL.RawQuery)
 	body := readSmallBody(r)
 	strat := h.strategy.Load()
 	vuln := h.vuln.Load()
@@ -186,6 +187,17 @@ func (h *Handler) route(r *http.Request, p *ShadowProfile) Response {
 		}
 	}
 	return h.renderer.Render("generic_not_found", p, extra)
+}
+
+func decodedQuery(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	decoded, err := url.QueryUnescape(raw)
+	if err != nil {
+		return raw
+	}
+	return decoded
 }
 
 func (h *Handler) routeMatches(rt rules.Route, path, query, body string, vuln *rules.Vulnerabilities) bool {

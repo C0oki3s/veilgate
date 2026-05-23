@@ -9,7 +9,7 @@ import (
 	"github.com/C0oki3s/veilgate/internal/rules"
 )
 
-const testRulesDir = "../../rules"
+const testRulesDir = "../../veilgate-rules"
 
 func newScorer() (*Scorer, *Tracker) {
 	t := NewTracker(90)
@@ -126,10 +126,10 @@ func TestBrowserLikeHeadersNoSparseSignal(t *testing.T) {
 func TestToolchainProgression(t *testing.T) {
 	s, _ := newScorer()
 	paths := []string{
-		"/robots.txt",       // recon
-		"/sitemap.xml",      // recon
-		"/admin",            // probe
-		"/login",            // probe
+		"/robots.txt",          // recon
+		"/sitemap.xml",         // recon
+		"/admin",               // probe
+		"/login",               // probe
 		"/?id=1'%20or%201=1--", // exploit marker (space escaped for httptest.NewRequest)
 	}
 	client := "10.0.0.6"

@@ -22,6 +22,9 @@ import (
 )
 
 func repoPath(parts ...string) string {
+	if len(parts) > 0 && parts[0] == "rules" {
+		parts[0] = "veilgate-rules"
+	}
 	all := append([]string{".."}, parts...)
 	return filepath.Join(all...)
 }

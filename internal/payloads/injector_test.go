@@ -7,7 +7,7 @@ import (
 	"github.com/C0oki3s/veilgate/internal/tarpit"
 )
 
-const testRulesDir = "../../rules"
+const testRulesDir = "../../veilgate-rules"
 
 func mustLibrary(t *testing.T) *Library {
 	t.Helper()
