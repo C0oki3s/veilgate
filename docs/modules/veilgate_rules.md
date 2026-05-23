@@ -2,8 +2,8 @@
 
 The `veilgate_rules` module documents external YAML rule files. These files
 define detector weights, fingerprint classifications, tarpit templates, route
-strategy, fake data, payloads, challenge behavior, ML settings, and dashboard
-layout.
+strategy, fake data, payloads, decoy paths, challenge behavior, ML settings,
+and dashboard layout.
 
 Rules are loaded from `rules_dir` when configured. **There are no embedded
 defaults** — `rules_dir` must be set and point to a populated rules directory.
@@ -37,6 +37,12 @@ files into a subdirectory to extend any list without editing core files.
 | `tls_fingerprints/` | _(none required)_ | `tools/`, `browsers/` |
 | `templates/` | `templates.yaml` _(optional)_ | _(any subdirectory)_ |
 | `learned/` | `learned.yaml` _(optional)_ | `attack/`, `tools/`, etc. |
+
+Single-file rules with community subdirectory support:
+
+| File | Subdirectory | Purpose |
+|---|---|---|
+| `decoy_paths.yaml` | `decoy_paths/` | Bait endpoints published in `.well-known` and injected by browser/node SDKs as agent breadcrumbs |
 
 Single-file rules (no community subdirectory):
 

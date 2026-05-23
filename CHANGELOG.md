@@ -9,7 +9,45 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-No unreleased changes yet.
+### Added
+
+- **Decoy path system** — operator-configurable bait endpoints that are
+  published via `/__veilgate/.well-known` and consumed by both SDKs to inject
+  realistic agent breadcrumbs across every surface: browser DOM, API response
+  headers, and server-to-server contexts.
+
+  - **`veilgate-rules/decoy_paths.yaml`**: new rules file with ~55 pre-built
+    bait paths across SSRF/cloud-metadata, secrets, git/VCS, admin panels,
+    OpenAPI docs, Spring Actuator, HashiCorp Vault/Consul, Kubernetes,
+    Elasticsearch, Grafana, Stripe, OAuth, and OpenAI-proxy categories.
+    Supports a `decoy_paths/` subdirectory for community additions (same merge
+    pattern as all other rules). Hot-reloaded by the watcher on file change.
+
+  - **`/__veilgate/.well-known` — new `tarpit` field**: the discovery document
+    now includes a `tarpit.paths` array so SDKs always inject paths the proxy
+    is actively tarpitting, not a disconnected default list.
+
+  - **`@veilgate/client` — agent decoy system**: reads `tarpit.paths` from
+    `.well-known` and injects a random subset as DOM breadcrumbs (`<script
+    type="application/json">` + `<meta>` in `document.head`) per page load.
+    Falls back to a built-in pool of ~50 paths when the server has no
+    `decoy_paths.yaml` configured. New `updateDecoys(false | true |
+    Partial<AgentDecoyOptions>)` export lets callers enable, disable, or
+    reconfigure decoys at runtime without reinitialising the SDK; disabling
+    removes the injected DOM elements via `data-vg-runtime` attribute selector.
+
+  - **`@veilgate/node` — decoy response middleware**: three new exports for
+    injecting tarpit breadcrumbs into API responses so agents probing the API
+    via raw HTTP or API clients discover bait paths in response headers:
+    - `fetchDecoyPaths(baseURL?)` — fetches `.well-known`, caches for 60 s.
+    - `decoyResponseHeaders(paths, opts?)` — pure function; builds `Link`
+      (RFC 8288), `X-Api-Documentation`, and `X-Debug-Endpoint` headers.
+    - `decoyMiddleware(opts?)` — Express/Fastify/Node-compatible middleware
+      that discovers paths on first request and injects headers on every
+      response. Returns a `DecoyMiddlewareFn` with `.setEnabled(bool)` and
+      `.update(Partial<DecoyOptions>)` for runtime control without recreating
+      the middleware.
+
 
 ---
 
