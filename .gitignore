@@ -5,6 +5,12 @@
 *.out
 coverage.out
 
+# Keys and certificates — never commit private key material
+*.pem
+*.key
+*.crt
+*.cer
+
 # Local runtime data
 /tmp/
 *.log
