@@ -88,14 +88,6 @@ func NewScorer(t *Tracker, honeypots, trusted []string) *Scorer {
 	ip := new(rules.IPReputation)
 	window := 600
 	maxFP := 20000
-	if ip != nil {
-		if ip.FleetRotation.WindowSeconds > 0 {
-			window = ip.FleetRotation.WindowSeconds
-		}
-		if ip.FleetRotation.MaxFingerprints > 0 {
-			maxFP = ip.FleetRotation.MaxFingerprints
-		}
-	}
 	return &Scorer{
 		tracker:       t,
 		fleet:         NewFleetTracker(window, maxFP),
