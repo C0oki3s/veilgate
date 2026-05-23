@@ -36,6 +36,7 @@ type Handler struct {
 	// embedded defaults loaded at construction time.
 	vuln     *rules.Holder[rules.Vulnerabilities]
 	strategy *rules.Holder[rules.InjectionStrategy]
+	decoys   *rules.Holder[rules.DecoyPaths]
 
 	// Compiled regex cache for `match: regex` routes, keyed by the source
 	// pattern. Invalidated on a strategy swap.
@@ -80,6 +81,27 @@ func NewHandler(cfg *config.TarpitConfig, store *ProfileStore, injector PayloadI
 		vuln:     rules.NewHolder(vuln),
 		strategy: rules.NewHolder(strat),
 		regexes:  make(map[string]*regexp.Regexp),
+	}
+}
+
+// DescribeTarpit returns the loaded decoy paths for inclusion in
+// /__veilgate/.well-known. The browser SDK reads this and injects the paths
+// as DOM decoys so every agent breadcrumb routes to a real tarpit response.
+func (h *Handler) DescribeTarpit() rules.TarpitDescriptor {
+	if h.decoys == nil {
+		return rules.TarpitDescriptor{}
+	}
+	d := h.decoys.Load()
+	if d == nil {
+		return rules.TarpitDescriptor{}
+	}
+	return rules.TarpitDescriptor{Paths: d.Paths}
+}
+
+// SetDecoyPaths wires in the hot-reloadable decoy-paths holder.
+func (h *Handler) SetDecoyPaths(holder *rules.Holder[rules.DecoyPaths]) {
+	if holder != nil {
+		h.decoys = holder
 	}
 }
 
