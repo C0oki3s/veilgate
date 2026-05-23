@@ -26,6 +26,7 @@ rules/injection_strategy.yaml
 rules/payloads.yaml
 rules/fake_data.yaml
 rules/vulnerabilities.yaml
+rules/decoy_paths.yaml          # bait endpoints published via .well-known
 ```
 
 ## Directives
@@ -37,6 +38,7 @@ rules/vulnerabilities.yaml
 - `rules/injection_strategy.yaml`
 - `rules/payloads.yaml`
 - `rules/fake_data.yaml`
+- `rules/decoy_paths.yaml`
 
 ## `tarpit.min_latency_ms`
 
@@ -159,6 +161,52 @@ Defines decoy and prompt-injection payloads inserted into responses by
 
 - Payloads should be designed for defensive deception in environments you own.
 - Do not include real credentials or sensitive operational details.
+
+## `rules/decoy_paths.yaml`
+
+Syntax:  list of `{ path, service }` entries  
+Default: none — add entries to expose bait endpoints  
+Context: `rules_dir`
+
+Defines operator-configurable bait endpoints that are:
+
+1. **Published in `/__veilgate/.well-known`** under a `tarpit.paths` array so
+   both SDKs always inject paths the proxy is actively tarpitting.
+2. **Injected as DOM breadcrumbs** by `@veilgate/client` (random subset per
+   page load as `<script type="application/json">` and `<meta>` in
+   `document.head`).
+3. **Added to API response headers** by `@veilgate/node` `decoyMiddleware()`
+   as `Link`, `X-Api-Documentation`, and `X-Debug-Endpoint` headers.
+
+Every path listed here should also have a matching route in
+`injection_strategy.yaml` so agents that follow a breadcrumb receive a
+convincing fake response rather than a generic 404.
+
+```yaml
+paths:
+  - path: "/actuator/env"
+    service: "spring-actuator"
+  - path: "/v1/secret/data/prod"
+    service: "vault"
+  - path: "/.env.local"
+    service: "secrets"
+```
+
+The `service` field is a human-readable label exposed in `.well-known`; it is
+not used for routing decisions. Additional files can be dropped into a
+`decoy_paths/` subdirectory and are merged automatically.
+
+### Code path
+
+- [`internal/rules/extra_loaders.go`](../../internal/rules/extra_loaders.go) — `LoadDecoyPaths`, `DecoyPaths`, `TarpitDescriptor`
+- [`internal/tarpit/handler.go`](../../internal/tarpit/handler.go) — `DescribeTarpit()`, `SetDecoyPaths()`
+- [`internal/proxy/proxy.go`](../../internal/proxy/proxy.go) — `tarpitDescriber` interface, `discoveryDoc.Tarpit`
+
+### Operational notes
+
+- Paths are hot-reloaded when `decoy_paths.yaml` changes — no restart needed.
+- Keep the list to paths your `injection_strategy.yaml` actually handles.
+- Add community-specific paths in `decoy_paths/` to avoid merge conflicts.
 
 ## Limitations
 

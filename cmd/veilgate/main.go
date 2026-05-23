@@ -321,6 +321,7 @@ func main() {
 	vulnVal, _ := rules.LoadVulnerabilities(cfg.RulesDir)
 	strategyVal, _ := rules.LoadInjectionStrategy(cfg.RulesDir)
 	challengeVal, _ := rules.LoadChallenge(cfg.RulesDir)
+	decoyPathsVal, _ := rules.LoadDecoyPaths(cfg.RulesDir)
 	mlVal, err := rules.LoadML(cfg.RulesDir)
 	if err != nil {
 		log.Warn().Err(err).Msg("load ml rules failed; online ML and miner disabled until ml.yaml loads")
@@ -333,6 +334,7 @@ func main() {
 	vulnHolder := rules.NewHolder(vulnVal)
 	strategyHolder := rules.NewHolder(strategyVal)
 	challengeHolder := rules.NewHolder(challengeVal)
+	decoyPathsHolder := rules.NewHolder(decoyPathsVal)
 	mlHolder := rules.NewHolder(mlVal)
 	dashboardHolder := rules.NewHolder(dashboardVal)
 
@@ -580,6 +582,7 @@ func main() {
 
 	tp := tarpit.NewHandler(&cfg.Tarpit, profileStore, injector)
 	tp.SetRules(templatesHolder, vulnHolder, strategyHolder)
+	tp.SetDecoyPaths(decoyPathsHolder)
 	if store != nil {
 		tp.SetCanaryRegistrar(store)
 	}
@@ -695,6 +698,14 @@ func main() {
 				return err
 			}
 			strategyHolder.Store(v)
+			return nil
+		})
+		w.Register("decoy_paths.yaml", func() error {
+			v, err := rules.LoadDecoyPaths(cfg.RulesDir)
+			if err != nil {
+				return err
+			}
+			decoyPathsHolder.Store(v)
 			return nil
 		})
 		w.Register("challenge.yaml", func() error {

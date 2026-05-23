@@ -767,3 +767,60 @@ func LoadDashboard(dir string) (*Dashboard, error) {
 	}
 	return &d, nil
 }
+
+// --- Decoy paths ---
+
+// DecoyPath is one bait endpoint entry in decoy_paths.yaml.
+// Both the path and an optional service label are published verbatim in
+// /__veilgate/.well-known so the browser SDK can inject them as DOM decoys.
+type DecoyPath struct {
+	// Path is the URL path the proxy tarpits, e.g. "/actuator/env".
+	Path string `yaml:"path" json:"path"`
+	// Service is a human-readable label for the technology being mimicked,
+	// e.g. "spring-actuator", "vault", "stripe". Helps operators audit the
+	// decoy set and lets the SDK annotate DOM metadata.
+	Service string `yaml:"service" json:"service,omitempty"`
+}
+
+// DecoyPaths is the parsed decoy_paths.yaml.
+type DecoyPaths struct {
+	Paths []DecoyPath `yaml:"paths"`
+}
+
+// TarpitDescriptor is the JSON shape emitted under the "tarpit" key in
+// /__veilgate/.well-known. Defined here so both the tarpit handler and the
+// proxy discovery handler can reference it without a circular import.
+type TarpitDescriptor struct {
+	Paths []DecoyPath `json:"paths"`
+}
+
+// LoadDecoyPaths reads decoy_paths.yaml from dir and merges any additions
+// from the decoy_paths/ subdirectory. The file is optional; if neither the
+// root file nor the subdirectory exists the returned slice is empty.
+func LoadDecoyPaths(dir string) (*DecoyPaths, error) {
+	var d DecoyPaths
+	raw, err := readOptionalFromDir(dir, "decoy_paths.yaml")
+	if err != nil {
+		return nil, err
+	}
+	if raw != nil {
+		if err := yaml.Unmarshal(raw, &d); err != nil {
+			return nil, fmt.Errorf("parse decoy_paths.yaml: %w", err)
+		}
+	}
+	if err := mergeDecoyPathsDir(filepath.Join(dir, "decoy_paths"), &d); err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+func mergeDecoyPathsDir(dir string, d *DecoyPaths) error {
+	return walkYAMLDir(dir, func(path string, raw []byte) error {
+		var patch DecoyPaths
+		if err := yaml.Unmarshal(raw, &patch); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		d.Paths = append(d.Paths, patch.Paths...)
+		return nil
+	})
+}

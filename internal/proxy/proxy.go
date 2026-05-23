@@ -20,6 +20,7 @@ import (
 	"github.com/C0oki3s/veilgate/internal/detector"
 	"github.com/C0oki3s/veilgate/internal/ml"
 	"github.com/C0oki3s/veilgate/internal/persist"
+	"github.com/C0oki3s/veilgate/internal/rules"
 	"github.com/C0oki3s/veilgate/internal/telemetry"
 	"github.com/C0oki3s/veilgate/internal/verifier"
 )
@@ -220,6 +221,12 @@ func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(s.serve)
 }
 
+// tarpitDescriber is an optional interface the tarpit handler can implement
+// to expose its decoy-path rules in the well-known discovery document.
+type tarpitDescriber interface {
+	DescribeTarpit() rules.TarpitDescriptor
+}
+
 // discoveryDoc is the public JSON shape returned by
 // /__veilgate/.well-known. Stable contract — clients pin to this.
 // Optional fields are emitted only when populated so older clients
@@ -227,6 +234,10 @@ func (s *Server) Handler() http.Handler {
 type discoveryDoc struct {
 	Challenge   *challenge.ChallengeDescriptor  `json:"challenge,omitempty"`
 	Credentials []verifier.CredentialDescriptor `json:"credentials,omitempty"`
+	// Tarpit lists bait endpoints defined in decoy_paths.yaml. The browser SDK
+	// reads this and injects the paths as DOM decoys so agents that mine the
+	// page source discover realistic breadcrumbs that route to the tarpit.
+	Tarpit *rules.TarpitDescriptor `json:"tarpit,omitempty"`
 }
 
 // serveDiscovery emits the well-known JSON. It is callable
@@ -241,6 +252,12 @@ func (s *Server) serveDiscovery(w http.ResponseWriter, _ *http.Request) {
 	}
 	if s.verifiers != nil {
 		doc.Credentials = s.verifiers.Describe()
+	}
+	if td, ok := s.tarpitHandler.(tarpitDescriber); ok {
+		desc := td.DescribeTarpit()
+		if len(desc.Paths) > 0 {
+			doc.Tarpit = &desc
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
