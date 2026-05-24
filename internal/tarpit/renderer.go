@@ -110,7 +110,7 @@ func (r *Renderer) buildData(p *ShadowProfile, extra map[string]any) map[string]
 		"Visits":     p.Visits,
 		"Slug":       p.Slug,
 		"TicketID":   1000 + (p.Seed % 9000),
-		"VerifyPath": "/__veilgate/verify",
+		"VerifyPath": "/_g/verify",
 		"profile":    p,
 	}
 	for k, v := range extra {
@@ -196,6 +196,23 @@ var templateFuncs = template.FuncMap{
 		return int(hash32(salt) % uint32(max))
 	},
 
+	// cdn_url(path, seed) — deterministic real-looking CDN asset URL.
+	// Use: {{cdn_url "/assets/app.css" .Seed}}
+	"cdn_url": func(path string, seed int64) string {
+		return cdnURL(path, seed)
+	},
+
+	// cdn_pkg(pkg, file) — public package CDN URL for common framework assets.
+	// Use: {{cdn_pkg "@fontsource/inter" "index.css"}}
+	"cdn_pkg": func(pkg, file string) string {
+		pkg = strings.Trim(pkg, "/")
+		file = strings.Trim(file, "/")
+		if file == "" {
+			return "https://cdn.jsdelivr.net/npm/" + pkg
+		}
+		return "https://cdn.jsdelivr.net/npm/" + pkg + "/" + file
+	},
+
 	// ── auth token generators (real crypto, deterministic on seed) ─────────
 
 	// jwt_admin(email, seed) — HS256 JWT with admin role.
@@ -267,4 +284,21 @@ func hash32(s string) uint32 {
 		h *= 16777619
 	}
 	return h
+}
+
+func cdnURL(path string, seed int64) string {
+	hosts := []string{
+		"https://cdn.jsdelivr.net",
+		"https://unpkg.com",
+		"https://cdnjs.cloudflare.com",
+		"https://cdn.skypack.dev",
+	}
+	if path == "" {
+		path = "/assets/app.js"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	idx := int(uint64(seed) % uint64(len(hosts)))
+	return fmt.Sprintf("%s%s?v=%x", hosts[idx], path, uint64(seed)&0xffffff)
 }

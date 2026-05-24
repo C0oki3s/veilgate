@@ -46,7 +46,7 @@ func (c *CookieVerifier) Name() string {
 }
 
 // CookieName exposes the configured cookie name for the audit log
-// and the /__veilgate/.well-known discovery endpoint.
+// and the /_g/config discovery endpoint.
 func (c *CookieVerifier) CookieName() string { return c.cookieName }
 
 // ValidatorType exposes the underlying validator type for discovery

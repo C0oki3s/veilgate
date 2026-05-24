@@ -23,7 +23,7 @@ func (i *suffixInjector) Inject(_ string, body string, ctx InjectionContext) str
 func TestRouteMatchesEveryMode(t *testing.T) {
 	h := newTestHandler(t)
 	vuln := &rules.Vulnerabilities{
-		HoneypotPaths:        []string{"/hidden-admin"},
+		ProbePaths:        []string{"/hidden-admin"},
 		SQLInjectionPatterns: []string{"union select", " or 1=1"},
 	}
 	cases := []struct {
@@ -40,7 +40,7 @@ func TestRouteMatchesEveryMode(t *testing.T) {
 		{"invalid regex", rules.Route{Match: "regex", Values: []string{"["}}, "/anything", "", false},
 		{"sqli path", rules.Route{Match: "sqli"}, "/search/union select", "", true},
 		{"sqli query", rules.Route{Match: "sqli"}, "/search", "id=1 or 1=1", true},
-		{"list", rules.Route{Match: "list", Values: []string{"honeypot_paths"}}, "/hidden-admin", "", true},
+		{"list", rules.Route{Match: "list", Values: []string{"probe_paths"}}, "/hidden-admin", "", true},
 		{"any", rules.Route{Match: "any"}, "/whatever", "", true},
 		{"miss", rules.Route{Match: "exact", Values: []string{"/login"}}, "/logout", "", false},
 	}
@@ -222,7 +222,7 @@ func tarpitTestRules() (*rules.Templates, *rules.Vulnerabilities, *rules.Injecti
 		},
 	}}
 	vuln := &rules.Vulnerabilities{
-		HoneypotPaths:        []string{"/hidden-admin"},
+		ProbePaths:        []string{"/hidden-admin"},
 		SQLInjectionPatterns: []string{"union select"},
 	}
 	strategy := &rules.InjectionStrategy{

@@ -135,7 +135,7 @@ gracefully — when no SETTINGS are captured, the signal is silent.
 ### 3.5 JS-beacon endpoint — deferred
 
 The detector has hooks ready (`X-Veilgate-*` request headers flow
-into ML features automatically), but a `/__veilgate/beacon` handler
+into ML features automatically), but a `/_g/beacon` handler
 that accepts canvas/WebGL fingerprints from a tiny JS payload is not
 implemented. Deferred.
 

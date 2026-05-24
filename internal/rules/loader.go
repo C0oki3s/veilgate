@@ -41,13 +41,13 @@ type Detector struct {
 	} `yaml:"toolchain"`
 
 	Timing struct {
-		MinEvents       int     `yaml:"min_events"`
-		MinMeanSeconds  float64 `yaml:"min_mean_seconds"`
-		MaxMeanSeconds  float64 `yaml:"max_mean_seconds"`
-		StrictCVMax     float64 `yaml:"strict_cv_max"`
-		StrictPoints    int     `yaml:"strict_points"`
-		LooseCVMax      float64 `yaml:"loose_cv_max"`
-		LoosePoints     int     `yaml:"loose_points"`
+		MinEvents      int     `yaml:"min_events"`
+		MinMeanSeconds float64 `yaml:"min_mean_seconds"`
+		MaxMeanSeconds float64 `yaml:"max_mean_seconds"`
+		StrictCVMax    float64 `yaml:"strict_cv_max"`
+		StrictPoints   int     `yaml:"strict_points"`
+		LooseCVMax     float64 `yaml:"loose_cv_max"`
+		LoosePoints    int     `yaml:"loose_points"`
 	} `yaml:"timing"`
 
 	// PathBruteforce fires when one client hits many distinct paths inside
@@ -134,11 +134,12 @@ type LogBurstConfig struct {
 
 // Payloads groups payload templates by injection category.
 type Payloads struct {
-	Termination []PayloadTemplate `yaml:"termination"`
-	RabbitHole  []PayloadTemplate `yaml:"rabbit_hole"`
-	CostBomb    []PayloadTemplate `yaml:"cost_bomb"`
-	Confusion   []PayloadTemplate `yaml:"confusion"`
-	MoralAppeal []PayloadTemplate `yaml:"moral_appeal"`
+	Termination     []PayloadTemplate `yaml:"termination"`
+	RabbitHole      []PayloadTemplate `yaml:"rabbit_hole"`
+	CostBomb        []PayloadTemplate `yaml:"cost_bomb"`
+	Confusion       []PayloadTemplate `yaml:"confusion"`
+	MoralAppeal     []PayloadTemplate `yaml:"moral_appeal"`
+	PromptInjection []PayloadTemplate `yaml:"prompt_injection"`
 
 	Generators struct {
 		LogBurst LogBurstConfig `yaml:"log_burst"`
@@ -283,6 +284,7 @@ func mergePayloadsDir(dir string, p *Payloads) error {
 		p.CostBomb = append(p.CostBomb, patch.CostBomb...)
 		p.Confusion = append(p.Confusion, patch.Confusion...)
 		p.MoralAppeal = append(p.MoralAppeal, patch.MoralAppeal...)
+		p.PromptInjection = append(p.PromptInjection, patch.PromptInjection...)
 		// Generators: only set when the file explicitly specifies them.
 		if patch.Generators.LogBurst.Count != 0 {
 			p.Generators.LogBurst = patch.Generators.LogBurst

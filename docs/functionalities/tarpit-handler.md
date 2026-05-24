@@ -26,7 +26,7 @@ rules/injection_strategy.yaml
 rules/payloads.yaml
 rules/fake_data.yaml
 rules/vulnerabilities.yaml
-rules/decoy_paths.yaml          # bait endpoints published via .well-known
+rules/route-manifest.yaml          # bait endpoints published via .well-known
 ```
 
 ## Directives
@@ -38,7 +38,7 @@ rules/decoy_paths.yaml          # bait endpoints published via .well-known
 - `rules/injection_strategy.yaml`
 - `rules/payloads.yaml`
 - `rules/fake_data.yaml`
-- `rules/decoy_paths.yaml`
+- `rules/route-manifest.yaml`
 
 ## `tarpit.min_latency_ms`
 
@@ -162,7 +162,7 @@ Defines decoy and prompt-injection payloads inserted into responses by
 - Payloads should be designed for defensive deception in environments you own.
 - Do not include real credentials or sensitive operational details.
 
-## `rules/decoy_paths.yaml`
+## `rules/route-manifest.yaml`
 
 Syntax:  list of `{ path, service }` entries  
 Default: none — add entries to expose bait endpoints  
@@ -170,7 +170,7 @@ Context: `rules_dir`
 
 Defines operator-configurable bait endpoints that are:
 
-1. **Published in `/__veilgate/.well-known`** under a `tarpit.paths` array so
+1. **Published in `/_g/config`** under a `routes.paths` array so
    both SDKs always inject paths the proxy is actively tarpitting.
 2. **Injected as DOM breadcrumbs** by `@veilgate/client` (random subset per
    page load as `<script type="application/json">` and `<meta>` in
@@ -194,7 +194,7 @@ paths:
 
 The `service` field is a human-readable label exposed in `.well-known`; it is
 not used for routing decisions. Additional files can be dropped into a
-`decoy_paths/` subdirectory and are merged automatically.
+`route-manifest/` subdirectory and are merged automatically.
 
 ### Code path
 
@@ -204,9 +204,9 @@ not used for routing decisions. Additional files can be dropped into a
 
 ### Operational notes
 
-- Paths are hot-reloaded when `decoy_paths.yaml` changes — no restart needed.
+- Paths are hot-reloaded when `route-manifest.yaml` changes — no restart needed.
 - Keep the list to paths your `injection_strategy.yaml` actually handles.
-- Add community-specific paths in `decoy_paths/` to avoid merge conflicts.
+- Add community-specific paths in `route-manifest/` to avoid merge conflicts.
 
 ## Limitations
 

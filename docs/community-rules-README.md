@@ -73,7 +73,7 @@ suspicious_user_agents:
 
 # Paths that are never served by real apps but are probed by scanners.
 # A request to any of these adds full honeypot points.
-honeypot_paths:
+probe_paths:
   - /.git/config
   - /.env.backup
   - /wp-admin-old

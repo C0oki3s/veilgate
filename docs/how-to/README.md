@@ -19,6 +19,7 @@ operator hits during install or day-2 ops.
 | [Handle a Right-to-Erasure (RTBF) request](handle-rtbf.md) | When a data-subject deletion arrives |
 | [Monitor with Prometheus + Grafana](monitor-with-prometheus.md) | When you want history, not just live metrics |
 | [Install community rules](install-community-rules.md) | Pull the latest community-maintained detection rules from veilgate-rules |
+| [ShopStorm API: server-to-server](shopstorm-api-server-to-server.md) | Call the ShopStorm demo API from a backend service using HMAC signing |
 
 If you don't see your task here, the [configuration reference](../config/README.md)
 documents every individual setting.

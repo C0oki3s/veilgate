@@ -200,7 +200,7 @@ type ChallengeConfig struct {
 type DetectorConfig struct {
 	ScoreTarpitThreshold    int      `yaml:"score_tarpit_threshold"`
 	ScoreChallengeThreshold int      `yaml:"score_challenge_threshold"`
-	HoneypotPaths           []string `yaml:"honeypot_paths"`
+	ProbePaths              []string `yaml:"probe_paths"`
 	TrustedIPs              []string `yaml:"trusted_ips"`
 	// TrustedProxies are CIDRs (or exact IPs) whose X-Forwarded-For we respect.
 	// Empty list = never honor XFF (stops Log4Shell/XSS injection into the header).
@@ -271,14 +271,23 @@ func (c *Config) applyDefaults() {
 	if c.Challenge.MaxTTLMinutes == 0 {
 		c.Challenge.MaxTTLMinutes = 60
 	}
-	if len(c.Detector.HoneypotPaths) == 0 {
-		c.Detector.HoneypotPaths = []string{
+	if len(c.Detector.ProbePaths) == 0 {
+		c.Detector.ProbePaths = []string{
 			"/admin-panel-v2",
 			"/api/internal/debug",
+			"/api/internal/flush-cache",
+			"/api/internal/profiler",
+			"/api/internal/rpc",
+			"/api/internal/metrics",
 			"/.git/config",
 			"/.env.backup",
 			"/wp-admin-old",
 			"/phpmyadmin-backup",
+			"/api/webhooks/stripe/test",
+			"/v1/secret/data/prod",
+			"/_cat/indices",
+			"/oauth2/token",
+			"/api/ai/completions",
 		}
 	}
 	if c.Capture.MaxMB == 0 {

@@ -100,7 +100,7 @@ time on plausible fake content) does not translate to the WebSocket model.
 The recommended integration order when using socket.io or a similar library
 behind VeilGate:
 
-1. The `@veilgate/client` SDK's `init()` call fetches `/__veilgate/.well-known`
+1. The `@veilgate/client` SDK's `init()` call fetches `/_g/config`
    (served without challenge) and patches `fetch` / `XMLHttpRequest`.
 2. Call `getToken()` explicitly before connecting socket.io. This forces the
    PoW challenge to be solved on the main page's origin and sets the challenge
@@ -113,7 +113,7 @@ behind VeilGate:
 
 Cross-domain note: `demo.veilgate.dev` and `demo-api.veilgate.dev` are
 different cookie scopes. The challenge must be solved separately for the API
-origin (e.g. via an iframe to `https://demo-api.veilgate.dev/__veilgate/start`)
+origin (e.g. via an iframe to `https://demo-api.veilgate.dev/_g/start`)
 before socket.io connects there.
 
 ---
@@ -210,7 +210,7 @@ WebSocket dial uses plain TCP or TLS.
 ## See also
 
 - [How VeilGate Processes a Request](../architecture/request-processing.md)
-- [`/__veilgate/start` interstitial](../reference/endpoints/start.md) — for SPA cross-origin challenge solving
+- [`/_g/start` interstitial](../reference/endpoints/start.md) — for SPA cross-origin challenge solving
 - [`@veilgate/client` browser SDK](../reference/clients/browser.md)
 - [Bearer verifier](../reference/verifiers/bearer.md) — for non-browser clients that cannot solve PoW
 - [Tarpit handler](tarpit-handler.md)

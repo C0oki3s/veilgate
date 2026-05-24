@@ -84,24 +84,24 @@ challenge-mint uses the new attributes.
 ### Step 2 — enable the header transport
 
 ```yaml
-token_header_name: "X-Veilgate-Token"
+token_header_name: "X-App-Token"
 ```
 
 The token (same value as the cookie) is also returned in the JSON
-body of `/__veilgate/verify`:
+body of `/_g/verify`:
 
 ```http
 HTTP/1.1 200 OK
-Set-Cookie: veilgate_pow=…; Domain=example.com; Path=/; SameSite=Lax; …
+Set-Cookie: __app_ts=…; Domain=example.com; Path=/; SameSite=Lax; …
 Content-Type: application/json
 
-{"token":"…","expires_in":1800,"header":"X-Veilgate-Token"}
+{"token":"…","expires_in":1800,"header":"X-App-Token"}
 ```
 
 SPAs that can't rely on cookies (cross-origin with `credentials:
 "omit"`, mobile webviews with strict cookie policies, etc.) read the
 token from the body and attach it on every API call as
-`X-Veilgate-Token: <value>`.
+`X-App-Token: <value>`.
 
 ### Step 3 — enable the SPA-aware response
 
@@ -118,7 +118,7 @@ WWW-Authenticate: Veilgate-Challenge realm="api.example.com"
 Content-Type: application/json
 Access-Control-Allow-Origin: https://app.example.com
 
-{"error":"challenge_required","token_header":"X-Veilgate-Token","retry_after":1}
+{"error":"challenge_required","token_header":"X-App-Token","retry_after":1}
 ```
 
 instead of the 503 HTML page. Document navigations
@@ -131,11 +131,11 @@ visit still works transparently.
 # ~/.veilgate/rules/challenge.yaml
 difficulty: 3
 token_ttl_minutes: 10
-cookie_name: veilgate_pow
+cookie_name: __app_ts
 cookie_path: /
 cookie_domain: ".example.com"      # ← parent-domain cookie
 cookie_same_site: "lax"            # ← allow cross-subdomain
-token_header_name: "X-Veilgate-Token"
+token_header_name: "X-App-Token"
 spa_aware_response: true
 
 # ... existing html_template ...
@@ -154,7 +154,7 @@ async function apiFetch(url, init = {}) {
   // Attach the stashed token on every call.
   const headers = new Headers(init.headers);
   const token = localStorage.getItem("veilgate_token");
-  if (token) headers.set("X-Veilgate-Token", token);
+  if (token) headers.set("X-App-Token", token);
 
   let res = await fetch(url, { ...init, headers });
   if (res.status !== 401) return res;
@@ -170,7 +170,7 @@ async function apiFetch(url, init = {}) {
 
   // Retry once with the new token.
   const retryHeaders = new Headers(init.headers);
-  retryHeaders.set("X-Veilgate-Token", localStorage.getItem("veilgate_token"));
+  retryHeaders.set("X-App-Token", localStorage.getItem("veilgate_token"));
   return fetch(url, { ...init, headers: retryHeaders });
 }
 ```
@@ -212,7 +212,7 @@ curl -i \
 
 # 3. After solving + obtaining a token, the API call goes through.
 curl -i \
-  -H "X-Veilgate-Token: <token-from-verify-response>" \
+  -H "X-App-Token: <token-from-verify-response>" \
   https://api.example.com/data
 # Expect: response from your real upstream
 ```
@@ -260,7 +260,7 @@ overlay for ~5–50 ms at difficulty 3, then the request continues. Set
 
 iOS Safari's Intelligent Tracking Prevention (ITP) and Android
 WebView's storage isolation can clear cookies aggressively. For these
-contexts, the header transport (`X-Veilgate-Token`) is the safer
+contexts, the header transport (`X-App-Token`) is the safer
 path — the SPA reads the token from `localStorage` and attaches it
 on every request. Cookies are best-effort; header is reliable.
 

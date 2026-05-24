@@ -83,7 +83,7 @@ detector:
   window_seconds: 90
   trusted_ips: []
   trusted_proxies: []
-  honeypot_paths:
+  probe_paths:
     - "/admin-panel-v2"
     - "/api/internal/debug"
     - "/.git/config"
@@ -96,7 +96,7 @@ detector:
 | `window_seconds` | Rolling window for per-client behavior. |
 | `trusted_ips` | Exact client IDs that bypass scoring. Keep this short. |
 | `trusted_proxies` | CIDRs whose `X-Forwarded-For` may be trusted. Empty is safest. |
-| `honeypot_paths` | Paths that should not be hit by normal users. |
+| `probe_paths` | Paths that should not be hit by normal users. |
 
 `trusted_proxies` should contain only proxies you operate. VeilGate ignores
 spoofed `X-Forwarded-For` unless the direct peer is in this list.

@@ -44,7 +44,7 @@ func TestRepositoryConfigAndRulesLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load challenge rules: %v", err)
 	}
-	if challengeRules.VerifyPath != "/__veilgate/verify" {
+	if challengeRules.VerifyPath != "/_g/verify" {
 		t.Fatalf("verify path = %q", challengeRules.VerifyPath)
 	}
 
@@ -62,7 +62,7 @@ func TestChallengeHandlerRejectsUnsignedVerifyPOST(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHandlerFromDir: %v", err)
 	}
-	r := httptest.NewRequest(http.MethodPost, "/__veilgate/verify", strings.NewReader(`{"challenge":"abc","nonce":1}`))
+	r := httptest.NewRequest(http.MethodPost, "/_g/verify", strings.NewReader(`{"challenge":"abc","nonce":1}`))
 	w := httptest.NewRecorder()
 
 	h.ServeHTTP(w, r)
@@ -116,13 +116,13 @@ func TestProxyCanDivertHighScoreRequestToTarpit(t *testing.T) {
 		Detector: config.DetectorConfig{
 			ScoreTarpitThreshold:    40,
 			ScoreChallengeThreshold: 20,
-			HoneypotPaths:           []string{"/admin-panel-v2"},
+			ProbePaths:           []string{"/admin-panel-v2"},
 			WindowSeconds:           90,
 		},
 	}
 
 	tracker := detector.NewTracker(cfg.Detector.WindowSeconds)
-	scorer := detector.NewScorer(tracker, cfg.Detector.HoneypotPaths, nil)
+	scorer := detector.NewScorer(tracker, cfg.Detector.ProbePaths, nil)
 	profileStore := tarpit.NewProfileStore()
 	lib := payloads.NewLibrary()
 	injector := payloads.NewInjector(lib, 1, false)

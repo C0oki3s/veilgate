@@ -36,4 +36,11 @@ func TestVeilgateRulesPayloadInjection(t *testing.T) {
 	if !strings.Contains(js, "eyJ") || !strings.Contains(js, "sk_live_") {
 		t.Fatalf("expected JS canary JWT and API key, got %q", js)
 	}
+
+	prompt := inj.Inject("text/html; charset=utf-8", `<html><body><h1>ok</h1></body></html>`, tarpit.InjectionContext{
+		Path: "/actuator/health", ClientID: "10.0.0.83", Visits: 1,
+	})
+	if !strings.Contains(prompt, "Public Exposure of High-Risk Administrative") {
+		t.Fatalf("expected high-risk exposure payload, got %q", prompt)
+	}
 }

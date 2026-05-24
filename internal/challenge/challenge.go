@@ -20,7 +20,7 @@ import (
 )
 
 // defaultStartPageTmpl is the built-in HTML+JS page served at
-// /__veilgate/start when challenge.yaml does not set start_page_template.
+// /_g/start when challenge.yaml does not set start_page_template.
 // It is loaded in a hidden iframe by a cross-origin SPA; it solves the
 // PoW nonce search, posts the proof to verify_path, and postMessages the
 // resulting token back to the parent window. The entire challenge
@@ -131,7 +131,7 @@ func (h *Handler) SetRules(holder *rules.Holder[rules.ChallengeRules]) {
 // what cookie name to expect on same-origin pages.
 //
 // Returned by Handler.DescribeChallenge for the
-// /__veilgate/.well-known discovery endpoint.
+// /_g/config discovery endpoint.
 type ChallengeDescriptor struct {
 	VerifyPath  string `json:"verify_path"`
 	StartPath   string `json:"start_path,omitempty"`
@@ -156,15 +156,15 @@ func (h *Handler) DescribeChallenge() ChallengeDescriptor {
 }
 
 // StartPath returns the configured start-page path, defaulting to
-// "/__veilgate/start" when not set in rules.
+// "/_g/start" when not set in rules.
 func (h *Handler) StartPath() string {
 	if h == nil || h.rules == nil {
-		return "/__veilgate/start"
+		return "/_g/start"
 	}
 	if p := h.rules.Load().StartPath; p != "" {
 		return p
 	}
-	return "/__veilgate/start"
+	return "/_g/start"
 }
 
 // ServeStart serves the iframe-loadable PoW interstitial page. The page
@@ -196,7 +196,7 @@ func (h *Handler) ServeStart(w http.ResponseWriter, r *http.Request) {
 
 	hdr := cr.TokenHeaderName
 	if hdr == "" {
-		hdr = "X-Veilgate-Token"
+		hdr = "X-App-Token"
 	}
 
 	cfg := struct {
@@ -247,7 +247,7 @@ func (h *Handler) ServeStart(w http.ResponseWriter, r *http.Request) {
 
 // Passed returns true if the request carries a valid solved-challenge
 // token. The token is accepted from either the configured cookie OR
-// the configured header (X-Veilgate-Token by default). Header
+// the configured header (X-App-Token by default). Header
 // transport exists so cross-origin SPA fetches — which can't rely on
 // cookies — can still authenticate by reading the token from the
 // verify response body and attaching it on every API call.
@@ -382,7 +382,7 @@ func (h *Handler) serveChallenge(w http.ResponseWriter, r *http.Request, cr *rul
 func (h *Handler) serveSPAChallenge(w http.ResponseWriter, r *http.Request, cr *rules.ChallengeRules) {
 	hdrName := cr.TokenHeaderName
 	if hdrName == "" {
-		hdrName = "X-Veilgate-Token"
+		hdrName = "X-App-Token"
 	}
 
 	challengeNonce, err := newChallengeNonce()

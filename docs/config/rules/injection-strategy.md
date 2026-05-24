@@ -89,7 +89,7 @@ land on that template.
 | `contains` | path contains any value as a substring (case-insensitive) |
 | `regex` | path matches any compiled regex in `values`. Compiled regexes are cached per strategy version. |
 | `sqli` | path or query contains any pattern from `vulnerabilities.sql_injection_patterns` (centralized list) |
-| `list` | `values` are *names* of lists in `rules/vulnerabilities.yaml` (e.g. `honeypot_paths`, `fake_git_paths`); the route fires if the path matches any entry in any named list |
+| `list` | `values` are *names* of lists in `rules/vulnerabilities.yaml` (e.g. `probe_paths`, `vcs_paths`); the route fires if the path matches any entry in any named list |
 | `any` | unconditional - used as the final fallthrough route |
 
 The `regex` matcher caches compiled regexes per strategy file

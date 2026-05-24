@@ -25,7 +25,7 @@ detector:
   window_seconds: 90
   trusted_ips: []
   trusted_proxies: []
-  honeypot_paths:
+  probe_paths:
     - "/.git/config"
     - "/.env.backup"
     - "/wp-admin-old"

@@ -48,7 +48,7 @@ detector:
   score_tarpit_threshold: 65
   score_challenge_threshold: 35
   window_seconds: 60               # tighter window for API rates
-  honeypot_paths:
+  probe_paths:
     - /api/v1/internal/admin
     - /api/v2/debug/dump
     - /api/internal/keys

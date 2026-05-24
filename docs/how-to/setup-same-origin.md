@@ -115,7 +115,7 @@ const hideOverlay = () => {
   document.getElementById("vg-overlay").style.display = "none";
 };
 
-// Fetch /__veilgate/.well-known from the same origin and cache the config.
+// Fetch /_g/config from the same origin and cache the config.
 await init({
   onChallenge: showOverlay,
   onToken: hideOverlay,

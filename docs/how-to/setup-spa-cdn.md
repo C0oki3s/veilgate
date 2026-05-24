@@ -84,7 +84,7 @@ cookie_same_site: "lax"
 
 # Also return the token in a JSON field so SPAs that cannot use cookies
 # (strict WebViews, CORS-omit contexts) can attach it as a header instead.
-token_header_name: "X-Veilgate-Token"
+token_header_name: "X-App-Token"
 
 # Return 401 JSON to XHR/fetch calls instead of an HTML 503 page.
 # The @veilgate/client SDK expects this shape.

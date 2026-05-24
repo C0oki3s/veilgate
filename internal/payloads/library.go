@@ -16,11 +16,12 @@ import (
 type Category string
 
 const (
-	CategoryTermination Category = "termination"
-	CategoryRabbitHole  Category = "rabbit_hole"
-	CategoryCostBomb    Category = "cost_bomb"
-	CategoryConfusion   Category = "confusion"
-	CategoryMoralAppeal Category = "moral_appeal"
+	CategoryTermination     Category = "termination"
+	CategoryRabbitHole      Category = "rabbit_hole"
+	CategoryCostBomb        Category = "cost_bomb"
+	CategoryConfusion       Category = "confusion"
+	CategoryMoralAppeal     Category = "moral_appeal"
+	CategoryPromptInjection Category = "prompt_injection"
 )
 
 // Payload is one injectable chunk.
@@ -65,6 +66,7 @@ func buildLibrary(p *rules.Payloads) *Library {
 	collect(CategoryCostBomb, p.CostBomb)
 	collect(CategoryConfusion, p.Confusion)
 	collect(CategoryMoralAppeal, p.MoralAppeal)
+	collect(CategoryPromptInjection, p.PromptInjection)
 	return &Library{payloads: out}
 }
 

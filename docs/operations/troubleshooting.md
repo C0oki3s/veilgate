@@ -196,7 +196,7 @@ Use the structured logs (`zerolog` JSON output):
   tune the UA match list in `rules/detector.yaml`.
 - `ip_reputation` false positive: adjust the CIDR list in
   `rules/ip_reputation.yaml`.
-- `honeypot_hit` false positive: remove the path from `honeypot_paths`.
+- `honeypot_hit` false positive: remove the path from `probe_paths`.
 - Protocol fingerprint: update `rules/tls_fingerprints.yaml` classification.
 
 **Do not raise thresholds globally** as a first response. Identify and fix
@@ -382,7 +382,7 @@ on subsequent requests.
    sent by the client on subsequent requests. Check with browser developer
    tools or:
    ```bash
-   curl -v --cookie-jar /tmp/cookies.txt http://localhost:8080/__veilgate/verify
+   curl -v --cookie-jar /tmp/cookies.txt http://localhost:8080/_g/verify
    curl -v --cookie /tmp/cookies.txt http://localhost:8080/
    ```
 4. Confirm the request's score is not crossing `score_tarpit_threshold`. Tarpit

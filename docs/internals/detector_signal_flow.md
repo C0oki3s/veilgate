@@ -51,7 +51,7 @@ Code reference: [`internal/detector/scorer.go`](../../internal/detector/scorer.g
 
 **Group:** Deception / Path  
 **Default points:** `50` (first hit), `80` (repeated hits)  
-**Rule source:** `detector.honeypot_paths` in `veilgate.yaml`  
+**Rule source:** `detector.probe_paths` in `veilgate.yaml`  
 **Stateful:** yes — `ClientState.HoneypotHits` accumulates
 
 VeilGate maintains a set of path strings that no legitimate user should ever
@@ -77,7 +77,7 @@ if _, hit := s.honeypotPaths[r.URL.Path]; hit {
 
 **Operational notes:**
 
-- Do not include real application routes in `honeypot_paths`.
+- Do not include real application routes in `probe_paths`.
 - Add paths that scanners try automatically: `/.git/config`, `/.env.backup`,
   `/wp-admin/`, `/phpmyadmin/`, `/actuator/env`.
 - A single honeypot hit alone typically crosses `score_challenge_threshold`.

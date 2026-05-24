@@ -106,7 +106,7 @@ mode: "observe"              # start here; switch to auto after baseline
 detector:
   score_challenge_threshold: 40
   score_tarpit_threshold:    70
-  honeypot_paths:
+  probe_paths:
     - "/.env"
     - "/.git/config"
     - "/wp-admin/install.php"
@@ -194,9 +194,9 @@ The tarpit's value (consuming scanner time with plausible fake content) applies
 only to HTTP.
 
 For socket.io or similar libraries that use WebSocket over a separate origin,
-use the `/__veilgate/start` iframe interstitial to pre-solve the PoW challenge
+use the `/_g/start` iframe interstitial to pre-solve the PoW challenge
 before connecting. See
-[`/__veilgate/start` reference](../reference/endpoints/start.md).
+[`/_g/start` reference](../reference/endpoints/start.md).
 
 ---
 

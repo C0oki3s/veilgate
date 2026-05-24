@@ -247,7 +247,7 @@ risk. 90s is the sweet spot for most deployments.
 
 ---
 
-### `detector.honeypot_paths`
+### `detector.probe_paths`
 
 **What it is:** paths that should *never* legitimately be hit. A
 request for any of these gets +50 points on first hit, +80 on
@@ -260,7 +260,7 @@ the score directly (no rules-file lookup needed for the hot path).
 **YAML:**
 ```yaml
 detector:
-  honeypot_paths:
+  probe_paths:
     - "/admin-panel-v2"
     - "/api/internal/debug"
     - "/.git/config"
@@ -817,7 +817,7 @@ rules file.
 
 | Signal | What it catches | Points |
 |---|---|---|
-| `honeypot_hit` | Path in `detector.honeypot_paths` | 50 first / 80 repeat |
+| `honeypot_hit` | Path in `detector.probe_paths` | 50 first / 80 repeat |
 | `wordlist_path` | Path matches dirsearch/nikto wordlist marker | 25 |
 | `injection_marker` | SQLi / XSS / LFI / SSTI / log4shell pattern in path/query/headers | 45 |
 | `oob_interaction` | Burp Collaborator / interactsh / webhook.site host | 50 |
@@ -1057,7 +1057,7 @@ contribute to score. Cheap to compute, hard to spoof — agents would
 have to ship a full HTTP/2 stack with browser-shaped SETTINGS frames
 to bypass.
 
-### `/__veilgate/verify` endpoint
+### `/_g/verify` endpoint
 
 **What it does:** the path the challenge JS POSTs the solved nonce
 to. Returns `200 OK` + JSON body `{token, expires_in, header}` plus
