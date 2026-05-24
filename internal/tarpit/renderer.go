@@ -261,6 +261,38 @@ var templateFuncs = template.FuncMap{
 	// oci_suffix(seed) — 60-char OCI ID unique suffix for building OCIDs.
 	"oci_suffix": fakeauth.OCIDSuffix,
 
+	// ── Third-party service tokens ─────────────────────────────────────────
+
+	// vault_token(seed) — HashiCorp Vault service token: hvs.<40 base64url>.
+	"vault_token": fakeauth.VaultToken,
+
+	// csrf_token(seed) — 64-char hex CSRF token (Django/Rails/Jenkins style).
+	"csrf_token": fakeauth.CsrfToken,
+
+	// oauth_refresh(seed) — 64-char base64url opaque OAuth2 refresh token.
+	"oauth_refresh": fakeauth.OAuthRefreshToken,
+
+	// stripe_whsec(seed) — Stripe webhook secret: whsec_<43 base64url>.
+	"stripe_whsec": fakeauth.StripeWebhookSecret,
+
+	// github_token(prefix, seed) — GitHub token: ghp_/gho_/ghs_<36 b62>.
+	"github_token": fakeauth.GithubToken,
+
+	// npm_token(seed) — npm access token: npm_<32 b62>.
+	"npm_token": fakeauth.NPMToken,
+
+	// dd_key(seed) — Datadog API/app key: 32 hex chars.
+	"dd_key": fakeauth.DatadogKey,
+
+	// cf_token(seed) — Cloudflare API token: 40 b62 chars.
+	"cf_token": fakeauth.CloudflareToken,
+
+	// twilio_sid(seed) — Twilio Account SID: AC<32 hex>.
+	"twilio_sid": fakeauth.TwilioSID,
+
+	// twilio_token(seed) — Twilio Auth Token: 32 hex chars.
+	"twilio_token": fakeauth.TwilioToken,
+
 	// contains_str(s, substr) — case-insensitive substring check for template conditionals.
 	"contains_str": func(s, substr string) bool {
 		return strings.Contains(strings.ToLower(s), strings.ToLower(substr))

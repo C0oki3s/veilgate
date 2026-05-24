@@ -260,6 +260,72 @@ func SlugID(prefix string, seed int64) string {
 	return prefix + "_" + b62String(deriveKey("slugid-"+prefix, seed), 12)
 }
 
+// ─── Third-party service tokens ──────────────────────────────────────────────
+
+// VaultToken returns a HashiCorp Vault 1.10+ service token: hvs.<40 base64url chars>.
+func VaultToken(seed int64) string {
+	var raw []byte
+	raw = append(raw, deriveKey("vaulttok-a", seed)...)
+	raw = append(raw, deriveKey("vaulttok-b", seed)...)
+	return "hvs." + base64.RawURLEncoding.EncodeToString(raw)[:40]
+}
+
+// CsrfToken returns a 64-char lowercase hex CSRF token (Django / Rails / Jenkins style).
+func CsrfToken(seed int64) string {
+	k1 := deriveKey("csrf-a", seed)
+	k2 := deriveKey("csrf-b", seed)
+	return fmt.Sprintf("%x%x", k1, k2)
+}
+
+// OAuthRefreshToken returns a 64-char base64url opaque OAuth2 refresh token.
+func OAuthRefreshToken(seed int64) string {
+	k1 := deriveKey("oarefresh-a", seed)
+	k2 := deriveKey("oarefresh-b", seed)
+	raw := append(k1, k2...)
+	return base64.RawURLEncoding.EncodeToString(raw)[:64]
+}
+
+// StripeWebhookSecret returns a Stripe webhook secret: whsec_<43 base64url chars>.
+// Real secrets are 32 random bytes → 43 base64url chars.
+func StripeWebhookSecret(seed int64) string {
+	k := deriveKey("stripewhsec", seed)
+	return "whsec_" + base64.RawURLEncoding.EncodeToString(k)[:43]
+}
+
+// GithubToken returns a GitHub token with the given prefix (ghp_, gho_, ghs_, github_pat_).
+// Real GitHub tokens are prefix + 36 alphanumeric chars.
+func GithubToken(prefix string, seed int64) string {
+	return prefix + b62String(deriveKey("ghtoken-"+prefix, seed), 36)
+}
+
+// NPMToken returns a realistic npm access token: npm_<32 b62 chars>.
+func NPMToken(seed int64) string {
+	return "npm_" + b62String(deriveKey("npmtoken", seed), 32)
+}
+
+// DatadogKey returns a Datadog API or application key: 32 hex chars.
+func DatadogKey(seed int64) string {
+	k := deriveKey("ddkey", seed)
+	return fmt.Sprintf("%x", k[:16])
+}
+
+// CloudflareToken returns a Cloudflare API token: 40 b62 chars.
+func CloudflareToken(seed int64) string {
+	return b62String(deriveKey("cftoken", seed), 40)
+}
+
+// TwilioSID returns a Twilio Account SID: AC + 32 hex chars.
+func TwilioSID(seed int64) string {
+	k := deriveKey("twiliosid", seed)
+	return "AC" + fmt.Sprintf("%x", k[:16])
+}
+
+// TwilioToken returns a Twilio Auth Token: 32 hex chars.
+func TwilioToken(seed int64) string {
+	k := deriveKey("twiliotok", seed)
+	return fmt.Sprintf("%x", k[:16])
+}
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 // deriveKey returns a 32-byte SHA-256 hash of (salt + seed).
