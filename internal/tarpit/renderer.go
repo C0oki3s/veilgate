@@ -243,6 +243,24 @@ var templateFuncs = template.FuncMap{
 	// aws_secret(seed) — 40-char base64 AWS secret.
 	"aws_secret": fakeauth.AWSSecret,
 
+	// azure_token(tenantID, email, seed) — Azure AD access token with tid/oid/appid claims.
+	"azure_token": fakeauth.AzureAccessToken,
+
+	// azure_tenant_id(seed) — UUID v4 as an Azure tenant ID.
+	"azure_tenant_id": fakeauth.AzureTenantID,
+
+	// azure_sub_id(seed) — UUID v4 as an Azure subscription ID.
+	"azure_sub_id": fakeauth.AzureSubscriptionID,
+
+	// gcp_token(seed) — GCP OAuth2 access token: ya29.<~200 chars base64url>.
+	"gcp_token": fakeauth.GCPAccessToken,
+
+	// gcp_sa_email(name, project) — GCP service account email format.
+	"gcp_sa_email": fakeauth.GCPServiceAccountEmail,
+
+	// oci_suffix(seed) — 60-char OCI ID unique suffix for building OCIDs.
+	"oci_suffix": fakeauth.OCIDSuffix,
+
 	// contains_str(s, substr) — case-insensitive substring check for template conditionals.
 	"contains_str": func(s, substr string) bool {
 		return strings.Contains(strings.ToLower(s), strings.ToLower(substr))

@@ -123,6 +123,70 @@ func AWSSTSToken(seed int64) string {
 	return "AQoXnyc2LvQ" + base64.StdEncoding.EncodeToString(raw)
 }
 
+// AzureAccessToken returns a realistic Azure AD access token.
+// Claims match what Microsoft's identity platform emits: tid, oid, appid, upn, iss, aud.
+// Signature is genuine HS256 — same structure as a real token, different signing key.
+func AzureAccessToken(tenantID, email string, seed int64) string {
+	iat := jwtIAT(seed)
+	oid := requestIDFrom("az-oid", seed)
+	appid := requestIDFrom("az-appid", seed)
+	return makeJWT(map[string]any{
+		"aud":                "https://management.azure.com/",
+		"iss":                "https://login.microsoftonline.com/" + tenantID + "/v2.0",
+		"tid":                tenantID,
+		"oid":                oid,
+		"sub":                oid,
+		"appid":              appid,
+		"upn":                email,
+		"unique_name":        email,
+		"scp":                "user_impersonation",
+		"roles":              []string{"Contributor"},
+		"iat":                iat,
+		"nbf":                iat,
+		"exp":                iat + 3599,
+		"aio":                b62String(deriveKey("az-aio", seed), 40),
+	}, seed)
+}
+
+// AzureTenantID returns a UUID v4 formatted as an Azure tenant ID.
+// Tenants are UUIDs — this reuses the UUID derivation with a distinct salt.
+func AzureTenantID(seed int64) string { return requestIDFrom("az-tenant", seed) }
+
+// AzureSubscriptionID returns a UUID v4 formatted as an Azure subscription ID.
+func AzureSubscriptionID(seed int64) string { return requestIDFrom("az-subid", seed) }
+
+// GCPAccessToken returns a realistic GCP OAuth2 access token.
+// Real tokens are ya29. followed by ~200 chars of base64url.
+func GCPAccessToken(seed int64) string {
+	var raw []byte
+	for _, salt := range []string{"gcp-a", "gcp-b", "gcp-c", "gcp-d", "gcp-e", "gcp-f", "gcp-g"} {
+		raw = append(raw, deriveKey(salt, seed)...)
+	}
+	return "ya29." + base64.RawURLEncoding.EncodeToString(raw)
+}
+
+// GCPServiceAccountEmail returns a format-accurate GCP service account email.
+// Real format: <name>@<project>.iam.gserviceaccount.com
+func GCPServiceAccountEmail(name, project string) string {
+	return name + "@" + project + ".iam.gserviceaccount.com"
+}
+
+// OCIDSuffix returns a realistic 60-char OCI ID unique suffix.
+// Real OCIDs end with a long base32-like string of lowercase letters and digits.
+func OCIDSuffix(seed int64) string {
+	const ociAlpha = "abcdefghijklmnopqrstuvwxyz234567"
+	var raw []byte
+	for _, salt := range []string{"oci-a", "oci-b", "oci-c", "oci-d"} {
+		raw = append(raw, deriveKey(salt, seed)...)
+	}
+	var b strings.Builder
+	b.WriteString("aaaa")
+	for i := 4; i < 60; i++ {
+		b.WriteByte(ociAlpha[raw[i%len(raw)]%32])
+	}
+	return b.String()
+}
+
 // AWSKeyID returns a realistic AWS access key ID: AKIA + 16 Base32 chars.
 func AWSKeyID(seed int64) string {
 	k := deriveKey("awskeyid", seed)
@@ -176,10 +240,11 @@ func SessionID(seed int64) string {
 }
 
 // RequestID returns a UUID v4-formatted request ID for X-Request-Id headers.
-func RequestID(seed int64) string {
-	k := deriveKey("reqid", seed)
-	// Version 4 UUID format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-	// We force version (4) and variant (10xx) bits.
+func RequestID(seed int64) string { return requestIDFrom("reqid", seed) }
+
+// requestIDFrom derives a UUID v4 from a named salt + seed.
+func requestIDFrom(salt string, seed int64) string {
+	k := deriveKey(salt, seed)
 	k[6] = (k[6] & 0x0f) | 0x40 // version 4
 	k[8] = (k[8] & 0x3f) | 0x80 // variant bits
 	return fmt.Sprintf("%x-%x-%x-%x-%x", k[0:4], k[4:6], k[6:8], k[8:10], k[10:16])
