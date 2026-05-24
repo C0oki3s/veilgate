@@ -2,6 +2,7 @@ package tarpit
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"sync"
@@ -230,11 +231,78 @@ var templateFuncs = template.FuncMap{
 	// api_key(seed) — Stripe-style sk_live_<24 b62> key.
 	"api_key": fakeauth.APIKey,
 
-	// aws_key_id(seed) — AWS AKIA + 16 Base32 chars.
+	// aws_key_id(seed) — AWS AKIA + 16 Base32 chars (long-term credential).
 	"aws_key_id": fakeauth.AWSKeyID,
+
+	// aws_sts_key_id(seed) — AWS ASIA + 16 Base32 chars (temporary STS credential).
+	"aws_sts_key_id": fakeauth.AWSSTSKeyID,
+
+	// aws_sts_token(seed) — realistic AWS STS session token (~280-char base64).
+	"aws_sts_token": fakeauth.AWSSTSToken,
 
 	// aws_secret(seed) — 40-char base64 AWS secret.
 	"aws_secret": fakeauth.AWSSecret,
+
+	// azure_token(tenantID, email, seed) — Azure AD access token with tid/oid/appid claims.
+	"azure_token": fakeauth.AzureAccessToken,
+
+	// azure_tenant_id(seed) — UUID v4 as an Azure tenant ID.
+	"azure_tenant_id": fakeauth.AzureTenantID,
+
+	// azure_sub_id(seed) — UUID v4 as an Azure subscription ID.
+	"azure_sub_id": fakeauth.AzureSubscriptionID,
+
+	// gcp_token(seed) — GCP OAuth2 access token: ya29.<~200 chars base64url>.
+	"gcp_token": fakeauth.GCPAccessToken,
+
+	// gcp_sa_email(name, project) — GCP service account email format.
+	"gcp_sa_email": fakeauth.GCPServiceAccountEmail,
+
+	// oci_suffix(seed) — 60-char OCI ID unique suffix for building OCIDs.
+	"oci_suffix": fakeauth.OCIDSuffix,
+
+	// ── Third-party service tokens ─────────────────────────────────────────
+
+	// vault_token(seed) — HashiCorp Vault service token: hvs.<40 base64url>.
+	"vault_token": fakeauth.VaultToken,
+
+	// csrf_token(seed) — 64-char hex CSRF token (Django/Rails/Jenkins style).
+	"csrf_token": fakeauth.CsrfToken,
+
+	// oauth_refresh(seed) — 64-char base64url opaque OAuth2 refresh token.
+	"oauth_refresh": fakeauth.OAuthRefreshToken,
+
+	// stripe_whsec(seed) — Stripe webhook secret: whsec_<43 base64url>.
+	"stripe_whsec": fakeauth.StripeWebhookSecret,
+
+	// github_token(prefix, seed) — GitHub token: ghp_/gho_/ghs_<36 b62>.
+	"github_token": fakeauth.GithubToken,
+
+	// npm_token(seed) — npm access token: npm_<32 b62>.
+	"npm_token": fakeauth.NPMToken,
+
+	// dd_key(seed) — Datadog API/app key: 32 hex chars.
+	"dd_key": fakeauth.DatadogKey,
+
+	// cf_token(seed) — Cloudflare API token: 40 b62 chars.
+	"cf_token": fakeauth.CloudflareToken,
+
+	// twilio_sid(seed) — Twilio Account SID: AC<32 hex>.
+	"twilio_sid": fakeauth.TwilioSID,
+
+	// twilio_token(seed) — Twilio Auth Token: 32 hex chars.
+	"twilio_token": fakeauth.TwilioToken,
+
+	// contains_str(s, substr) — case-insensitive substring check for template conditionals.
+	"contains_str": func(s, substr string) bool {
+		return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+	},
+
+	// lower(s) — lowercase a string (useful for normalising .Query in conditionals).
+	"lower": strings.ToLower,
+
+	// b64enc(s) — base64 standard encoding (for Kubernetes secret data fields).
+	"b64enc": func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
 
 	// jwt_secret(seed) — 64-char base64url signing secret for JWT_SECRET.
 	"jwt_secret": fakeauth.JWTSecret,

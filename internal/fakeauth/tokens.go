@@ -101,6 +101,92 @@ func APIKey(seed int64) string {
 	return "sk_live_" + b62String(deriveKey("apikey", seed), 24)
 }
 
+// AWSSTSKeyID returns a temporary AWS STS credential key ID: ASIA + 16 Base32 chars.
+// Temporary credentials (from AssumeRole / instance profiles) always use the ASIA prefix.
+func AWSSTSKeyID(seed int64) string {
+	k := deriveKey("awsstsid", seed)
+	var b strings.Builder
+	b.WriteString("ASIA")
+	for i := 0; i < 16; i++ {
+		b.WriteByte(awsChars[k[i]%32])
+	}
+	return b.String()
+}
+
+// AWSSTSToken returns a realistic AWS STS session token.
+// Real STS tokens are 400–1000 char base64 strings starting with AQo.
+func AWSSTSToken(seed int64) string {
+	var raw []byte
+	for _, salt := range []string{"sts-a", "sts-b", "sts-c", "sts-d", "sts-e", "sts-f"} {
+		raw = append(raw, deriveKey(salt, seed)...)
+	}
+	return "AQoXnyc2LvQ" + base64.StdEncoding.EncodeToString(raw)
+}
+
+// AzureAccessToken returns a realistic Azure AD access token.
+// Claims match what Microsoft's identity platform emits: tid, oid, appid, upn, iss, aud.
+// Signature is genuine HS256 — same structure as a real token, different signing key.
+func AzureAccessToken(tenantID, email string, seed int64) string {
+	iat := jwtIAT(seed)
+	oid := requestIDFrom("az-oid", seed)
+	appid := requestIDFrom("az-appid", seed)
+	return makeJWT(map[string]any{
+		"aud":                "https://management.azure.com/",
+		"iss":                "https://login.microsoftonline.com/" + tenantID + "/v2.0",
+		"tid":                tenantID,
+		"oid":                oid,
+		"sub":                oid,
+		"appid":              appid,
+		"upn":                email,
+		"unique_name":        email,
+		"scp":                "user_impersonation",
+		"roles":              []string{"Contributor"},
+		"iat":                iat,
+		"nbf":                iat,
+		"exp":                iat + 3599,
+		"aio":                b62String(deriveKey("az-aio", seed), 40),
+	}, seed)
+}
+
+// AzureTenantID returns a UUID v4 formatted as an Azure tenant ID.
+// Tenants are UUIDs — this reuses the UUID derivation with a distinct salt.
+func AzureTenantID(seed int64) string { return requestIDFrom("az-tenant", seed) }
+
+// AzureSubscriptionID returns a UUID v4 formatted as an Azure subscription ID.
+func AzureSubscriptionID(seed int64) string { return requestIDFrom("az-subid", seed) }
+
+// GCPAccessToken returns a realistic GCP OAuth2 access token.
+// Real tokens are ya29. followed by ~200 chars of base64url.
+func GCPAccessToken(seed int64) string {
+	var raw []byte
+	for _, salt := range []string{"gcp-a", "gcp-b", "gcp-c", "gcp-d", "gcp-e", "gcp-f", "gcp-g"} {
+		raw = append(raw, deriveKey(salt, seed)...)
+	}
+	return "ya29." + base64.RawURLEncoding.EncodeToString(raw)
+}
+
+// GCPServiceAccountEmail returns a format-accurate GCP service account email.
+// Real format: <name>@<project>.iam.gserviceaccount.com
+func GCPServiceAccountEmail(name, project string) string {
+	return name + "@" + project + ".iam.gserviceaccount.com"
+}
+
+// OCIDSuffix returns a realistic 60-char OCI ID unique suffix.
+// Real OCIDs end with a long base32-like string of lowercase letters and digits.
+func OCIDSuffix(seed int64) string {
+	const ociAlpha = "abcdefghijklmnopqrstuvwxyz234567"
+	var raw []byte
+	for _, salt := range []string{"oci-a", "oci-b", "oci-c", "oci-d"} {
+		raw = append(raw, deriveKey(salt, seed)...)
+	}
+	var b strings.Builder
+	b.WriteString("aaaa")
+	for i := 4; i < 60; i++ {
+		b.WriteByte(ociAlpha[raw[i%len(raw)]%32])
+	}
+	return b.String()
+}
+
 // AWSKeyID returns a realistic AWS access key ID: AKIA + 16 Base32 chars.
 func AWSKeyID(seed int64) string {
 	k := deriveKey("awskeyid", seed)
@@ -154,10 +240,11 @@ func SessionID(seed int64) string {
 }
 
 // RequestID returns a UUID v4-formatted request ID for X-Request-Id headers.
-func RequestID(seed int64) string {
-	k := deriveKey("reqid", seed)
-	// Version 4 UUID format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-	// We force version (4) and variant (10xx) bits.
+func RequestID(seed int64) string { return requestIDFrom("reqid", seed) }
+
+// requestIDFrom derives a UUID v4 from a named salt + seed.
+func requestIDFrom(salt string, seed int64) string {
+	k := deriveKey(salt, seed)
 	k[6] = (k[6] & 0x0f) | 0x40 // version 4
 	k[8] = (k[8] & 0x3f) | 0x80 // variant bits
 	return fmt.Sprintf("%x-%x-%x-%x-%x", k[0:4], k[4:6], k[6:8], k[8:10], k[10:16])
@@ -171,6 +258,72 @@ func UserID(seed int64) string {
 // SlugID returns prefix + "_" + 12 b62 chars — for order/ticket IDs.
 func SlugID(prefix string, seed int64) string {
 	return prefix + "_" + b62String(deriveKey("slugid-"+prefix, seed), 12)
+}
+
+// ─── Third-party service tokens ──────────────────────────────────────────────
+
+// VaultToken returns a HashiCorp Vault 1.10+ service token: hvs.<40 base64url chars>.
+func VaultToken(seed int64) string {
+	var raw []byte
+	raw = append(raw, deriveKey("vaulttok-a", seed)...)
+	raw = append(raw, deriveKey("vaulttok-b", seed)...)
+	return "hvs." + base64.RawURLEncoding.EncodeToString(raw)[:40]
+}
+
+// CsrfToken returns a 64-char lowercase hex CSRF token (Django / Rails / Jenkins style).
+func CsrfToken(seed int64) string {
+	k1 := deriveKey("csrf-a", seed)
+	k2 := deriveKey("csrf-b", seed)
+	return fmt.Sprintf("%x%x", k1, k2)
+}
+
+// OAuthRefreshToken returns a 64-char base64url opaque OAuth2 refresh token.
+func OAuthRefreshToken(seed int64) string {
+	k1 := deriveKey("oarefresh-a", seed)
+	k2 := deriveKey("oarefresh-b", seed)
+	raw := append(k1, k2...)
+	return base64.RawURLEncoding.EncodeToString(raw)[:64]
+}
+
+// StripeWebhookSecret returns a Stripe webhook secret: whsec_<43 base64url chars>.
+// Real secrets are 32 random bytes → 43 base64url chars.
+func StripeWebhookSecret(seed int64) string {
+	k := deriveKey("stripewhsec", seed)
+	return "whsec_" + base64.RawURLEncoding.EncodeToString(k)[:43]
+}
+
+// GithubToken returns a GitHub token with the given prefix (ghp_, gho_, ghs_, github_pat_).
+// Real GitHub tokens are prefix + 36 alphanumeric chars.
+func GithubToken(prefix string, seed int64) string {
+	return prefix + b62String(deriveKey("ghtoken-"+prefix, seed), 36)
+}
+
+// NPMToken returns a realistic npm access token: npm_<32 b62 chars>.
+func NPMToken(seed int64) string {
+	return "npm_" + b62String(deriveKey("npmtoken", seed), 32)
+}
+
+// DatadogKey returns a Datadog API or application key: 32 hex chars.
+func DatadogKey(seed int64) string {
+	k := deriveKey("ddkey", seed)
+	return fmt.Sprintf("%x", k[:16])
+}
+
+// CloudflareToken returns a Cloudflare API token: 40 b62 chars.
+func CloudflareToken(seed int64) string {
+	return b62String(deriveKey("cftoken", seed), 40)
+}
+
+// TwilioSID returns a Twilio Account SID: AC + 32 hex chars.
+func TwilioSID(seed int64) string {
+	k := deriveKey("twiliosid", seed)
+	return "AC" + fmt.Sprintf("%x", k[:16])
+}
+
+// TwilioToken returns a Twilio Auth Token: 32 hex chars.
+func TwilioToken(seed int64) string {
+	k := deriveKey("twiliotok", seed)
+	return fmt.Sprintf("%x", k[:16])
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
