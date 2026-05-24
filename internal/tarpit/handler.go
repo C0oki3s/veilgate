@@ -36,7 +36,7 @@ type Handler struct {
 	// embedded defaults loaded at construction time.
 	vuln     *rules.Holder[rules.Vulnerabilities]
 	strategy *rules.Holder[rules.InjectionStrategy]
-	decoys   *rules.Holder[rules.DecoyPaths]
+	routes   *rules.Holder[rules.RouteManifest]
 
 	// Compiled regex cache for `match: regex` routes, keyed by the source
 	// pattern. Invalidated on a strategy swap.
@@ -84,24 +84,24 @@ func NewHandler(cfg *config.TarpitConfig, store *ProfileStore, injector PayloadI
 	}
 }
 
-// DescribeTarpit returns the loaded decoy paths for inclusion in
-// /__veilgate/.well-known. The browser SDK reads this and injects the paths
-// as DOM decoys so every agent breadcrumb routes to a real tarpit response.
-func (h *Handler) DescribeTarpit() rules.TarpitDescriptor {
-	if h.decoys == nil {
-		return rules.TarpitDescriptor{}
+// DescribeRouteManifest returns the loaded route index for inclusion in
+// /_g/config. The browser SDK reads this and injects the paths into the
+// page manifest so agent breadcrumbs route to the correct handler.
+func (h *Handler) DescribeRouteManifest() rules.RouteIndex {
+	if h.routes == nil {
+		return rules.RouteIndex{}
 	}
-	d := h.decoys.Load()
+	d := h.routes.Load()
 	if d == nil {
-		return rules.TarpitDescriptor{}
+		return rules.RouteIndex{}
 	}
-	return rules.TarpitDescriptor{Paths: d.Paths}
+	return rules.RouteIndex{Paths: d.Paths}
 }
 
-// SetDecoyPaths wires in the hot-reloadable decoy-paths holder.
-func (h *Handler) SetDecoyPaths(holder *rules.Holder[rules.DecoyPaths]) {
+// SetRouteManifest wires in the hot-reloadable route manifest holder.
+func (h *Handler) SetRouteManifest(holder *rules.Holder[rules.RouteManifest]) {
 	if holder != nil {
-		h.decoys = holder
+		h.routes = holder
 	}
 }
 
@@ -278,7 +278,7 @@ func listMatches(listName, entry, path, haystack string) bool {
 		return false
 	}
 	switch listName {
-	case "honeypot_paths", "fake_git_paths", "fake_env_paths":
+	case "probe_paths", "vcs_paths", "env_paths":
 		return path == needle || strings.Contains(path, needle)
 	default:
 		return strings.Contains(haystack, needle)

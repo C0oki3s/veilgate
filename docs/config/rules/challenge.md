@@ -20,17 +20,17 @@
 
 | Key | Type | Default | Purpose |
 | --- | --- | --- | --- |
-| `difficulty` | int | inherits from `challenge.difficulty` (4) | leading-zero hex digits required on the solution |
+| `difficulty` | int (1–4) | inherits from `challenge.difficulty` (3) | leading-zero hex digits required on the solution; values above 4 are clamped |
 | `token_ttl_minutes` | int | inherits from `challenge.ttl_minutes` (30) | cookie / token TTL once solved |
-| `cookie_name` | string | `veilgate_pow` | cookie set when the client successfully solves |
+| `cookie_name` | string | `__app_ts` | cookie set when the client successfully solves |
 | `cookie_path` | string | `/` | cookie `Path=` attribute |
 | `cookie_domain` | string | `""` (host-only) | cookie `Domain=` attribute; set to `.example.com` for cross-subdomain |
 | `cookie_same_site` | string | `strict` | `strict`, `lax`, or `none` |
-| `token_header_name` | string | `X-Veilgate-Token` | header to also accept the token from (for cross-origin SPAs) |
+| `token_header_name` | string | `X-App-Token` | header to also accept the token from (for cross-origin SPAs) |
 | `spa_aware_response` | bool | `true` | return 401 JSON for XHR/fetch contexts instead of 503 HTML |
 | `status_code` | int | `503` | HTTP status returned with the challenge HTML for document navigations |
 | `content_type` | string | `text/html; charset=utf-8` | Content-Type of the challenge page |
-| `verify_path` | string | `/__veilgate/verify` | path the JS POSTs to after solving |
+| `verify_path` | string | `/_g/verify` | path the JS POSTs to after solving |
 | `html_template` | string | shipped HTML | Go `text/template` body |
 
 > The `difficulty` and `token_ttl_minutes` keys here are *informational*
@@ -94,19 +94,19 @@ auth for clarity - VeilGate also accepts the token value from a
 request header:
 
 ```yaml
-token_header_name: "X-Veilgate-Token"
+token_header_name: "X-App-Token"
 ```
 
 The same value VeilGate puts in the `Set-Cookie` is also returned in
-the JSON body of `/__veilgate/verify`:
+the JSON body of `/_g/verify`:
 
 ```http
 HTTP/1.1 200 OK
-Set-Cookie: veilgate_pow=2026-05-16T18:35:18Z.67a2e29...; Path=/; ...
+Set-Cookie: __app_ts=2026-05-16T18:35:18Z.67a2e29...; Path=/; ...
 Content-Type: application/json
 
 {"token": "2026-05-16T18:35:18Z.67a2e29...", "expires_in": 1800,
- "header": "X-Veilgate-Token"}
+ "header": "X-App-Token"}
 ```
 
 SPAs read `token` from the body and attach it as a header on every
@@ -128,7 +128,7 @@ Content-Type: application/json
 Access-Control-Allow-Origin: https://app.example.com
 
 {"error": "challenge_required",
- "token_header": "X-Veilgate-Token",
+ "token_header": "X-App-Token",
  "retry_after": 1}
 ```
 
@@ -198,16 +198,16 @@ Common operator changes:
 ## Example
 
 ```yaml
-difficulty: 4
-token_ttl_minutes: 30
-cookie_name: veilgate_pow
+difficulty: 3
+token_ttl_minutes: 10
+cookie_name: __app_ts
 status_code: 503
 content_type: "text/html; charset=utf-8"
-verify_path: /__veilgate/verify
+verify_path: /_g/verify
 cookie_path: /
 cookie_domain: ".example.com"      # parent-domain cookie for app + api subdomains
 cookie_same_site: "lax"            # safe default for cross-subdomain
-token_header_name: "X-Veilgate-Token"
+token_header_name: "X-App-Token"
 spa_aware_response: true
 html_template: |
   <!doctype html>

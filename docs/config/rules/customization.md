@@ -484,7 +484,7 @@ Default: embedded vulnerability lists
 Context: `rules_dir`
 
 Defines honeypot paths, SQL injection markers, fake Git paths, and fake env
-paths used by tarpit routing. The top-level `detector.honeypot_paths` in
+paths used by tarpit routing. The top-level `detector.probe_paths` in
 `veilgate.yaml` is separate; this file is consumed by the tarpit route
 strategy.
 
@@ -547,7 +547,7 @@ status code, content type, difficulty, token TTL, and SPA-aware behavior.
 
 ```bash
 curl -i -A "python-requests/2.31.0" http://localhost:8080/.git/config
-curl -i -X POST http://localhost:8080/__veilgate/verify
+curl -i -X POST http://localhost:8080/_g/verify
 ```
 
 ## `rules/ml.yaml`
@@ -672,7 +672,7 @@ Check:
 - `browser_headers` and `sec_fetch` expectations.
 - CDN or proxy header stripping.
 - `trusted_proxies`.
-- accidental real paths in `honeypot_paths` or `wordlist_paths`.
+- accidental real paths in `probe_paths` or `wordlist_paths`.
 
 ### Tarpit response looks wrong
 

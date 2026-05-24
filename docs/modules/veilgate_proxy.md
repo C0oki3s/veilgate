@@ -227,7 +227,7 @@ curl http://localhost:8080/.git/config
 curl http://127.0.0.1:9090/metrics | grep 'signal="trusted_ip"'
 ```
 
-## `/__veilgate/verify` Bypass
+## `/_g/verify` Bypass
 
 Syntax:  internal path handling  
 Default: always active when `challengeHandler != nil`  
@@ -238,14 +238,14 @@ It is passed directly to `challengeHandler.ServeHTTP()` before scoring.
 
 ```go
 // internal/proxy/proxy.go
-if s.challengeHandler != nil && r.URL.Path == "/__veilgate/verify" {
+if s.challengeHandler != nil && r.URL.Path == "/_g/verify" {
     s.challengeHandler.ServeHTTP(w, r)
     return
 }
 ```
 
 The path is configured in `rules/challenge.yaml → verify_path`. The default
-`/__veilgate/verify` avoids colliding with typical application routes.
+`/_g/verify` avoids colliding with typical application routes.
 
 ### Operational notes
 

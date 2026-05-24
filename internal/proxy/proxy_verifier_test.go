@@ -62,11 +62,11 @@ func buildTestServer(t *testing.T, upstreamURL string, withVerifier bool) (*Serv
 		Detector: config.DetectorConfig{
 			ScoreChallengeThreshold: 40,
 			ScoreTarpitThreshold:    70,
-			HoneypotPaths:           []string{"/wp-login.php", "/.env"},
+			ProbePaths:           []string{"/wp-login.php", "/.env"},
 		},
 	}
 	tracker := detector.NewTracker(60)
-	scorer := detector.NewScorer(tracker, cfg.Detector.HoneypotPaths, nil)
+	scorer := detector.NewScorer(tracker, cfg.Detector.ProbePaths, nil)
 	if d, err := rules.LoadDetector(testRulesDir); err == nil {
 		scorer.SetRules(d)
 	}
@@ -74,7 +74,7 @@ func buildTestServer(t *testing.T, upstreamURL string, withVerifier bool) (*Serv
 		scorer.SetIPReputation(ip)
 	}
 
-	ch, err := challenge.NewHandlerFromDir("test-secret-not-default", testRulesDir, 0, 0)
+	ch, err := challenge.NewHandlerFromDir("test-secret-not-default", testRulesDir, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewHandlerFromDir: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestHeaderTokenAcceptedAsPoWCredential(t *testing.T) {
 	req.Header.Set("User-Agent", "python-requests/2.32.3")
 	hdr := cr.TokenHeaderName
 	if hdr == "" {
-		hdr = "X-Veilgate-Token"
+		hdr = "X-App-Token"
 	}
 	req.Header.Set(hdr, tokenValue)
 
@@ -328,11 +328,11 @@ func buildDiscoveryServer(t *testing.T, upstreamURL string) *Server {
 	// NewHandler uses embedded-default ChallengeRules (zero value).
 	// Override the important descriptor fields via SetRules so the
 	// discovery assertions have well-known values to check.
-	ch := challenge.NewHandler("disc-test-secret", 0, 0)
+	ch := challenge.NewHandler("disc-test-secret", 0, 0, 0)
 	ch.SetRules(rules.NewHolder(&rules.ChallengeRules{
-		VerifyPath:      "/__veilgate/verify",
-		CookieName:      "veilgate_pow",
-		TokenHeaderName: "X-Veilgate-Token",
+		VerifyPath:      "/_g/verify",
+		CookieName:      "__app_ts",
+		TokenHeaderName: "X-App-Token",
 	}))
 
 	tarpit := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -346,7 +346,7 @@ func buildDiscoveryServer(t *testing.T, upstreamURL string) *Server {
 }
 
 func TestDiscoveryEndpointShape(t *testing.T) {
-	// /__veilgate/.well-known returns JSON with challenge + credentials.
+	// /_g/config returns JSON with challenge + credentials.
 	// Verify: Content-Type, Cache-Control, CORS, and field presence.
 	resetMetrics()
 	upstream, _ := upstreamProbe(t)
@@ -363,7 +363,7 @@ func TestDiscoveryEndpointShape(t *testing.T) {
 	}
 	srv.SetVerifiers(verifier.NewChain(bv))
 
-	req := httptest.NewRequest(http.MethodGet, "/__veilgate/.well-known", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_g/config", nil)
 	rr := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rr, req)
 
@@ -387,13 +387,13 @@ func TestDiscoveryEndpointShape(t *testing.T) {
 	if doc.Challenge == nil {
 		t.Fatal("challenge block absent from discovery doc")
 	}
-	if doc.Challenge.VerifyPath != "/__veilgate/verify" {
-		t.Errorf("challenge.verify_path: got %q, want /__veilgate/verify", doc.Challenge.VerifyPath)
+	if doc.Challenge.VerifyPath != "/_g/verify" {
+		t.Errorf("challenge.verify_path: got %q, want /_g/verify", doc.Challenge.VerifyPath)
 	}
-	if doc.Challenge.TokenHeader != "X-Veilgate-Token" {
-		t.Errorf("challenge.token_header: got %q, want X-Veilgate-Token", doc.Challenge.TokenHeader)
+	if doc.Challenge.TokenHeader != "X-App-Token" {
+		t.Errorf("challenge.token_header: got %q, want X-App-Token", doc.Challenge.TokenHeader)
 	}
-	if doc.Challenge.CookieName != "veilgate_pow" {
+	if doc.Challenge.CookieName != "__app_ts" {
 		t.Errorf("challenge.cookie_name: got %q, want veilgate_pow", doc.Challenge.CookieName)
 	}
 	if len(doc.Credentials) == 0 {
@@ -405,13 +405,13 @@ func TestDiscoveryEndpointShape(t *testing.T) {
 }
 
 func TestStartInterstitialRouting(t *testing.T) {
-	// /__veilgate/start must be routed to the challenge handler's ServeStart.
+	// /_g/start must be routed to the challenge handler's ServeStart.
 	// It should return an HTML page (not be passed to upstream or the scorer).
 	resetMetrics()
 	upstream, hits := upstreamProbe(t)
 	srv := buildDiscoveryServer(t, upstream.URL)
 
-	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_g/start", nil)
 	rr := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rr, req)
 
@@ -434,7 +434,7 @@ func TestStartInterstitialWithOriginParam(t *testing.T) {
 	upstream, _ := upstreamProbe(t)
 	srv := buildDiscoveryServer(t, upstream.URL)
 
-	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start?origin=https://spa.example.com", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_g/start?origin=https://spa.example.com", nil)
 	rr := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rr, req)
 
@@ -453,7 +453,7 @@ func TestDiscoveryEndpointNoCreds(t *testing.T) {
 	upstream, _ := upstreamProbe(t)
 	srv := buildDiscoveryServer(t, upstream.URL)
 
-	req := httptest.NewRequest(http.MethodGet, "/__veilgate/.well-known", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_g/config", nil)
 	rr := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rr, req)
 
@@ -487,8 +487,8 @@ func newChallengeRulesForTest(_ *testing.T) struct {
 		CookieName      string
 		TokenHeaderName string
 	}{
-		CookieName:      "veilgate_pow",
-		TokenHeaderName: "X-Veilgate-Token",
+		CookieName:      "__app_ts",
+		TokenHeaderName: "X-App-Token",
 	}
 }
 

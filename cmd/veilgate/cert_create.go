@@ -250,7 +250,7 @@ func printCloudflareInstructions(certPath, keyPath string, dnsNames []string) {
 	fmt.Println("                             FROM events GROUP BY ja4, ua ORDER BY c DESC'")
 	if len(dnsNames) > 0 {
 		fmt.Printf("\n  Test TLS from the CLI (check for JA4 in veilgate logs):\n")
-		fmt.Printf("    curl -vk https://%s/__veilgate/.well-known\n", dnsNames[0])
+		fmt.Printf("    curl -vk https://%s/_g/config\n", dnsNames[0])
 	}
 }
 

@@ -53,7 +53,7 @@ detector:
   # Comma-separated CIDR list of proxies whose X-Forwarded-For we respect.
   # Leave empty to only trust the direct RemoteAddr (stops XFF header injection).
   trusted_proxies: []
-  honeypot_paths:
+  probe_paths:
     - "/admin-panel-v2"
     - "/api/internal/debug"
     - "/.git/config"

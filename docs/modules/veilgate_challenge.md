@@ -72,18 +72,18 @@ mode: "challenge"
 
 challenge:
   secret: "${VEILGATE_SECRET}"
-  difficulty: 4
+  difficulty: 3
   ttl_minutes: 30
 ```
 
 Example `rules/challenge.yaml` fields:
 
 ```yaml
-difficulty: 4
-token_ttl_minutes: 30
+difficulty: 3
+token_ttl_minutes: 10
 cookie_name: "veilgate_challenge"
-verify_path: "/__veilgate/verify"
-token_header_name: "X-Veilgate-Token"
+verify_path: "/_g/verify"
+token_header_name: "X-App-Token"
 spa_aware_response: true
 ```
 
@@ -210,14 +210,14 @@ Clock skew tolerance is not applied; the server clock is authoritative.
 
 ```bash
 # Obtain a token (manual or scripted solve)
-curl -s -X POST http://localhost:8080/__veilgate/verify \
+curl -s -X POST http://localhost:8080/_g/verify \
   -d '{"ts":"2024-01-15T10:30:00Z","nonce":"abc123"}'
 ```
 
 ## `verify_path`
 
 Syntax:  `verify_path: "<path>"`  
-Default: `"/__veilgate/verify"`  
+Default: `"/_g/verify"`  
 Context: `rules/challenge.yaml`
 
 Defines the endpoint that receives PoW solutions. `serve()` in the proxy checks
@@ -247,14 +247,14 @@ if s.challengeHandler != nil && r.URL.Path == s.challengeHandler.VerifyPath() {
 ### Validation
 
 ```bash
-curl -i -X POST http://localhost:8080/__veilgate/verify
+curl -i -X POST http://localhost:8080/_g/verify
 # Expect: 400 or 403 (missing/invalid body), not 502 (upstream)
 ```
 
 ## `token_header_name`
 
 Syntax:  `token_header_name: "<header-name>"`  
-Default: `"X-Veilgate-Token"` (default rules)  
+Default: `"X-App-Token"` (default rules)  
 Context: `rules/challenge.yaml`
 
 Allows SPA or API clients to submit the pass token through a custom HTTP header
@@ -271,7 +271,7 @@ JSON response body containing the token:
 }
 ```
 
-The SPA stores this value and injects it as `X-Veilgate-Token` (or the
+The SPA stores this value and injects it as `X-App-Token` (or the
 configured name) on subsequent requests. `Passed()` checks the header name
 after failing to find a cookie.
 
@@ -292,7 +292,7 @@ after failing to find a cookie.
 ```bash
 # Simulate SPA client with header token
 TOKEN="2024-01-15T10:30:00Z.valid-hmac"
-curl -H "X-Veilgate-Token: $TOKEN" http://localhost:8080/api/endpoint
+curl -H "X-App-Token: $TOKEN" http://localhost:8080/api/endpoint
 ```
 
 ## `spa_aware_response`
@@ -332,7 +332,7 @@ browsers; honeypot path in shared URL from a third-party service.
 The verify path must not match a route in the upstream application. Confirm:
 
 ```bash
-curl -i -X GET http://localhost:8080/__veilgate/verify
+curl -i -X GET http://localhost:8080/_g/verify
 # Expect: 405 (challenge handler) or challenge HTML, not 502
 ```
 
@@ -357,18 +357,18 @@ mode: "challenge"
 
 challenge:
   secret: "${VEILGATE_SECRET}"
-  difficulty: 4
+  difficulty: 3
   ttl_minutes: 30
 ```
 
 Example `rules/challenge.yaml` fields:
 
 ```yaml
-difficulty: 4
-token_ttl_minutes: 30
+difficulty: 3
+token_ttl_minutes: 10
 cookie_name: "veilgate_challenge"
-verify_path: "/__veilgate/verify"
-token_header_name: "X-Veilgate-Token"
+verify_path: "/_g/verify"
+token_header_name: "X-App-Token"
 spa_aware_response: true
 ```
 
@@ -471,7 +471,7 @@ the configured cookie or configured header.
 ### Validation
 
 ```bash
-curl -i -X POST http://localhost:8080/__veilgate/verify
+curl -i -X POST http://localhost:8080/_g/verify
 ```
 
 An unsigned or malformed verify request should fail.
@@ -479,7 +479,7 @@ An unsigned or malformed verify request should fail.
 ## `verify_path`
 
 Syntax:  `verify_path: "<path>"`  
-Default: `"/__veilgate/verify"`  
+Default: `"/_g/verify"`  
 Context: `rules/challenge.yaml`
 
 Defines the endpoint that receives proof-of-work solutions. The proxy passes
@@ -498,7 +498,7 @@ this path directly to the challenge handler before normal scoring.
 ## `token_header_name`
 
 Syntax:  `token_header_name: "<header-name>"`  
-Default: `"X-Veilgate-Token"` in the default rules  
+Default: `"X-App-Token"` in the default rules  
 Context: `rules/challenge.yaml`
 
 Allows cross-origin or SPA clients to submit the same pass token through a

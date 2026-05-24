@@ -63,7 +63,7 @@ type FakeData struct {
 
 // Vulnerabilities is the parsed vulnerabilities.yaml.
 type Vulnerabilities struct {
-	HoneypotPaths            []string `yaml:"honeypot_paths"`
+	ProbePaths               []string `yaml:"probe_paths"`
 	SQLInjectionPatterns     []string `yaml:"sql_injection_patterns"`
 	SSRFPatterns             []string `yaml:"ssrf_patterns"`
 	XSSPatterns              []string `yaml:"xss_patterns"`
@@ -73,8 +73,8 @@ type Vulnerabilities struct {
 	SSTIPatterns             []string `yaml:"ssti_patterns"`
 	NoSQLPatterns            []string `yaml:"nosql_patterns"`
 	PrototypePollution       []string `yaml:"prototype_pollution_patterns"`
-	FakeGitPaths             []string `yaml:"fake_git_paths"`
-	FakeEnvPaths             []string `yaml:"fake_env_paths"`
+	VCSPaths                 []string `yaml:"vcs_paths"`
+	EnvPaths                 []string `yaml:"env_paths"`
 }
 
 // Lookup returns a vulnerabilities.yaml list by name.
@@ -84,12 +84,12 @@ func (v *Vulnerabilities) Lookup(name string) []string {
 		return nil
 	}
 	switch name {
-	case "honeypot_paths":
-		return v.HoneypotPaths
-	case "fake_git_paths":
-		return v.FakeGitPaths
-	case "fake_env_paths":
-		return v.FakeEnvPaths
+	case "probe_paths":
+		return v.ProbePaths
+	case "vcs_paths":
+		return v.VCSPaths
+	case "env_paths":
+		return v.EnvPaths
 	case "ssrf_patterns":
 		return v.SSRFPatterns
 	case "xss_patterns":
@@ -170,7 +170,7 @@ type ChallengeRules struct {
 	// StartPath is the URL path of the iframe-loadable PoW interstitial
 	// page. A cross-origin SPA loads this path in a hidden iframe; the
 	// page solves the challenge and postMessages the token back to the
-	// parent. Defaults to "/__veilgate/start" when empty.
+	// parent. Defaults to "/_g/start" when empty.
 	StartPath string `yaml:"start_path"`
 
 	// StartPageTemplate is the HTML template for the iframe-loadable
@@ -439,7 +439,7 @@ func mergeVulnerabilitiesDir(dir string, v *Vulnerabilities) error {
 		if err := yaml.Unmarshal(raw, &patch); err != nil {
 			return fmt.Errorf("parse %s: %w", path, err)
 		}
-		v.HoneypotPaths = append(v.HoneypotPaths, patch.HoneypotPaths...)
+		v.ProbePaths = append(v.ProbePaths, patch.ProbePaths...)
 		v.SQLInjectionPatterns = append(v.SQLInjectionPatterns, patch.SQLInjectionPatterns...)
 		v.SSRFPatterns = append(v.SSRFPatterns, patch.SSRFPatterns...)
 		v.XSSPatterns = append(v.XSSPatterns, patch.XSSPatterns...)
@@ -449,8 +449,8 @@ func mergeVulnerabilitiesDir(dir string, v *Vulnerabilities) error {
 		v.SSTIPatterns = append(v.SSTIPatterns, patch.SSTIPatterns...)
 		v.NoSQLPatterns = append(v.NoSQLPatterns, patch.NoSQLPatterns...)
 		v.PrototypePollution = append(v.PrototypePollution, patch.PrototypePollution...)
-		v.FakeGitPaths = append(v.FakeGitPaths, patch.FakeGitPaths...)
-		v.FakeEnvPaths = append(v.FakeEnvPaths, patch.FakeEnvPaths...)
+		v.VCSPaths = append(v.VCSPaths, patch.VCSPaths...)
+		v.EnvPaths = append(v.EnvPaths, patch.EnvPaths...)
 		return nil
 	})
 }
@@ -768,55 +768,49 @@ func LoadDashboard(dir string) (*Dashboard, error) {
 	return &d, nil
 }
 
-// --- Decoy paths ---
+// --- Route manifest ---
 
-// DecoyPath is one bait endpoint entry in decoy_paths.yaml.
-// Both the path and an optional service label are published verbatim in
-// /__veilgate/.well-known so the browser SDK can inject them as DOM decoys.
-type DecoyPath struct {
-	// Path is the URL path the proxy tarpits, e.g. "/actuator/env".
-	Path string `yaml:"path" json:"path"`
-	// Service is a human-readable label for the technology being mimicked,
-	// e.g. "spring-actuator", "vault", "stripe". Helps operators audit the
-	// decoy set and lets the SDK annotate DOM metadata.
+// RouteEntry is one entry in route-manifest.yaml.
+type RouteEntry struct {
+	Path    string `yaml:"path" json:"path"`
 	Service string `yaml:"service" json:"service,omitempty"`
 }
 
-// DecoyPaths is the parsed decoy_paths.yaml.
-type DecoyPaths struct {
-	Paths []DecoyPath `yaml:"paths"`
+// RouteManifest is the parsed route-manifest.yaml.
+type RouteManifest struct {
+	Paths []RouteEntry `yaml:"paths"`
 }
 
-// TarpitDescriptor is the JSON shape emitted under the "tarpit" key in
-// /__veilgate/.well-known. Defined here so both the tarpit handler and the
-// proxy discovery handler can reference it without a circular import.
-type TarpitDescriptor struct {
-	Paths []DecoyPath `json:"paths"`
+// RouteIndex is the JSON shape emitted under the "routes" key in
+// /_g/config. Defined here so both the handler and the proxy discovery
+// handler can reference it without a circular import.
+type RouteIndex struct {
+	Paths []RouteEntry `json:"paths"`
 }
 
-// LoadDecoyPaths reads decoy_paths.yaml from dir and merges any additions
-// from the decoy_paths/ subdirectory. The file is optional; if neither the
-// root file nor the subdirectory exists the returned slice is empty.
-func LoadDecoyPaths(dir string) (*DecoyPaths, error) {
-	var d DecoyPaths
-	raw, err := readOptionalFromDir(dir, "decoy_paths.yaml")
+// LoadRouteManifest reads route-manifest.yaml from dir and merges any
+// additions from the route-manifest/ subdirectory. The file is optional;
+// if neither the root file nor the subdirectory exists the result is empty.
+func LoadRouteManifest(dir string) (*RouteManifest, error) {
+	var d RouteManifest
+	raw, err := readOptionalFromDir(dir, "route-manifest.yaml")
 	if err != nil {
 		return nil, err
 	}
 	if raw != nil {
 		if err := yaml.Unmarshal(raw, &d); err != nil {
-			return nil, fmt.Errorf("parse decoy_paths.yaml: %w", err)
+			return nil, fmt.Errorf("parse route-manifest.yaml: %w", err)
 		}
 	}
-	if err := mergeDecoyPathsDir(filepath.Join(dir, "decoy_paths"), &d); err != nil {
+	if err := mergeRouteManifestDir(filepath.Join(dir, "route-manifest"), &d); err != nil {
 		return nil, err
 	}
 	return &d, nil
 }
 
-func mergeDecoyPathsDir(dir string, d *DecoyPaths) error {
+func mergeRouteManifestDir(dir string, d *RouteManifest) error {
 	return walkYAMLDir(dir, func(path string, raw []byte) error {
-		var patch DecoyPaths
+		var patch RouteManifest
 		if err := yaml.Unmarshal(raw, &patch); err != nil {
 			return fmt.Errorf("parse %s: %w", path, err)
 		}

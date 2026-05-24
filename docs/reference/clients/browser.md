@@ -27,14 +27,14 @@ npm install @veilgate/client
 ```js
 import { init, handleAll } from "@veilgate/client";
 
-await init();      // fetch /__veilgate/.well-known, cache config
+await init();      // fetch /_g/config, cache config
 handleAll();       // patch global fetch + XHR
 ```
 
 After this, every `fetch()` call in your app is transparently protected:
 
 - If a valid token is in `sessionStorage`, it is attached as the configured header
-- If the server returns `401 { "error": "challenge_required" }`, the SDK opens a hidden iframe pointing to `/__veilgate/start`, waits for the token via `postMessage`, then retries the request
+- If the server returns `401 { "error": "challenge_required" }`, the SDK opens a hidden iframe pointing to `/_g/start`, waits for the token via `postMessage`, then retries the request
 
 ---
 
@@ -55,7 +55,7 @@ The SDK appends `?origin=https://your-spa.example.com` to the iframe URL so the 
 
 ### `init(opts?)`
 
-Fetches `/__veilgate/.well-known` and caches the discovery document. Idempotent: calling it multiple times after the first success is a no-op.
+Fetches `/_g/config` and caches the discovery document. Idempotent: calling it multiple times after the first success is a no-op.
 
 ```ts
 await init({
@@ -84,7 +84,7 @@ const { value, header, expiresAt } = await getToken();
 
 ### `getDiscovery()`
 
-Returns the cached `DiscoveryDoc` from `/__veilgate/.well-known`, or `null` if `init()` hasn't been called.
+Returns the cached `DiscoveryDoc` from `/_g/config`, or `null` if `init()` hasn't been called.
 
 ---
 
@@ -128,7 +128,7 @@ The bearer token bypasses the PoW flow entirely. `handleAll()` does not interfer
 
 - The SDK never reads or transmits passwords, cookies, or user identity. It only manages the short-lived PoW challenge token.
 - The challenge token expires quickly (operator-configured, default 30 min) and is tied to no user identity — losing it is equivalent to a cache miss.
-- The `postMessage` from `/__veilgate/start` is scoped to your origin when `?origin=` is set. Omitting it defaults to `"*"` which is acceptable for the PoW token (not a long-lived secret) but specifying the origin is better practice.
+- The `postMessage` from `/_g/start` is scoped to your origin when `?origin=` is set. Omitting it defaults to `"*"` which is acceptable for the PoW token (not a long-lived secret) but specifying the origin is better practice.
 
 ---
 

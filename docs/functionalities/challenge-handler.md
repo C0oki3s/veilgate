@@ -17,18 +17,18 @@ mode: "challenge"
 
 challenge:
   secret: "${VEILGATE_SECRET}"
-  difficulty: 4
+  difficulty: 3
   ttl_minutes: 30
 ```
 
 Example `rules/challenge.yaml` fields:
 
 ```yaml
-difficulty: 4
-token_ttl_minutes: 30
+difficulty: 3
+token_ttl_minutes: 10
 cookie_name: "veilgate_challenge"
-verify_path: "/__veilgate/verify"
-token_header_name: "X-Veilgate-Token"
+verify_path: "/_g/verify"
+token_header_name: "X-App-Token"
 spa_aware_response: true
 ```
 
@@ -131,7 +131,7 @@ the configured cookie or configured header.
 ### Validation
 
 ```bash
-curl -i -X POST http://localhost:8080/__veilgate/verify
+curl -i -X POST http://localhost:8080/_g/verify
 ```
 
 An unsigned or malformed verify request should fail.
@@ -139,7 +139,7 @@ An unsigned or malformed verify request should fail.
 ## `verify_path`
 
 Syntax:  `verify_path: "<path>"`  
-Default: `"/__veilgate/verify"`  
+Default: `"/_g/verify"`  
 Context: `rules/challenge.yaml`
 
 Defines the endpoint that receives proof-of-work solutions. The proxy passes
@@ -158,7 +158,7 @@ this path directly to the challenge handler before normal scoring.
 ## `token_header_name`
 
 Syntax:  `token_header_name: "<header-name>"`  
-Default: `"X-Veilgate-Token"` in the default rules  
+Default: `"X-App-Token"` in the default rules  
 Context: `rules/challenge.yaml`
 
 Allows cross-origin or SPA clients to submit the same pass token through a

@@ -17,7 +17,7 @@ detector:
   window_seconds: 90
   trusted_ips: []
   trusted_proxies: []
-  honeypot_paths:
+  probe_paths:
     - "/.git/config"
     - "/.env.backup"
 ```
@@ -27,7 +27,7 @@ detector:
 - `score_challenge_threshold`
 - `score_tarpit_threshold`
 - `window_seconds`
-- `honeypot_paths`
+- `probe_paths`
 - `trusted_ips`
 - `trusted_proxies`
 
@@ -116,9 +116,9 @@ for i in 1 2 3 4 5; do curl -s http://localhost:8080/path-$i >/dev/null; done
 curl http://127.0.0.1:9090/metrics | grep veilgate_tracked_clients
 ```
 
-## `honeypot_paths`
+## `probe_paths`
 
-Syntax:  `honeypot_paths: ["<path>", ...]`  
+Syntax:  `probe_paths: ["<path>", ...]`  
 Default: built-in starter list if omitted  
 Context: `detector`
 

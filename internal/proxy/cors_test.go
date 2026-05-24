@@ -41,7 +41,7 @@ func TestApplyCORSHeadersNoopWithoutOrigin(t *testing.T) {
 // ── OPTIONS preflight routing ─────────────────────────────────────────────────
 
 // TestCORSPreflightVeilgatePathsSynthesised checks that OPTIONS preflights
-// for /__veilgate/* are answered with 204 + CORS headers directly — no
+// for /_g/* are answered with 204 + CORS headers directly — no
 // upstream hit, no scoring, no challenge pipeline.
 func TestCORSPreflightVeilgatePathsSynthesised(t *testing.T) {
 	upstream, hits := upstreamProbe(t)
@@ -49,16 +49,16 @@ func TestCORSPreflightVeilgatePathsSynthesised(t *testing.T) {
 	handler := srv.Handler()
 
 	paths := []string{
-		"/__veilgate/verify",
-		"/__veilgate/.well-known",
-		"/__veilgate/start",
+		"/_g/verify",
+		"/_g/config",
+		"/_g/start",
 	}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodOptions, path, nil)
 			r.Header.Set("Origin", "https://app.example.com")
 			r.Header.Set("Access-Control-Request-Method", "POST")
-			r.Header.Set("Access-Control-Request-Headers", "Content-Type, X-Veilgate-Token")
+			r.Header.Set("Access-Control-Request-Headers", "Content-Type, X-App-Token")
 
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, r)

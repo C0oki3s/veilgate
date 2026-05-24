@@ -43,7 +43,7 @@ type Verifier interface {
 }
 
 // Discoverable is implemented by verifiers that want to advertise
-// the credential shape they accept on the /__veilgate/.well-known
+// the credential shape they accept on the /_g/config
 // discovery endpoint. Implementing it is optional: a verifier that
 // does not advertise (e.g. HMAC, where the client-secret pairing is
 // out-of-band) simply omits Describe.

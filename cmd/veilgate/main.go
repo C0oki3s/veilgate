@@ -302,7 +302,7 @@ func main() {
 	}
 
 	tracker := detector.NewTracker(cfg.Detector.WindowSeconds)
-	scorer := detector.NewScorer(tracker, cfg.Detector.HoneypotPaths, cfg.Detector.TrustedIPs)
+	scorer := detector.NewScorer(tracker, cfg.Detector.ProbePaths, cfg.Detector.TrustedIPs)
 	scorer.SetRules(detectorRules)
 	scorer.SetIPReputation(ipRep)
 
@@ -321,7 +321,7 @@ func main() {
 	vulnVal, _ := rules.LoadVulnerabilities(cfg.RulesDir)
 	strategyVal, _ := rules.LoadInjectionStrategy(cfg.RulesDir)
 	challengeVal, _ := rules.LoadChallenge(cfg.RulesDir)
-	decoyPathsVal, _ := rules.LoadDecoyPaths(cfg.RulesDir)
+	decoyPathsVal, _ := rules.LoadRouteManifest(cfg.RulesDir)
 	mlVal, err := rules.LoadML(cfg.RulesDir)
 	if err != nil {
 		log.Warn().Err(err).Msg("load ml rules failed; online ML and miner disabled until ml.yaml loads")
@@ -582,7 +582,7 @@ func main() {
 
 	tp := tarpit.NewHandler(&cfg.Tarpit, profileStore, injector)
 	tp.SetRules(templatesHolder, vulnHolder, strategyHolder)
-	tp.SetDecoyPaths(decoyPathsHolder)
+	tp.SetRouteManifest(decoyPathsHolder)
 	if store != nil {
 		tp.SetCanaryRegistrar(store)
 	}
@@ -591,6 +591,7 @@ func main() {
 		cfg.Challenge.Secret,
 		cfg.Challenge.Difficulty,
 		time.Duration(cfg.Challenge.TTLMinutes)*time.Minute,
+		time.Duration(cfg.Challenge.MaxTTLMinutes)*time.Minute,
 	)
 	ch.SetRules(challengeHolder)
 
@@ -700,8 +701,8 @@ func main() {
 			strategyHolder.Store(v)
 			return nil
 		})
-		w.Register("decoy_paths.yaml", func() error {
-			v, err := rules.LoadDecoyPaths(cfg.RulesDir)
+		w.Register("route-manifest.yaml", func() error {
+			v, err := rules.LoadRouteManifest(cfg.RulesDir)
 			if err != nil {
 				return err
 			}

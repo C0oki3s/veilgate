@@ -42,7 +42,7 @@ Single-file rules with community subdirectory support:
 
 | File | Subdirectory | Purpose |
 |---|---|---|
-| `decoy_paths.yaml` | `decoy_paths/` | Bait endpoints published in `.well-known` and injected by browser/node SDKs as agent breadcrumbs |
+| `route-manifest.yaml` | `route-manifest/` | Bait endpoints published in `.well-known` and injected by browser/node SDKs as agent breadcrumbs |
 
 Single-file rules (no community subdirectory):
 

@@ -47,7 +47,7 @@ func (h *HeaderVerifier) Name() string {
 	return "header:" + h.hdrDisplay
 }
 
-// HeaderName exposes the configured header for the /__veilgate/.well-known
+// HeaderName exposes the configured header for the /_g/config
 // discovery endpoint.
 func (h *HeaderVerifier) HeaderName() string { return h.hdrDisplay }
 

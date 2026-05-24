@@ -122,7 +122,7 @@ type ChallengeHandler interface {
 }
 
 // challengeDescriber is an optional interface the challenge handler
-// can implement to feed the /__veilgate/.well-known discovery
+// can implement to feed the /_g/config discovery
 // endpoint. Decoupled from ChallengeHandler so a future replacement
 // handler can opt out by not implementing it.
 type challengeDescriber interface {
@@ -130,7 +130,7 @@ type challengeDescriber interface {
 }
 
 // challengeStarter is an optional interface the challenge handler
-// can implement to serve the /__veilgate/start iframe-loadable PoW
+// can implement to serve the /_g/start iframe-loadable PoW
 // interstitial. Decoupled so a handler without a start page doesn't
 // need to implement it.
 type challengeStarter interface {
@@ -221,26 +221,22 @@ func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(s.serve)
 }
 
-// tarpitDescriber is an optional interface the tarpit handler can implement
-// to expose its decoy-path rules in the well-known discovery document.
-type tarpitDescriber interface {
-	DescribeTarpit() rules.TarpitDescriptor
+// navigationDescriber is an optional interface the handler can implement
+// to expose the monitored route index in the discovery document.
+type navigationDescriber interface {
+	DescribeRouteManifest() rules.RouteIndex
 }
 
-// discoveryDoc is the public JSON shape returned by
-// /__veilgate/.well-known. Stable contract — clients pin to this.
+// discoveryDoc is the public JSON shape returned by /_g/config.
 // Optional fields are emitted only when populated so older clients
 // safely ignore new fields.
 type discoveryDoc struct {
 	Challenge   *challenge.ChallengeDescriptor  `json:"challenge,omitempty"`
 	Credentials []verifier.CredentialDescriptor `json:"credentials,omitempty"`
-	// Tarpit lists bait endpoints defined in decoy_paths.yaml. The browser SDK
-	// reads this and injects the paths as DOM decoys so agents that mine the
-	// page source discover realistic breadcrumbs that route to the tarpit.
-	Tarpit *rules.TarpitDescriptor `json:"tarpit,omitempty"`
+	Routes      *rules.RouteIndex               `json:"routes,omitempty"`
 }
 
-// serveDiscovery emits the well-known JSON. It is callable
+// serveDiscovery emits the discovery JSON. It is callable
 // unauthenticated by design: a client SDK uses it on first contact
 // before any credential is in hand. The response contains only
 // configuration shape — never any secret, token, or PII.
@@ -253,10 +249,10 @@ func (s *Server) serveDiscovery(w http.ResponseWriter, _ *http.Request) {
 	if s.verifiers != nil {
 		doc.Credentials = s.verifiers.Describe()
 	}
-	if td, ok := s.tarpitHandler.(tarpitDescriber); ok {
-		desc := td.DescribeTarpit()
-		if len(desc.Paths) > 0 {
-			doc.Tarpit = &desc
+	if nd, ok := s.tarpitHandler.(navigationDescriber); ok {
+		idx := nd.DescribeRouteManifest()
+		if len(idx.Paths) > 0 {
+			doc.Routes = &idx
 		}
 	}
 
@@ -292,7 +288,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions &&
 		r.Header.Get("Origin") != "" &&
 		r.Header.Get("Access-Control-Request-Method") != "" {
-		if strings.HasPrefix(r.URL.Path, "/__veilgate/") {
+		if strings.HasPrefix(r.URL.Path, "/_g/") {
 			// VeilGate-internal paths are served here, not by the upstream.
 			// Synthesise the preflight response directly.
 			w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
@@ -314,7 +310,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Let the challenge verify endpoint through untouched.
-	if s.challengeHandler != nil && r.URL.Path == "/__veilgate/verify" {
+	if s.challengeHandler != nil && r.URL.Path == "/_g/verify" {
 		s.challengeHandler.ServeHTTP(w, r)
 		return
 	}
@@ -323,7 +319,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// client SDK can auto-attach the right credential. No scoring,
 	// no challenge, no upstream call: this is a meta endpoint that
 	// returns static configuration as JSON.
-	if r.URL.Path == "/__veilgate/.well-known" {
+	if r.URL.Path == "/_g/config" {
 		s.serveDiscovery(w, r)
 		return
 	}

@@ -19,7 +19,7 @@ const testRulesDir = "../../veilgate-rules"
 
 func testNewHandler(t *testing.T, secret string) *Handler {
 	t.Helper()
-	h, err := NewHandlerFromDir(secret, testRulesDir, 0, 0)
+	h, err := NewHandlerFromDir(secret, testRulesDir, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewHandlerFromDir: %v", err)
 	}
@@ -162,14 +162,14 @@ func TestVerifyCookieHonoursDomainAndSameSite(t *testing.T) {
 }
 
 // TestPassedAcceptsHeaderToken verifies that a token presented in the
-// X-Veilgate-Token header (the cross-origin SPA transport) is
+// X-App-Token header (the cross-origin SPA transport) is
 // accepted as well as a cookie. Without this, SPAs on a different
 // origin couldn't authenticate.
 func TestPassedAcceptsHeaderToken(t *testing.T) {
 	h := testNewHandler(t, "test-secret")
 	cr := h.rules.Load()
 	cr.TokenTTLMinutes = 5
-	cr.TokenHeaderName = "X-Veilgate-Token"
+	cr.TokenHeaderName = "X-App-Token"
 
 	// Forge a valid token the same way verify() does.
 	ts := time.Now().Format(time.RFC3339)
@@ -177,7 +177,7 @@ func TestPassedAcceptsHeaderToken(t *testing.T) {
 
 	// Request with header but no cookie should pass.
 	req := httptest.NewRequest(http.MethodGet, "/api/data", nil)
-	req.Header.Set("X-Veilgate-Token", tokenValue)
+	req.Header.Set("X-App-Token", tokenValue)
 	if !h.Passed(req) {
 		t.Fatalf("Passed() rejected valid header token")
 	}
@@ -191,7 +191,7 @@ func TestPassedAcceptsHeaderToken(t *testing.T) {
 
 	// Tampered MAC should fail.
 	req3 := httptest.NewRequest(http.MethodGet, "/api/data", nil)
-	req3.Header.Set("X-Veilgate-Token", ts+".deadbeef")
+	req3.Header.Set("X-App-Token", ts+".deadbeef")
 	if h.Passed(req3) {
 		t.Fatalf("Passed() accepted tampered header token")
 	}
@@ -347,10 +347,25 @@ func mustJSON(t *testing.T, v any) *bytes.Reader {
 	return bytes.NewReader(b)
 }
 
-func TestChallengeTTLIsCapped(t *testing.T) {
+func TestChallengeTTLRespectsMaxTTL(t *testing.T) {
 	cr := &rules.ChallengeRules{TokenTTLMinutes: 60}
-	if got := challengeTTL(cr); got != 10*time.Minute {
-		t.Fatalf("expected cap at 10m, got %v", got)
+
+	// maxTTL=30m: TTL should be capped at 30m, not the rule value of 60m.
+	h30 := &Handler{maxTTL: 30 * time.Minute}
+	if got := h30.challengeTTL(cr); got != 30*time.Minute {
+		t.Fatalf("expected cap at 30m, got %v", got)
+	}
+
+	// maxTTL=0: falls back to the 60m default ceiling; rule value 60m passes through.
+	h0 := &Handler{maxTTL: 0}
+	if got := h0.challengeTTL(cr); got != 60*time.Minute {
+		t.Fatalf("expected 60m with zero maxTTL, got %v", got)
+	}
+
+	// Rule value below the cap: returned as-is.
+	cr5 := &rules.ChallengeRules{TokenTTLMinutes: 5}
+	if got := h30.challengeTTL(cr5); got != 5*time.Minute {
+		t.Fatalf("expected 5m when rule < cap, got %v", got)
 	}
 }
 
@@ -369,12 +384,12 @@ func newHandlerWithRules(secret string, cr *rules.ChallengeRules) *Handler {
 func TestServeStartReturnsHTML(t *testing.T) {
 	h := newHandlerWithRules("start-secret", &rules.ChallengeRules{
 		Difficulty:      1,
-		VerifyPath:      "/__veilgate/verify",
-		CookieName:      "veilgate_pow",
-		TokenHeaderName: "X-Veilgate-Token",
+		VerifyPath:      "/_g/verify",
+		CookieName:      "__app_ts",
+		TokenHeaderName: "X-App-Token",
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_g/start", nil)
 	rr := httptest.NewRecorder()
 	h.ServeStart(rr, req)
 
@@ -405,11 +420,11 @@ func TestServeStartReturnsHTML(t *testing.T) {
 func TestServeStartInjectsOriginParam(t *testing.T) {
 	h := newHandlerWithRules("start-secret", &rules.ChallengeRules{
 		Difficulty: 1,
-		VerifyPath: "/__veilgate/verify",
-		CookieName: "veilgate_pow",
+		VerifyPath: "/_g/verify",
+		CookieName: "__app_ts",
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start?origin=https://app.example.com", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_g/start?origin=https://app.example.com", nil)
 	rr := httptest.NewRecorder()
 	h.ServeStart(rr, req)
 
@@ -424,10 +439,10 @@ func TestServeStartInjectsOriginParam(t *testing.T) {
 func TestServeStartDefaultsOriginToWildcard(t *testing.T) {
 	h := newHandlerWithRules("start-secret", &rules.ChallengeRules{
 		Difficulty: 1,
-		VerifyPath: "/__veilgate/verify",
+		VerifyPath: "/_g/verify",
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/__veilgate/start", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_g/start", nil)
 	rr := httptest.NewRecorder()
 	h.ServeStart(rr, req)
 
@@ -438,8 +453,8 @@ func TestServeStartDefaultsOriginToWildcard(t *testing.T) {
 
 func TestStartPathDefault(t *testing.T) {
 	h := newHandlerWithRules("s", &rules.ChallengeRules{})
-	if got := h.StartPath(); got != "/__veilgate/start" {
-		t.Fatalf("default StartPath: got %q, want /__veilgate/start", got)
+	if got := h.StartPath(); got != "/_g/start" {
+		t.Fatalf("default StartPath: got %q, want /_g/start", got)
 	}
 }
 
@@ -452,15 +467,15 @@ func TestStartPathConfigurable(t *testing.T) {
 
 func TestDescribeChallengeIncludesStartPath(t *testing.T) {
 	h := newHandlerWithRules("s", &rules.ChallengeRules{
-		VerifyPath:      "/__veilgate/verify",
-		CookieName:      "veilgate_pow",
-		TokenHeaderName: "X-Veilgate-Token",
+		VerifyPath:      "/_g/verify",
+		CookieName:      "__app_ts",
+		TokenHeaderName: "X-App-Token",
 	})
 	desc := h.DescribeChallenge()
-	if desc.StartPath != "/__veilgate/start" {
-		t.Errorf("StartPath: got %q, want /__veilgate/start", desc.StartPath)
+	if desc.StartPath != "/_g/start" {
+		t.Errorf("StartPath: got %q, want /_g/start", desc.StartPath)
 	}
-	if desc.VerifyPath != "/__veilgate/verify" {
-		t.Errorf("VerifyPath: got %q, want /__veilgate/verify", desc.VerifyPath)
+	if desc.VerifyPath != "/_g/verify" {
+		t.Errorf("VerifyPath: got %q, want /_g/verify", desc.VerifyPath)
 	}
 }

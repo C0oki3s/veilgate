@@ -1,4 +1,4 @@
-# `/__veilgate/.well-known`
+# `/_g/config`
 
 The discovery endpoint. Returns a JSON document that describes the current VeilGate configuration — which challenge flow is active and which credential shapes are accepted. A browser SDK or server client calls this once on startup to learn how to authenticate without any hard-coded configuration.
 
@@ -7,7 +7,7 @@ The discovery endpoint. Returns a JSON document that describes the current VeilG
 ## Request
 
 ```
-GET /__veilgate/.well-known
+GET /_g/config
 ```
 
 No authentication required. The endpoint is intentionally open — it contains only configuration metadata, never secrets, tokens, or PII.
@@ -23,10 +23,10 @@ No authentication required. The endpoint is intentionally open — it contains o
 ```json
 {
   "challenge": {
-    "verify_path": "/__veilgate/verify",
-    "start_path": "/__veilgate/start",
-    "token_header": "X-Veilgate-Token",
-    "cookie_name": "veilgate_pow"
+    "verify_path": "/_g/verify",
+    "start_path": "/_g/start",
+    "token_header": "X-App-Token",
+    "cookie_name": "__app_ts"
   },
   "credentials": [
     {
@@ -84,7 +84,7 @@ One entry per configured verifier. Empty array or absent when no verifier chain 
 ## Example: curl
 
 ```bash
-curl -s https://app.example.com/__veilgate/.well-known | jq .
+curl -s https://app.example.com/_g/config | jq .
 ```
 
 ---

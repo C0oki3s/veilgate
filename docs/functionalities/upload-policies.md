@@ -30,7 +30,7 @@ HTTP request arrives
 ├── ambiguous HTTP/1.x framing?
 │   └── 400 bad_request
 │
-├── /__veilgate/* internal path?
+├── /_g/* internal path?
 │   └── handled before upload policy
 │
 ├── CORS preflight?

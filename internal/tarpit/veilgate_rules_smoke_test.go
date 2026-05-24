@@ -94,3 +94,86 @@ func TestVeilgateRulesSPAMiningRoutes(t *testing.T) {
 		}
 	}
 }
+
+func TestVeilgateRulesHighRiskRoutes(t *testing.T) {
+	h := newVeilgateRulesHandler(t)
+	tests := []struct {
+		target   string
+		wantCode int
+		wantBody string
+	}{
+		{"/manager/html", 200, "Jenkins"},
+		{"/swagger-ui.html", 200, "swagger"},
+		{"/metrics", 200, "Prometheus"},
+		{"/debug/pprof/", 200, "Types of profiles"},
+		{"/rails/info/routes", 200, "Rails"},
+		{"/kubernetes-dashboard", 200, "Kubernetes Dashboard"},
+		{"/.env.production", 200, "DATABASE_URL"},
+		{"/service/extension/", 200, "Zimbra"},
+		{"/app/kibana", 200, "logs-"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.target, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, tc.target, nil)
+			r.RemoteAddr = "10.0.0.57:1234"
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != tc.wantCode {
+				t.Fatalf("status = %d, want %d; body=%s", w.Code, tc.wantCode, w.Body.String())
+			}
+			if !strings.Contains(w.Body.String(), tc.wantBody) {
+				t.Fatalf("body missing %q: %s", tc.wantBody, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestVeilgateRulesRouteTemplatesAreDefined(t *testing.T) {
+	tpls, err := rules.LoadTemplates(veilgateRulesDir)
+	if err != nil {
+		t.Fatalf("load templates: %v", err)
+	}
+	strat, err := rules.LoadInjectionStrategy(veilgateRulesDir)
+	if err != nil {
+		t.Fatalf("load injection strategy: %v", err)
+	}
+	for _, rt := range strat.Routes {
+		if _, ok := tpls.Templates[rt.Template]; !ok {
+			t.Fatalf("route template %q is not defined", rt.Template)
+		}
+	}
+}
+
+func TestVeilgateRulesDynamicDashboardTemplatesUseThirdPartyCDN(t *testing.T) {
+	h := newVeilgateRulesHandler(t)
+	tests := []string{
+		"/jenkins",
+		"/jira",
+		"/kubernetes-dashboard",
+		"/grafana",
+		"/prometheus/graph",
+		"/sidekiq",
+		"/portainer",
+		"/rabbitmq",
+		"/minio",
+		"/argocd",
+	}
+	for _, target := range tests {
+		t.Run(target, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, target, nil)
+			r.RemoteAddr = "10.0.0.58:1234"
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			body := w.Body.String()
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body=%s", w.Code, body)
+			}
+			if !strings.Contains(body, "cdn.jsdelivr.net") {
+				t.Fatalf("expected third-party CDN asset in body: %s", body)
+			}
+			if !strings.Contains(body, "Chart") && !strings.Contains(body, "x-data") {
+				t.Fatalf("expected dynamic dashboard JS in body: %s", body)
+			}
+		})
+	}
+}

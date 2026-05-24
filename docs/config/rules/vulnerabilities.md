@@ -8,14 +8,14 @@ The `vulnerabilities.yaml` file defines path and payload lists used by tarpit
 routing. It helps the tarpit decide when to render fake Git config, fake
 environment files, SQL error pages, or other vulnerability-shaped decoys.
 
-This file is separate from top-level `detector.honeypot_paths`. The detector
+This file is separate from top-level `detector.probe_paths`. The detector
 uses top-level honeypots for scoring; the tarpit uses this file for route and
 template selection.
 
 ## Example
 
 ```yaml
-honeypot_paths:
+probe_paths:
   - /.git/config
   - /.env.backup
 
@@ -25,11 +25,11 @@ sql_injection_patterns:
   - "union"
   - "or 1=1"
 
-fake_git_paths:
+vcs_paths:
   - "/.git/config"
   - "/.git/HEAD"
 
-fake_env_paths:
+env_paths:
   - "/.env"
   - "/.env.backup"
 ```
@@ -38,10 +38,10 @@ fake_env_paths:
 
 | Field | Type | Purpose |
 | --- | --- | --- |
-| `honeypot_paths` | list of paths | Named list available to tarpit routes. |
+| `probe_paths` | list of paths | Named list available to tarpit routes. |
 | `sql_injection_patterns` | list of substrings | Case-insensitive path/query markers for `match: sqli`. |
-| `fake_git_paths` | list of paths | Named list for Git-shaped decoy routes. |
-| `fake_env_paths` | list of paths | Named list for environment-file decoy routes. |
+| `vcs_paths` | list of paths | Named list for Git-shaped decoy routes. |
+| `env_paths` | list of paths | Named list for environment-file decoy routes. |
 
 ## Code Path
 

@@ -1,4 +1,4 @@
-# `/__veilgate/start`
+# `/_g/start`
 
 The PoW interstitial endpoint. Serves a self-contained HTML page that solves the proof-of-work challenge in the browser and `postMessage`s the resulting token back to the parent window. Designed to be loaded in a hidden `<iframe>` by a cross-origin SPA.
 
@@ -11,14 +11,14 @@ The PoW challenge page (served when a request scores above the challenge thresho
 - **Cross-origin SPA `fetch()` calls** — the SPA can't execute HTML returned in a response body
 - **Mobile apps / non-browser clients** — see the [bearer verifier](../verifiers/bearer.md) for that case
 
-The SPA path uses the `/__veilgate/.well-known` discovery response + a `401 JSON` challenge returned by the `serveSPAChallenge` code path. A sophisticated SPA can solve the nonce search inline (on the main thread). But for operators who want a branded "checking…" overlay and don't want to block the SPA's own main thread, `/__veilgate/start` provides an iframe that does all the work and signals completion via `postMessage`.
+The SPA path uses the `/_g/config` discovery response + a `401 JSON` challenge returned by the `serveSPAChallenge` code path. A sophisticated SPA can solve the nonce search inline (on the main thread). But for operators who want a branded "checking…" overlay and don't want to block the SPA's own main thread, `/_g/start` provides an iframe that does all the work and signals completion via `postMessage`.
 
 ---
 
 ## Request
 
 ```
-GET /__veilgate/start[?origin=<target-origin>]
+GET /_g/start[?origin=<target-origin>]
 ```
 
 | Parameter | Required | Description |
@@ -38,7 +38,7 @@ No authentication required.
 The page:
 1. Starts the nonce search immediately using `crypto.subtle` (no user interaction required)
 2. POSTs the proof to `verify_path` (injected at serve time from the live challenge rules)
-3. On success: calls `window.parent.postMessage({type: "veilgate-token", token: "...", header: "X-Veilgate-Token", expires_in: N}, targetOrigin)`
+3. On success: calls `window.parent.postMessage({type: "veilgate-token", token: "...", header: "X-App-Token", expires_in: N}, targetOrigin)`
 4. On error: calls `window.parent.postMessage({type: "veilgate-error", reason: "...", status?: N}, targetOrigin)`
 
 ---
@@ -64,7 +64,7 @@ function solveChallenge(origin = location.origin) {
 
     // 2. Open the iframe. The start page does the work and postMessages back.
     const iframe = document.createElement("iframe");
-    iframe.src = `/__veilgate/start?origin=${encodeURIComponent(origin)}`;
+    iframe.src = `/_g/start?origin=${encodeURIComponent(origin)}`;
     iframe.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0";
     document.body.appendChild(iframe);
     setTimeout(() => {
@@ -99,10 +99,10 @@ await fetch("/api/data", {
 
 ## Configuration
 
-The start path defaults to `/__veilgate/start`. To use a different path, set `start_path` in `challenge.yaml`:
+The start path defaults to `/_g/start`. To use a different path, set `start_path` in `challenge.yaml`:
 
 ```yaml
 start_path: /__vg/begin
 ```
 
-The configured value is advertised in the `start_path` field of the [`/__veilgate/.well-known`](well-known.md) discovery response.
+The configured value is advertised in the `start_path` field of the [`/_g/config`](well-known.md) discovery response.

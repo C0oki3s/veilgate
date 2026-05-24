@@ -137,7 +137,7 @@ Related: [Module veilgate_http2_fingerprinting](../modules/veilgate_http2_finger
 ## Phase 2C: Verify-Path Shortcut
 
 Before scoring, `serve()` checks whether the request path matches the configured
-`verify_path` (default: `/__veilgate/verify`). If it does, the challenge handler
+`verify_path` (default: `/_g/verify`). If it does, the challenge handler
 processes it immediately and returns. No scoring, no tracking, no upstream proxy.
 
 ```go

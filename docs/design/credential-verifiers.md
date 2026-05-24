@@ -52,8 +52,8 @@ see `internal/proxy/proxy.go:238-256`).
 | 3 | Header verifier (opaque)         | 0.5 d  | **shipped** ✓ |
 | 4 | JWT validator (shared 2 + 3)     | 2 d    | **shipped** ✓ |
 | 5 | HTTP callout validator           | 1 d    | **shipped** ✓ |
-| 6 | `/__veilgate/.well-known`        | 0.5 d  | **shipped** ✓ |
-| 7 | `/__veilgate/start` interstitial | 3 d    | **shipped** ✓ |
+| 6 | `/_g/config`        | 0.5 d  | **shipped** ✓ |
+| 7 | `/_g/start` interstitial | 3 d    | **shipped** ✓ |
 | 8 | `@veilgate/client` browser pkg   | 1 w    | **shipped** ✓ |
 | 9 | `@veilgate/node` server pkg      | 2 d    | **shipped** ✓ |
 

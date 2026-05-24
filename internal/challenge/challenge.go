@@ -20,7 +20,7 @@ import (
 )
 
 // defaultStartPageTmpl is the built-in HTML+JS page served at
-// /__veilgate/start when challenge.yaml does not set start_page_template.
+// /_g/start when challenge.yaml does not set start_page_template.
 // It is loaded in a hidden iframe by a cross-origin SPA; it solves the
 // PoW nonce search, posts the proof to verify_path, and postMessages the
 // resulting token back to the parent window. The entire challenge
@@ -64,6 +64,7 @@ const defaultStartPageTmpl = `<!DOCTYPE html>
 // loaded from rules/challenge.yaml so operators can tune live.
 type Handler struct {
 	secret []byte
+	maxTTL time.Duration // operator-configured ceiling; 0 means use default
 
 	// Config fallbacks used when the holder is empty (constructor only
 	// supplies the embedded defaults). main.go wires in the live holder
@@ -77,11 +78,11 @@ type Handler struct {
 
 // NewHandler constructs the handler using embedded-default challenge rules.
 // `secret` still comes from config (used for HMAC cookie signing).
-// `difficultyOverride` and `ttlOverride` are applied only when non-zero,
-// matching the old API for compat with the existing main.go wiring.
-func NewHandler(secret string, difficultyOverride int, ttlOverride time.Duration) *Handler {
+// `difficultyOverride` and `ttlOverride` are applied only when non-zero.
+// `maxTTL` is the operator-configured ceiling on token lifetime; 0 defaults
+// to 60 minutes inside challengeTTL.
+func NewHandler(secret string, difficultyOverride int, ttlOverride, maxTTL time.Duration) *Handler {
 	cr := new(rules.ChallengeRules)
-	// Apply overrides on a copy so the embedded default isn't mutated.
 	if difficultyOverride > 0 {
 		cr.Difficulty = difficultyOverride
 	}
@@ -90,12 +91,15 @@ func NewHandler(secret string, difficultyOverride int, ttlOverride time.Duration
 	}
 	return &Handler{
 		secret: []byte(secret),
+		maxTTL: maxTTL,
 		rules:  rules.NewHolder(cr),
 	}
 }
 
 // NewHandlerFromDir constructs the handler loading challenge rules from rulesDir.
-func NewHandlerFromDir(secret, rulesDir string, difficultyOverride int, ttlOverride time.Duration) (*Handler, error) {
+// `maxTTL` is the operator-configured ceiling on token lifetime; 0 defaults
+// to 60 minutes inside challengeTTL.
+func NewHandlerFromDir(secret, rulesDir string, difficultyOverride int, ttlOverride, maxTTL time.Duration) (*Handler, error) {
 	cr, err := rules.LoadChallenge(rulesDir)
 	if err != nil {
 		return nil, err
@@ -108,6 +112,7 @@ func NewHandlerFromDir(secret, rulesDir string, difficultyOverride int, ttlOverr
 	}
 	return &Handler{
 		secret: []byte(secret),
+		maxTTL: maxTTL,
 		rules:  rules.NewHolder(cr),
 	}, nil
 }
@@ -126,7 +131,7 @@ func (h *Handler) SetRules(holder *rules.Holder[rules.ChallengeRules]) {
 // what cookie name to expect on same-origin pages.
 //
 // Returned by Handler.DescribeChallenge for the
-// /__veilgate/.well-known discovery endpoint.
+// /_g/config discovery endpoint.
 type ChallengeDescriptor struct {
 	VerifyPath  string `json:"verify_path"`
 	StartPath   string `json:"start_path,omitempty"`
@@ -151,15 +156,15 @@ func (h *Handler) DescribeChallenge() ChallengeDescriptor {
 }
 
 // StartPath returns the configured start-page path, defaulting to
-// "/__veilgate/start" when not set in rules.
+// "/_g/start" when not set in rules.
 func (h *Handler) StartPath() string {
 	if h == nil || h.rules == nil {
-		return "/__veilgate/start"
+		return "/_g/start"
 	}
 	if p := h.rules.Load().StartPath; p != "" {
 		return p
 	}
-	return "/__veilgate/start"
+	return "/_g/start"
 }
 
 // ServeStart serves the iframe-loadable PoW interstitial page. The page
@@ -191,7 +196,7 @@ func (h *Handler) ServeStart(w http.ResponseWriter, r *http.Request) {
 
 	hdr := cr.TokenHeaderName
 	if hdr == "" {
-		hdr = "X-Veilgate-Token"
+		hdr = "X-App-Token"
 	}
 
 	cfg := struct {
@@ -242,7 +247,7 @@ func (h *Handler) ServeStart(w http.ResponseWriter, r *http.Request) {
 
 // Passed returns true if the request carries a valid solved-challenge
 // token. The token is accepted from either the configured cookie OR
-// the configured header (X-Veilgate-Token by default). Header
+// the configured header (X-App-Token by default). Header
 // transport exists so cross-origin SPA fetches — which can't rely on
 // cookies — can still authenticate by reading the token from the
 // verify response body and attaching it on every API call.
@@ -377,7 +382,7 @@ func (h *Handler) serveChallenge(w http.ResponseWriter, r *http.Request, cr *rul
 func (h *Handler) serveSPAChallenge(w http.ResponseWriter, r *http.Request, cr *rules.ChallengeRules) {
 	hdrName := cr.TokenHeaderName
 	if hdrName == "" {
-		hdrName = "X-Veilgate-Token"
+		hdrName = "X-App-Token"
 	}
 
 	challengeNonce, err := newChallengeNonce()
@@ -461,7 +466,7 @@ func (h *Handler) verify(w http.ResponseWriter, r *http.Request, cr *rules.Chall
 	// the cookie could have a 30-min lifetime while the HMAC rejected
 	// the same token after 10 min — a confusing state where the browser
 	// presented a valid-looking cookie that was always rejected.
-	ttl := challengeTTL(cr)
+	ttl := h.challengeTTL(cr)
 	cookiePath := cr.CookiePath
 	if cookiePath == "" {
 		cookiePath = "/"
@@ -545,7 +550,7 @@ func (h *Handler) verifyPOW(r *http.Request, cr *rules.ChallengeRules) (bool, in
 	if issuedAt.After(now.Add(2 * time.Minute)) {
 		return false, http.StatusUnauthorized
 	}
-	if now.Sub(issuedAt) > challengeTTL(cr) {
+	if now.Sub(issuedAt) > h.challengeTTL(cr) {
 		return false, http.StatusUnauthorized
 	}
 	nonce, ok := parseNonce(req.Nonce)
@@ -591,19 +596,23 @@ func max1(n int) int {
 
 func normalizedDifficulty(n int) int {
 	n = max1(n)
-	if n > 64 {
-		return 64
+	if n > 4 {
+		return 4
 	}
 	return n
 }
 
-func challengeTTL(cr *rules.ChallengeRules) time.Duration {
+func (h *Handler) challengeTTL(cr *rules.ChallengeRules) time.Duration {
 	ttl := time.Duration(cr.TokenTTLMinutes) * time.Minute
 	if ttl <= 0 {
 		ttl = 30 * time.Minute
 	}
-	if ttl > 10*time.Minute {
-		ttl = 10 * time.Minute
+	maxTTL := h.maxTTL
+	if maxTTL <= 0 {
+		maxTTL = 60 * time.Minute
+	}
+	if ttl > maxTTL {
+		return maxTTL
 	}
 	return ttl
 }

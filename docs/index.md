@@ -67,8 +67,8 @@ Repository: <https://github.com/C0oki3s/veilgate>
 
 ## Endpoint Reference
 
-- [`/__veilgate/.well-known` — discovery](reference/endpoints/well-known.md)
-- [`/__veilgate/start` — PoW interstitial iframe](reference/endpoints/start.md)
+- [`/_g/config` — discovery](reference/endpoints/well-known.md)
+- [`/_g/start` — PoW interstitial iframe](reference/endpoints/start.md)
 
 ## Client SDK Reference
 

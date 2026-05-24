@@ -164,7 +164,7 @@ Request arrives at proxy.serve()
 ├── OPTIONS + Origin + Access-Control-Request-Method?
 │   └── CORS preflight — bypass all classification, proxy to upstream
 │
-├── Path == /__veilgate/*?
+├── Path == /_g/*?
 │   └── Internal endpoint — bypass scoring, serve directly
 │
 ├── Scoring pipeline runs
@@ -215,12 +215,12 @@ SameSite so the challenge cookie travels across subdomains.
 spa_aware_response: true
 cookie_domain: ".example.com"
 cookie_same_site: lax
-token_header_name: "X-Veilgate-Token"
+token_header_name: "X-App-Token"
 ```
 
-Use the `/__veilgate/start` iframe interstitial to solve the challenge on the
+Use the `/_g/start` iframe interstitial to solve the challenge on the
 API origin before the SPA makes its first authenticated request. See
-[`/__veilgate/start` endpoint reference](../reference/endpoints/start.md).
+[`/_g/start` endpoint reference](../reference/endpoints/start.md).
 
 ### Server-to-server / backend callers
 
@@ -263,7 +263,7 @@ the [Bearer verifier reference](../reference/verifiers/bearer.md).
 - [Detection signals](./detection-signals.md)
 - [Upload policies](./upload-policies.md)
 - [WebSocket and gRPC proxying](./websocket-grpc-proxy.md)
-- [`/__veilgate/start` endpoint](../reference/endpoints/start.md)
+- [`/_g/start` endpoint](../reference/endpoints/start.md)
 - [How-to: protect a multi-origin deployment](../how-to/protect-multi-origin.md)
 - [How-to: server-to-server HMAC](../how-to/server-to-server-hmac.md)
 - [Bearer verifier](../reference/verifiers/bearer.md)

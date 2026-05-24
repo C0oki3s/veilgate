@@ -14,7 +14,7 @@
 - [`score_tarpit_threshold`](#score_tarpit_threshold)
 - [`score_challenge_threshold`](#score_challenge_threshold)
 - [`window_seconds`](#window_seconds)
-- [`honeypot_paths`](#honeypot_paths)
+- [`probe_paths`](#probe_paths)
 - [`trusted_ips`](#trusted_ips)
 - [`trusted_proxies`](#trusted_proxies)
 - [Example](#example)
@@ -67,7 +67,7 @@ Common values:
 
 ---
 
-### `honeypot_paths`
+### `probe_paths`
 
 | Type | Required | Default |
 | --- | --- | --- |
@@ -80,7 +80,7 @@ signal in the system: real users never request them.
 Default list (fallback when omitted):
 
 ```yaml
-honeypot_paths:
+probe_paths:
   - /admin-panel-v2
   - /api/internal/debug
   - /.git/config
@@ -92,7 +92,7 @@ honeypot_paths:
 Add app-specific paths an attacker would expect to find:
 
 ```yaml
-honeypot_paths:
+probe_paths:
   - /admin-panel-v2
   - /api/internal/debug
   - /api/v1/internal/keys
@@ -160,7 +160,7 @@ detector:
   score_tarpit_threshold: 70
   score_challenge_threshold: 40
   window_seconds: 90
-  honeypot_paths:
+  probe_paths:
     - /admin-panel-v2
     - /api/internal/debug
     - /.git/config
