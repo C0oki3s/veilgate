@@ -101,6 +101,28 @@ func APIKey(seed int64) string {
 	return "sk_live_" + b62String(deriveKey("apikey", seed), 24)
 }
 
+// AWSSTSKeyID returns a temporary AWS STS credential key ID: ASIA + 16 Base32 chars.
+// Temporary credentials (from AssumeRole / instance profiles) always use the ASIA prefix.
+func AWSSTSKeyID(seed int64) string {
+	k := deriveKey("awsstsid", seed)
+	var b strings.Builder
+	b.WriteString("ASIA")
+	for i := 0; i < 16; i++ {
+		b.WriteByte(awsChars[k[i]%32])
+	}
+	return b.String()
+}
+
+// AWSSTSToken returns a realistic AWS STS session token.
+// Real STS tokens are 400–1000 char base64 strings starting with AQo.
+func AWSSTSToken(seed int64) string {
+	var raw []byte
+	for _, salt := range []string{"sts-a", "sts-b", "sts-c", "sts-d", "sts-e", "sts-f"} {
+		raw = append(raw, deriveKey(salt, seed)...)
+	}
+	return "AQoXnyc2LvQ" + base64.StdEncoding.EncodeToString(raw)
+}
+
 // AWSKeyID returns a realistic AWS access key ID: AKIA + 16 Base32 chars.
 func AWSKeyID(seed int64) string {
 	k := deriveKey("awskeyid", seed)

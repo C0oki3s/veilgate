@@ -2,6 +2,7 @@ package tarpit
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"sync"
@@ -230,11 +231,28 @@ var templateFuncs = template.FuncMap{
 	// api_key(seed) — Stripe-style sk_live_<24 b62> key.
 	"api_key": fakeauth.APIKey,
 
-	// aws_key_id(seed) — AWS AKIA + 16 Base32 chars.
+	// aws_key_id(seed) — AWS AKIA + 16 Base32 chars (long-term credential).
 	"aws_key_id": fakeauth.AWSKeyID,
+
+	// aws_sts_key_id(seed) — AWS ASIA + 16 Base32 chars (temporary STS credential).
+	"aws_sts_key_id": fakeauth.AWSSTSKeyID,
+
+	// aws_sts_token(seed) — realistic AWS STS session token (~280-char base64).
+	"aws_sts_token": fakeauth.AWSSTSToken,
 
 	// aws_secret(seed) — 40-char base64 AWS secret.
 	"aws_secret": fakeauth.AWSSecret,
+
+	// contains_str(s, substr) — case-insensitive substring check for template conditionals.
+	"contains_str": func(s, substr string) bool {
+		return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+	},
+
+	// lower(s) — lowercase a string (useful for normalising .Query in conditionals).
+	"lower": strings.ToLower,
+
+	// b64enc(s) — base64 standard encoding (for Kubernetes secret data fields).
+	"b64enc": func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
 
 	// jwt_secret(seed) — 64-char base64url signing secret for JWT_SECRET.
 	"jwt_secret": fakeauth.JWTSecret,

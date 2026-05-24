@@ -51,3 +51,7 @@ deployments/packaging/
 deployments/windows/
 deployments/docker-compose*.yml
 e2e/
+
+# Local test/dev scripts
+scripts/test_veilgate.py
+scripts/__pycache__/

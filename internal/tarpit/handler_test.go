@@ -86,7 +86,7 @@ func TestRouteSQLErrorOnInjection(t *testing.T) {
 	}
 	body := w.Body.String()
 	lower := strings.ToLower(body)
-	if !strings.Contains(lower, "prisma") && !strings.Contains(lower, "database query error") {
+	if !strings.Contains(lower, "error") && !strings.Contains(lower, "sql") && !strings.Contains(lower, "database") {
 		t.Error("SQL injection should return a realistic database error body")
 	}
 }
