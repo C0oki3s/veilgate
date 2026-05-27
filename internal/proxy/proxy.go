@@ -557,6 +557,12 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		if decision == DecisionReal && rec.status/100 == 2 && isJSAssetPath(r.URL.Path) {
 			s.tracker.RecordJSAsset(clientID)
 		}
+		// Arm the no_cookie_return signal when the tarpit included a
+		// Set-Cookie. The tarpit writes headers before WriteHeader, so
+		// they are readable from rec.Header() after ServeHTTP returns.
+		if decision == DecisionTarpit && len(rec.Header()["Set-Cookie"]) > 0 {
+			s.tracker.RecordSetCookie(clientID)
+		}
 	}
 }
 

@@ -86,6 +86,31 @@ type Detector struct {
 		Points     int      `yaml:"points"`
 		Substrings []string `yaml:"substrings"`
 	} `yaml:"oob_interaction"`
+
+	// BehavioralSignals configures the session-level signals (schema_first,
+	// cache_miss_anomaly, auth_probe_sequence). Lists are merged from community
+	// YAML files so operators can extend without touching core rules.
+	BehavioralSignals struct {
+		// SchemaPaths holds path substrings that identify API schema endpoints.
+		// When a non-browser client's first requests match one of these, the
+		// schema_first signal fires. Community files can add app-specific schema
+		// paths (e.g. /api/v2/spec, /internal/openapi).
+		SchemaPaths []string `yaml:"schema_paths"`
+		// AuthPathPatterns maps path substrings to category labels. Paths that
+		// share a label count as one auth function for auth_probe_sequence.
+		// Order matters: more specific patterns must appear before more general
+		// ones (e.g. /auth/token before /auth/).
+		// Exclude suppresses the match when the path also contains that substring
+		// (e.g. /logout suppresses /auth/ from matching logout endpoints).
+		AuthPathPatterns []AuthPathPattern `yaml:"auth_path_patterns"`
+	} `yaml:"behavioral_signals"`
+}
+
+// AuthPathPattern is one entry in BehavioralSignals.AuthPathPatterns.
+type AuthPathPattern struct {
+	Pattern string `yaml:"pattern"` // required: path substring to match
+	Label   string `yaml:"label"`   // required: category bucket
+	Exclude string `yaml:"exclude"` // optional: suppress match if path contains this
 }
 
 // TLSFingerprints is the fingerprint database shape.
@@ -218,6 +243,8 @@ func mergeDetectorDir(dir string, d *Detector) error {
 		d.InjectionMarkers.Substrings = append(d.InjectionMarkers.Substrings, p.InjectionMarkers.Substrings...)
 		d.InjectionMarkers.Headers = append(d.InjectionMarkers.Headers, p.InjectionMarkers.Headers...)
 		d.OOBInteraction.Substrings = append(d.OOBInteraction.Substrings, p.OOBInteraction.Substrings...)
+		d.BehavioralSignals.SchemaPaths = append(d.BehavioralSignals.SchemaPaths, p.BehavioralSignals.SchemaPaths...)
+		d.BehavioralSignals.AuthPathPatterns = append(d.BehavioralSignals.AuthPathPatterns, p.BehavioralSignals.AuthPathPatterns...)
 		return nil
 	})
 }
@@ -291,6 +318,103 @@ func mergePayloadsDir(dir string, p *Payloads) error {
 		}
 		return nil
 	})
+}
+
+// ── Signal registry ──────────────────────────────────────────────────────────
+
+// SignalEntry configures one built-in detection signal from signals.yaml.
+// A missing entry (signal not listed) means "enabled with default points".
+type SignalEntry struct {
+	// Enabled controls whether this signal contributes to the total score.
+	// Set to false to silence the signal completely.
+	Enabled bool `yaml:"enabled"`
+	// Points overrides the default scoring weight from config.yaml.
+	// Leave at 0 to keep the config.yaml default.
+	Points      int    `yaml:"points"`
+	Description string `yaml:"description"`
+}
+
+// CustomSignalCondition is one matching predicate inside a custom signal.
+// All conditions in a custom signal must match (AND logic).
+type CustomSignalCondition struct {
+	// Type selects the matching strategy:
+	//   path_prefix    — r.URL.Path starts with Value
+	//   path_contains  — r.URL.Path contains Value (substring)
+	//   path_suffix    — r.URL.Path ends with Value
+	//   path_regex     — r.URL.Path matches Value (Go regex, case-sensitive)
+	//   ua_contains    — User-Agent contains Value (case-insensitive)
+	//   header_present — header named Name is present
+	//   header_value   — header named Name contains Value (case-insensitive)
+	//   query_contains — raw query string contains Value (case-insensitive)
+	//   method         — HTTP method equals Value (case-insensitive)
+	Type  string `yaml:"type"`
+	Name  string `yaml:"name"`  // used by header_present, header_value
+	Value string `yaml:"value"` // comparison value
+}
+
+// CustomSignal is an operator-defined detection rule that fires when every
+// listed condition matches. It contributes Points to the request score.
+type CustomSignal struct {
+	Name        string                  `yaml:"name"`
+	Description string                  `yaml:"description"`
+	Enabled     bool                    `yaml:"enabled"`
+	Points      int                     `yaml:"points"`
+	Conditions  []CustomSignalCondition `yaml:"conditions"`
+}
+
+// Signals is the full signal registry loaded from signals.yaml. It controls
+// which built-in signals are active, overrides their point weights, and
+// defines operator-authored custom detection rules.
+type Signals struct {
+	Signals       map[string]SignalEntry `yaml:"signals"`
+	CustomSignals []CustomSignal         `yaml:"custom_signals"`
+}
+
+// IsEnabled returns true when the named signal should fire.
+// A signal not listed in the registry defaults to enabled.
+func (sg *Signals) IsEnabled(name string) bool {
+	if sg == nil || sg.Signals == nil {
+		return true
+	}
+	entry, ok := sg.Signals[name]
+	if !ok {
+		return true
+	}
+	return entry.Enabled
+}
+
+// PointsFor returns the effective points for a signal. If the registry
+// specifies a non-zero override, that value is returned; otherwise
+// defaultPoints (from config.yaml) is used.
+func (sg *Signals) PointsFor(name string, defaultPoints int) int {
+	if sg == nil || sg.Signals == nil {
+		return defaultPoints
+	}
+	entry, ok := sg.Signals[name]
+	if !ok || entry.Points == 0 {
+		return defaultPoints
+	}
+	return entry.Points
+}
+
+// LoadSignals reads signals.yaml from dir. Missing file is not an error —
+// it returns an empty registry, which enables all signals with default points.
+func LoadSignals(dir string) (*Signals, error) {
+	var sg Signals
+	raw, err := readOptionalFromDir(dir, "signals.yaml")
+	if err != nil {
+		return nil, err
+	}
+	if raw == nil {
+		return &Signals{Signals: make(map[string]SignalEntry)}, nil
+	}
+	if err := yaml.Unmarshal(raw, &sg); err != nil {
+		return nil, fmt.Errorf("parse signals.yaml: %w", err)
+	}
+	if sg.Signals == nil {
+		sg.Signals = make(map[string]SignalEntry)
+	}
+	return &sg, nil
 }
 
 func readFromDir(dir, name string) ([]byte, error) {

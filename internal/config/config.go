@@ -212,6 +212,14 @@ type TarpitConfig struct {
 	MinLatencyMs int `yaml:"min_latency_ms"`
 	MaxLatencyMs int `yaml:"max_latency_ms"`
 	MaxBodyBytes int `yaml:"max_body_bytes"`
+	// ResponseCacheTTLMinutes controls how long a rendered tarpit response is
+	// held in the per-IP cache. Agents that re-fetch the same path within this
+	// window receive byte-identical responses. Default: 30.
+	ResponseCacheTTLMinutes int `yaml:"response_cache_ttl_minutes"`
+	// ResponseCacheMaxSize caps the total number of cached (clientID, path)
+	// entries. Once the cap is hit, new entries are dropped until an expired
+	// entry is evicted. Default: 50000.
+	ResponseCacheMaxSize int `yaml:"response_cache_max_size"`
 }
 
 type MetricsConfig struct {
@@ -255,6 +263,12 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Tarpit.MaxBodyBytes == 0 {
 		c.Tarpit.MaxBodyBytes = 100 * 1024
+	}
+	if c.Tarpit.ResponseCacheTTLMinutes == 0 {
+		c.Tarpit.ResponseCacheTTLMinutes = 30
+	}
+	if c.Tarpit.ResponseCacheMaxSize == 0 {
+		c.Tarpit.ResponseCacheMaxSize = 50_000
 	}
 	if c.Metrics.Listen == "" {
 		c.Metrics.Listen = ":9090"
