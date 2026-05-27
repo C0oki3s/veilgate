@@ -1820,11 +1820,8 @@ func (s *Scorer) scoreAPIBlueprintMiss(r *http.Request) Signal {
 	if s.bp == nil || s.bp.IsEmpty() {
 		return Signal{}
 	}
-	path := r.URL.Path
-	if !s.bp.InNamespace(path) {
-		return Signal{}
-	}
-	if s.bp.Matches(path) {
+	inNS, matched := s.bp.Lookup(r.URL.Path)
+	if !inNS || matched {
 		return Signal{}
 	}
 	return Signal{

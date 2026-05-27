@@ -3,7 +3,10 @@
 // Matcher used by the detector to fire the api_blueprint_miss signal.
 package blueprint
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
 
 // seg is one segment of a route path. isParam is true for {placeholder}
 // segments, which match any non-empty value.
@@ -16,15 +19,74 @@ type route struct {
 	segs []seg
 }
 
+// pathEntry is the cached result of a single path lookup.
+type pathEntry struct {
+	inNamespace bool
+	matched     bool
+}
+
 // Matcher holds a compiled set of API routes derived from a blueprint file.
+// After the first request to a given path the result is memoized in cache,
+// so subsequent requests for the same path pay only a sync.Map read — no
+// string splitting or route scanning.
+//
+// The cache is per-Matcher instance, so hot-reload (SetBlueprint installs a
+// new *Matcher) automatically starts with an empty cache.
 type Matcher struct {
 	routes    []route
 	namespace map[string]struct{} // set of known first-segment literals
+	cache     sync.Map            // path string → pathEntry
+}
+
+// Lookup returns (inNamespace, matched) for path. Results are cached after
+// the first evaluation; call this instead of InNamespace + Matches separately
+// to guarantee a single cache round-trip per request.
+func (m *Matcher) Lookup(path string) (inNamespace, matched bool) {
+	if v, ok := m.cache.Load(path); ok {
+		e := v.(pathEntry)
+		return e.inNamespace, e.matched
+	}
+	inNamespace = m.inNamespace(path)
+	if inNamespace {
+		matched = m.matches(path)
+	}
+	m.cache.Store(path, pathEntry{inNamespace: inNamespace, matched: matched})
+	return inNamespace, matched
 }
 
 // Matches returns true if path matches any route in the blueprint.
-// Matching is case-insensitive; {param} segments accept any non-empty value.
+// Prefer Lookup when you need both InNamespace and Matches in one call.
 func (m *Matcher) Matches(path string) bool {
+	_, matched := m.Lookup(path)
+	return matched
+}
+
+// InNamespace returns true if the first path segment belongs to one of the
+// namespaces derived from the blueprint (e.g. "api", "v1").
+// Prefer Lookup when you need both InNamespace and Matches in one call.
+func (m *Matcher) InNamespace(path string) bool {
+	inNS, _ := m.Lookup(path)
+	return inNS
+}
+
+// IsEmpty reports whether no routes were loaded.
+func (m *Matcher) IsEmpty() bool { return len(m.routes) == 0 }
+
+// RouteCount returns the total number of compiled routes.
+func (m *Matcher) RouteCount() int { return len(m.routes) }
+
+// inNamespace is the uncached namespace check used by Lookup.
+func (m *Matcher) inNamespace(path string) bool {
+	parts := splitPath(path)
+	if len(parts) == 0 {
+		return false
+	}
+	_, ok := m.namespace[strings.ToLower(parts[0])]
+	return ok
+}
+
+// matches is the uncached route scan used by Lookup.
+func (m *Matcher) matches(path string) bool {
 	parts := splitPath(path)
 	for _, r := range m.routes {
 		if len(r.segs) != len(parts) {
@@ -43,25 +105,6 @@ func (m *Matcher) Matches(path string) bool {
 	}
 	return false
 }
-
-// InNamespace returns true if the first path segment belongs to one of the
-// namespaces derived from the blueprint (e.g. "api", "v1"). Only requests
-// inside the namespace can produce a blueprint_miss signal; requests to
-// unrelated paths are ignored.
-func (m *Matcher) InNamespace(path string) bool {
-	parts := splitPath(path)
-	if len(parts) == 0 {
-		return false
-	}
-	_, ok := m.namespace[strings.ToLower(parts[0])]
-	return ok
-}
-
-// IsEmpty reports whether no routes were loaded.
-func (m *Matcher) IsEmpty() bool { return len(m.routes) == 0 }
-
-// RouteCount returns the total number of compiled routes.
-func (m *Matcher) RouteCount() int { return len(m.routes) }
 
 // splitPath splits a URL path into non-empty segments, stripping leading and
 // trailing slashes. Returns nil for paths that reduce to "".

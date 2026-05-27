@@ -88,6 +88,34 @@ func TestMatcherRouteCount(t *testing.T) {
 	}
 }
 
+func TestLookupCachesResult(t *testing.T) {
+	m := buildMatcher([]string{"/api/users", "/api/users/{id}"})
+
+	// First call populates the cache.
+	inNS1, matched1 := m.Lookup("/api/users")
+	if !inNS1 || !matched1 {
+		t.Errorf("first lookup: got inNS=%v matched=%v, want true/true", inNS1, matched1)
+	}
+
+	// Second call must return identical results (from cache, not re-scan).
+	inNS2, matched2 := m.Lookup("/api/users")
+	if inNS1 != inNS2 || matched1 != matched2 {
+		t.Error("cached lookup returned different result than first lookup")
+	}
+
+	// Miss path: in namespace but no route match.
+	inNS3, matched3 := m.Lookup("/api/unknown")
+	if !inNS3 || matched3 {
+		t.Errorf("miss: got inNS=%v matched=%v, want true/false", inNS3, matched3)
+	}
+
+	// Out-of-namespace path: neither flag set.
+	inNS4, matched4 := m.Lookup("/other/path")
+	if inNS4 || matched4 {
+		t.Errorf("out-of-namespace: got inNS=%v matched=%v, want false/false", inNS4, matched4)
+	}
+}
+
 // ── Loader tests ──────────────────────────────────────────────────────────────
 
 func writeFile(t *testing.T, dir, name, content string) {
