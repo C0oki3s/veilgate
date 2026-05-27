@@ -6,7 +6,16 @@ package blueprint
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 )
+
+// maxCacheEntries caps the path result cache. Without a bound, an attacker
+// sending requests with millions of unique path values (e.g. random UUIDs)
+// would grow the sync.Map unboundedly and exhaust heap memory. At the cap the
+// cache silently stops accepting new entries — lookups continue to work
+// correctly, just without caching (graceful degradation, not a correctness
+// failure).
+const maxCacheEntries = 4096
 
 // seg is one segment of a route path. isParam is true for {placeholder}
 // segments, which match any non-empty value.
@@ -27,30 +36,54 @@ type pathEntry struct {
 
 // Matcher holds a compiled set of API routes derived from a blueprint file.
 // After the first request to a given path the result is memoized in cache,
-// so subsequent requests for the same path pay only a sync.Map read — no
-// string splitting or route scanning.
+// so subsequent requests pay only a sync.Map read — no string splitting or
+// route scanning.
 //
-// The cache is per-Matcher instance, so hot-reload (SetBlueprint installs a
-// new *Matcher) automatically starts with an empty cache.
+// The cache is bounded at maxCacheEntries to prevent memory exhaustion under
+// path-flooding attacks. The cache is per-Matcher, so hot-reload (SetBlueprint
+// installs a new *Matcher) starts with an empty cache automatically.
 type Matcher struct {
 	routes    []route
 	namespace map[string]struct{} // set of known first-segment literals
-	cache     sync.Map            // path string → pathEntry
+	cache     sync.Map            // normalised path → pathEntry
+	cacheLen  atomic.Int64        // count of entries stored; soft cap guard
 }
 
 // Lookup returns (inNamespace, matched) for path. Results are cached after
-// the first evaluation; call this instead of InNamespace + Matches separately
+// the first evaluation. Call this instead of InNamespace + Matches separately
 // to guarantee a single cache round-trip per request.
 func (m *Matcher) Lookup(path string) (inNamespace, matched bool) {
-	if v, ok := m.cache.Load(path); ok {
+	// Normalise the cache key so that "/api/users" and "/api/users/" share one
+	// entry — splitPath strips trailing slashes so their match results are
+	// identical anyway.
+	key := strings.Trim(path, "/")
+
+	if v, ok := m.cache.Load(key); ok {
 		e := v.(pathEntry)
 		return e.inNamespace, e.matched
 	}
+
 	inNamespace = m.inNamespace(path)
 	if inNamespace {
 		matched = m.matches(path)
 	}
-	m.cache.Store(path, pathEntry{inNamespace: inNamespace, matched: matched})
+	entry := pathEntry{inNamespace: inNamespace, matched: matched}
+
+	// Pre-claim a slot with an atomic increment. This eliminates the
+	// check-then-store race: multiple goroutines each get a distinct Add
+	// result, so only those whose result is ≤ maxCacheEntries proceed to
+	// store. Goroutines over the cap release immediately with Add(-1).
+	// If LoadOrStore finds the key already stored by a concurrent goroutine
+	// that won the same slot race, we also release the pre-claimed slot so
+	// cacheLen always equals the actual number of entries in cache.
+	if m.cacheLen.Add(1) <= maxCacheEntries {
+		if _, loaded := m.cache.LoadOrStore(key, entry); loaded {
+			m.cacheLen.Add(-1) // concurrent store of same key; release slot
+		}
+	} else {
+		m.cacheLen.Add(-1) // at cap; release slot
+	}
+
 	return inNamespace, matched
 }
 
@@ -74,6 +107,10 @@ func (m *Matcher) IsEmpty() bool { return len(m.routes) == 0 }
 
 // RouteCount returns the total number of compiled routes.
 func (m *Matcher) RouteCount() int { return len(m.routes) }
+
+// CacheLen returns the number of entries currently in the path result cache.
+// Exposed for testing; not part of the stable API.
+func (m *Matcher) CacheLen() int { return int(m.cacheLen.Load()) }
 
 // inNamespace is the uncached namespace check used by Lookup.
 func (m *Matcher) inNamespace(path string) bool {
