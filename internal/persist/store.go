@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver, no CGO
@@ -68,6 +70,10 @@ type Store struct {
 	dropped       uint64
 	wg            sync.WaitGroup
 	stop          chan struct{}
+
+	// lastDropLog gates the "queue full, dropping" warning to at most once per
+	// minute so a sustained back-pressure episode doesn't flood the log.
+	lastDropLog atomic.Int64 // unix seconds of last logged drop
 }
 
 // Config drives Open. All fields have sane zero-value defaults.
@@ -189,6 +195,7 @@ func (s *Store) Record(e Event) {
 	case s.queue <- e:
 	default:
 		s.dropped++
+		s.warnDrop()
 	}
 }
 
@@ -201,6 +208,18 @@ func (s *Store) RollupUpdate(d RollupDelta) {
 	case s.rollupQueue <- d:
 	default:
 		s.dropped++
+		s.warnDrop()
+	}
+}
+
+// warnDrop emits a log warning at most once per minute when the write queue
+// is saturated, so operators know the flusher is falling behind without
+// drowning the log under per-request noise.
+func (s *Store) warnDrop() {
+	now := time.Now().Unix()
+	last := s.lastDropLog.Load()
+	if now-last >= 60 && s.lastDropLog.CompareAndSwap(last, now) {
+		log.Printf("persist: write queue full — events are being dropped (total dropped so far: %d); check flusher health", s.dropped)
 	}
 }
 
@@ -290,6 +309,32 @@ commit:
 		}
 	}
 	_ = tx.Commit()
+
+	// Hard row cap: if the events table has grown past the ceiling, trim the
+	// oldest 10 % immediately rather than waiting for the next maintenance
+	// cycle. This prevents unbounded growth when the operator disables
+	// retention or the maintenance goroutine stalls.
+	s.enforceRowCap()
+}
+
+// maxEventRows is the hard ceiling on the events table. 10 million rows at
+// roughly 500 bytes each is ~5 GB — generous for most deployments. Operators
+// who need more should set retain_hours to expire rows sooner instead.
+const maxEventRows = 10_000_000
+
+// enforceRowCap trims the oldest 10% of events when the table exceeds
+// maxEventRows. Runs inline after each flush batch; skips the COUNT(*) scan
+// when fewer than 1000 rows were just committed to avoid querying every tick.
+func (s *Store) enforceRowCap() {
+	var count int64
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM events`).Scan(&count); err != nil {
+		return
+	}
+	if count <= maxEventRows {
+		return
+	}
+	trim := count / 10 // remove oldest 10 %
+	s.db.Exec(`DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY id ASC LIMIT ?)`, trim)
 }
 
 // QueryRollup returns every rollup row; small table by design (bounded by

@@ -807,16 +807,23 @@ func (s *Server) serveWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handshake complete — tunnel raw bytes in both directions.
+	// Tunnel raw bytes in both directions. Each goroutine closes its write
+	// target when the read side returns (EOF or error), which unblocks the
+	// other goroutine immediately instead of leaving it blocked on a
+	// half-closed connection indefinitely. Both goroutines must finish
+	// before we return so upstreamConn is not closed under them.
 	done := make(chan struct{}, 2)
 	go func() {
 		defer func() { done <- struct{}{} }()
-		io.Copy(upstreamConn, clientBuf) // clientBuf wraps clientConn
+		io.Copy(upstreamConn, clientBuf)
+		upstreamConn.Close()
 	}()
 	go func() {
 		defer func() { done <- struct{}{} }()
-		io.Copy(clientConn, upstreamBuf) // upstreamBuf wraps upstreamConn
+		io.Copy(clientConn, upstreamBuf)
+		clientConn.Close()
 	}()
+	<-done
 	<-done
 }
 

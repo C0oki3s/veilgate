@@ -380,7 +380,6 @@ func main() {
 			log.Fatal().Err(err).Str("path", cfg.Persist.Path).Msg("open persist store")
 		}
 		log.Info().Str("path", cfg.Persist.Path).Msg("persist store open")
-		defer store.Close()
 
 		// Canary table lives in the same store; wire the detector lookup.
 		scorer.SetCanaryLookup(canaryAdapter{store})
@@ -893,13 +892,28 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	log.Info().Msg("shutting down")
+
+	// Cancel the root context first so all background goroutines (miner,
+	// recommender, GC, watcher) stop accepting new work. This must happen
+	// before server shutdown and before store.Close() so goroutines that
+	// write to the store are not mid-write when the DB is closed.
+	rootCancel()
+
 	if auditLog != nil {
 		_ = auditLog.Log(audit.Entry{Actor: "system", Action: "process.stop",
 			Detail: "veilgate received SIGINT/SIGTERM"})
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_ = mainSrv.Shutdown(ctx)
-	_ = metricsSrv.Shutdown(ctx)
+	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutCancel()
+	_ = mainSrv.Shutdown(shutCtx)
+	_ = metricsSrv.Shutdown(shutCtx)
+
+	// Close the store after servers have drained. Any events queued by the
+	// last in-flight requests are now enqueued; store.Close flushes them.
+	if store != nil {
+		if err := store.Close(); err != nil {
+			log.Error().Err(err).Msg("persist store close")
+		}
+	}
 }

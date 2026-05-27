@@ -62,6 +62,18 @@ const defaultStartPageTmpl = `<!DOCTYPE html>
 //
 // Every knob — HTML body, difficulty, cookie name, TTL, verify path — is
 // loaded from rules/challenge.yaml so operators can tune live.
+// seenNonce is one entry in the solved-nonce replay-prevention cache.
+type seenNonce struct {
+	expiresAt time.Time
+}
+
+// Handler serves a JS proof-of-work page. Real browsers solve it in <1s.
+// Headless HTTP clients (the LLM-agent common case) never solve it at all.
+// Sophisticated agents with headless Chromium will, which is by design —
+// we're raising cost, not making the site invulnerable.
+//
+// Every knob — HTML body, difficulty, cookie name, TTL, verify path — is
+// loaded from rules/challenge.yaml so operators can tune live.
 type Handler struct {
 	secret []byte
 	maxTTL time.Duration // operator-configured ceiling; 0 means use default
@@ -74,6 +86,13 @@ type Handler struct {
 	mu      sync.Mutex
 	tmpl    *template.Template
 	tmplSrc string // the template source the current `tmpl` was compiled from
+
+	// seenNonces tracks solved (challenge, nonce) pairs within the current
+	// challenge TTL window. An identical pair presented twice is a replay —
+	// the HMAC alone cannot prevent this because valid signatures can be
+	// captured and reused until they expire. sync.Map is safe for concurrent
+	// verify requests; stale entries are evicted lazily on each verify call.
+	seenNonces sync.Map // key: "challenge:nonce" string → seenNonce
 }
 
 // NewHandler constructs the handler using embedded-default challenge rules.
@@ -562,6 +581,26 @@ func (h *Handler) verifyPOW(r *http.Request, cr *rules.ChallengeRules) (bool, in
 	if !strings.HasPrefix(hex.EncodeToString(digest[:]), wantPrefix) {
 		return false, http.StatusUnauthorized
 	}
+
+	// Replay prevention: reject a (challenge, nonce) pair that was already
+	// accepted within this TTL window. The HMAC signature is valid for the
+	// entire window, so without this check an attacker can capture a single
+	// solved proof and replay it for as long as the timestamp stays in-window.
+	nonceKey := req.Challenge + ":" + strconv.FormatInt(nonce, 10)
+	ttl := h.challengeTTL(cr)
+
+	// Evict expired entries lazily before the lookup.
+	h.seenNonces.Range(func(k, v any) bool {
+		if v.(seenNonce).expiresAt.Before(now) {
+			h.seenNonces.Delete(k)
+		}
+		return true
+	})
+
+	if _, loaded := h.seenNonces.LoadOrStore(nonceKey, seenNonce{expiresAt: now.Add(ttl)}); loaded {
+		return false, http.StatusUnauthorized
+	}
+
 	return true, http.StatusNoContent
 }
 
