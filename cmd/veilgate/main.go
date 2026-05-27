@@ -20,6 +20,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/C0oki3s/veilgate/internal/audit"
+	"github.com/C0oki3s/veilgate/internal/blueprint"
 	"github.com/C0oki3s/veilgate/internal/challenge"
 	"github.com/C0oki3s/veilgate/internal/config"
 	"github.com/C0oki3s/veilgate/internal/detector"
@@ -311,6 +312,15 @@ func main() {
 		log.Warn().Err(err).Msg("load signals.yaml failed; all signals enabled with default points")
 	} else {
 		scorer.SetSignals(signalsVal)
+	}
+
+	// API Blueprint — optional; api_blueprint_miss signal is silently disabled
+	// when no blueprint file is found in rulesDir.
+	if bpVal, err := blueprint.Load(cfg.RulesDir); err != nil {
+		log.Warn().Err(err).Msg("load api blueprint failed; api_blueprint_miss signal disabled")
+	} else if bpVal != nil {
+		scorer.SetBlueprint(bpVal)
+		log.Info().Int("routes", bpVal.RouteCount()).Msg("api blueprint loaded")
 	}
 
 	// HTTP/2 SETTINGS fingerprint store. Always-on; the actual capture
@@ -692,6 +702,24 @@ func main() {
 			scorer.SetIPReputation(ir)
 			return nil
 		})
+		// Blueprint hot-reload: watch all four candidate filenames so any
+		// change (add/edit) triggers a reload without a process restart.
+		reloadBlueprint := func() error {
+			m, err := blueprint.Load(cfg.RulesDir)
+			if err != nil {
+				return err
+			}
+			scorer.SetBlueprint(m)
+			if m != nil {
+				log.Info().Int("routes", m.RouteCount()).Msg("api blueprint reloaded")
+			} else {
+				log.Info().Msg("api blueprint removed")
+			}
+			return nil
+		}
+		for _, bpFile := range []string{"api_blueprint.yaml", "api_blueprint.json", "openapi.yaml", "openapi.json"} {
+			w.Register(bpFile, reloadBlueprint)
+		}
 		w.Register("templates.yaml", func() error {
 			v, err := rules.LoadTemplates(cfg.RulesDir)
 			if err != nil {

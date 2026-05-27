@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/C0oki3s/veilgate/internal/blueprint"
 	"github.com/C0oki3s/veilgate/internal/fakeauth"
 	"github.com/C0oki3s/veilgate/internal/ml"
 	"github.com/C0oki3s/veilgate/internal/rules"
@@ -62,6 +63,10 @@ type Scorer struct {
 	// customRegexes caches compiled path_regex conditions keyed by the raw
 	// regex string so we don't recompile on every request.
 	customRegexes map[string]*regexp.Regexp
+
+	// blueprint is the operator-supplied API route map. nil disables the
+	// api_blueprint_miss signal. Set via SetBlueprint; safe to update at runtime.
+	bp *blueprint.Matcher
 }
 
 // CanaryLookup is what the cross-request canary signal calls on every
@@ -213,6 +218,12 @@ func (s *Scorer) SetSignals(sg *rules.Signals) {
 		}
 	}
 	s.customRegexes = regs
+}
+
+// SetBlueprint wires an operator-supplied API route map. Passing nil disables
+// the api_blueprint_miss signal. Safe to call at any time (hot-reload).
+func (s *Scorer) SetBlueprint(m *blueprint.Matcher) {
+	s.bp = m
 }
 
 // Score evaluates the given request in the context of the client's history.
@@ -379,6 +390,11 @@ func (s *Scorer) Score(clientID string, r *http.Request) Score {
 
 	// Operator-defined custom signals from signals.yaml.
 	result.Signals = append(result.Signals, s.scoreCustomSignals(r)...)
+
+	// Blueprint miss — request is in the API namespace but not a known route.
+	if sig := s.scoreAPIBlueprintMiss(r); sig.Points > 0 {
+		result.Signals = append(result.Signals, sig)
+	}
 
 	// Canary replay — strongest cross-request signal we have.
 	if s.canary != nil {
@@ -1791,4 +1807,29 @@ func (s *Scorer) scoreOOB(r *http.Request) Signal {
 		}
 	}
 	return Signal{}
+}
+
+// scoreAPIBlueprintMiss fires when a request targets the operator's documented
+// API namespace but the path is not present in the blueprint. Callers that
+// probe undocumented routes — common in automated endpoint enumeration — get
+// flagged without touching legitimate traffic outside the namespace.
+//
+// The signal is suppressed when no blueprint is loaded (nil / IsEmpty), so
+// operators who have not supplied a blueprint file see zero impact.
+func (s *Scorer) scoreAPIBlueprintMiss(r *http.Request) Signal {
+	if s.bp == nil || s.bp.IsEmpty() {
+		return Signal{}
+	}
+	path := r.URL.Path
+	if !s.bp.InNamespace(path) {
+		return Signal{}
+	}
+	if s.bp.Matches(path) {
+		return Signal{}
+	}
+	return Signal{
+		Name:   "api_blueprint_miss",
+		Points: 15,
+		Reason: "path is in the API namespace but not in the blueprint",
+	}
 }
