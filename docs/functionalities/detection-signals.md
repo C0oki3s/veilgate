@@ -152,14 +152,24 @@ Signals include:
 | --- | --- |
 | Header shape | `sparse_headers`, `empty_ua`, `suspicious_ua` |
 | Browser consistency | `ae_browser_empty`, `ae_browser_no_br`, `sec_fetch_absent` |
-| Path and payload | `honeypot_hit`, `wordlist_path`, `injection_marker`, `oob_interaction` |
+| Path and payload | `honeypot_hit`, `wordlist_path`, `injection_marker`, `oob_interaction`, `encoding_chain` |
 | Stateful behavior | `regular_timing`, `path_bruteforce`, `fanout_high`, `cookie_stateless` |
+| Session/behavioral | `header_mutation`, `schema_first`, `cache_miss_anomaly`, `no_cookie_return`, `auth_probe_sequence` |
 | Protocol | `tls_agent`, `h2_agent`, `h3_mismatch` |
 | Deception feedback | `canary_replay` |
 | ML | `ml_agent_score` |
 
+## Configuring signals
+
+Every signal can be enabled, disabled, or have its points weight overridden
+at runtime without a restart. Custom detection rules can also be added using
+only YAML — no Go code required.
+
+See [`rules/signals.yaml`](../config/rules/signals.md) for the full reference.
+
 ## Related
 
+- [`rules/signals.yaml`](../config/rules/signals.md) — enable/disable, points overrides, custom signals
 - [Module veilgate_rules](../modules/veilgate_rules.md)
 - [Module veilgate_ml](../modules/veilgate_ml.md)
 - [How VeilGate Processes a Request](../architecture/request-processing.md)

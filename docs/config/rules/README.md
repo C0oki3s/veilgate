@@ -11,6 +11,7 @@ and validate behavior in `mode: "observe"` before enforcement.
 
 | Rule file | Reference | Main code path | Reload |
 | --- | --- | --- | --- |
+| `signals.yaml` | [signals.md](signals.md) | `rules.LoadSignals`, `detector.Scorer.SetSignals` | hot reload |
 | `detector.yaml` | [detector.md](detector.md) | `rules.LoadDetector`, `detector.Scorer` | hot reload |
 | `ip_reputation.yaml` | [ip-reputation.md](ip-reputation.md) | `rules.LoadIPReputation`, `detector.FleetTracker` | hot reload |
 | `tls_fingerprints.yaml` | [tls-fingerprints.md](tls-fingerprints.md) | `rules.LoadTLS`, `tlsfp.Database` | hot reload when TLS DB exists |

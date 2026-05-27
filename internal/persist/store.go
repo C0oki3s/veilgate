@@ -436,6 +436,67 @@ func ensureCandidateColumns(db *sql.DB) error {
 	return nil
 }
 
+// PathSample is one row returned by QueryPathSamples.
+type PathSample struct {
+	Path      string
+	Method    string
+	Score     int
+	Decision  string
+	UserAgent string
+}
+
+// QueryPathSamples returns up to limit recent (path, method, score, decision,
+// user_agent) rows since the given time. Used by the signal recommender to
+// cluster paths and compute precision without complex SQL aggregations.
+func (s *Store) QueryPathSamples(since time.Time, limit int) ([]PathSample, error) {
+	rows, err := s.db.Query(
+		`SELECT path, method, score, decision, user_agent
+		 FROM events
+		 WHERE ts >= ?
+		 ORDER BY id DESC
+		 LIMIT ?`,
+		since.UTC().Format(time.RFC3339), limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PathSample
+	for rows.Next() {
+		var p PathSample
+		if err := rows.Scan(&p.Path, &p.Method, &p.Score, &p.Decision, &p.UserAgent); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// CountEventsByDecision returns aggregate tarpit and clean event counts since
+// the given time. An event is "tarpitted" when decision='tarpit' or its score
+// meets or exceeds tarpitThreshold. An event is "clean" when score = 0.
+func (s *Store) CountEventsByDecision(since time.Time, tarpitThreshold int) (tarpitCount, cleanCount int, err error) {
+	row := s.db.QueryRow(
+		`SELECT
+			SUM(CASE WHEN decision = 'tarpit' OR score >= ? THEN 1 ELSE 0 END),
+			SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END)
+		 FROM events
+		 WHERE ts >= ?`,
+		tarpitThreshold, since.UTC().Format(time.RFC3339),
+	)
+	var tp, cl interface{}
+	if err = row.Scan(&tp, &cl); err != nil {
+		return 0, 0, err
+	}
+	if tp != nil {
+		tarpitCount = int(tp.(int64))
+	}
+	if cl != nil {
+		cleanCount = int(cl.(int64))
+	}
+	return tarpitCount, cleanCount, nil
+}
+
 // Trim deletes events older than cutoff. Runs inside a single transaction.
 // Returns number of rows removed.
 func (s *Store) Trim(cutoff time.Time) (int64, error) {

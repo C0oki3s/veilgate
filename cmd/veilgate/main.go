@@ -25,6 +25,7 @@ import (
 	"github.com/C0oki3s/veilgate/internal/detector"
 	"github.com/C0oki3s/veilgate/internal/h2fp"
 	"github.com/C0oki3s/veilgate/internal/ml"
+	"github.com/C0oki3s/veilgate/internal/recommender"
 	"github.com/C0oki3s/veilgate/internal/payloads"
 	"github.com/C0oki3s/veilgate/internal/persist"
 	"github.com/C0oki3s/veilgate/internal/proxy"
@@ -306,6 +307,12 @@ func main() {
 	scorer.SetRules(detectorRules)
 	scorer.SetIPReputation(ipRep)
 
+	if signalsVal, err := rules.LoadSignals(cfg.RulesDir); err != nil {
+		log.Warn().Err(err).Msg("load signals.yaml failed; all signals enabled with default points")
+	} else {
+		scorer.SetSignals(signalsVal)
+	}
+
 	// HTTP/2 SETTINGS fingerprint store. Always-on; the actual capture
 	// happens at the http2 connection-establishment hook (operators
 	// wire it into their TLS listener if they want H2 fingerprinting).
@@ -414,6 +421,7 @@ func main() {
 	}
 	mlScorer := ml.NewScorer(mlHolder)
 	scorer.SetML(mlScorer, mlExtractor, cfg.Detector.ScoreChallengeThreshold)
+	scorer.SetMLTarpitThreshold(cfg.Detector.ScoreTarpitThreshold)
 
 	// Path redaction. Built-in default rules cover UUIDs / numeric IDs
 	// / hex / base64; any custom regexes in ml.yaml are appended.
@@ -529,6 +537,13 @@ func main() {
 	miner := ml.NewMiner(mlScorer.Bayes(), mlHolder, store, cfg.RulesDir)
 	go miner.Run(rootCtx, func(err error) {
 		log.Warn().Err(err).Msg("miner tick")
+	})
+
+	// Signal recommender — analyses live traffic and writes suggestions to
+	// signal_suggestions.yaml. Never modifies signals.yaml.
+	sigRec := recommender.New(store, mlHolder, cfg.RulesDir, cfg.Detector.ScoreTarpitThreshold)
+	go sigRec.Run(rootCtx, func(err error) {
+		log.Warn().Err(err).Msg("signal recommender tick")
 	})
 
 	// Trim + CSV dump goroutine — replaces the old JSONL rotation script.
@@ -661,6 +676,14 @@ func main() {
 			scorer.SetRules(d)
 			return nil
 		})
+		w.Register("signals.yaml", func() error {
+			sg, err := rules.LoadSignals(cfg.RulesDir)
+			if err != nil {
+				return err
+			}
+			scorer.SetSignals(sg)
+			return nil
+		})
 		w.Register("ip_reputation.yaml", func() error {
 			ir, err := rules.LoadIPReputation(cfg.RulesDir)
 			if err != nil {
@@ -791,6 +814,7 @@ func main() {
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", promhttp.Handler())
 	metricsMux.Handle("/", dash)
+	metricsMux.HandleFunc("/api/signal-suggestions", sigRec.Handler())
 
 	mainSrv := &http.Server{
 		Addr:              cfg.Listen,
