@@ -962,12 +962,14 @@ func main() {
 			}
 		}
 	}()
-	go func() {
-		log.Info().Str("addr", cfg.Metrics.Listen).Msg("metrics listening")
-		if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error().Err(err).Msg("metrics server")
-		}
-	}()
+	if !cfg.Metrics.Disabled {
+		go func() {
+			log.Info().Str("addr", cfg.Metrics.Listen).Msg("metrics listening")
+			if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Error().Err(err).Msg("metrics server")
+			}
+		}()
+	}
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
@@ -989,7 +991,9 @@ func main() {
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutCancel()
 	_ = mainSrv.Shutdown(shutCtx)
-	_ = metricsSrv.Shutdown(shutCtx)
+	if !cfg.Metrics.Disabled {
+		_ = metricsSrv.Shutdown(shutCtx)
+	}
 
 	// Close the store after servers have drained. Any events queued by the
 	// last in-flight requests are now enqueued; store.Close flushes them.

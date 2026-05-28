@@ -88,8 +88,9 @@ tarpit:
 #     upstream_response_timeout: "5m"
 
 metrics:
-  listen: ":9090"
-  # api_key: "change-me"   # protect /api/* endpoints with a bearer token
+  # disabled: true          # set true to turn off the Prometheus pull endpoint entirely
+  listen: "127.0.0.1:9090"  # bind to loopback only; use ":9090" to expose on all interfaces
+  # api_key: "change-me"    # protect /api/* endpoints with a bearer token
 
 # Telemetry: remote observability export via OTLP/HTTP.
 # Works with any OTel-compatible backend out of the box:

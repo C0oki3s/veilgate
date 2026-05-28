@@ -224,8 +224,9 @@ type TarpitConfig struct {
 }
 
 type MetricsConfig struct {
-	Listen string `yaml:"listen"`
-	APIKey string `yaml:"api_key"` // bearer token required on /api/* endpoints; empty = no auth
+	Disabled bool   `yaml:"disabled"` // set true to disable the Prometheus pull endpoint entirely
+	Listen   string `yaml:"listen"`
+	APIKey   string `yaml:"api_key"` // bearer token required on /api/* endpoints; empty = no auth
 }
 
 // TelemetryConfig controls where VeilGate ships traces, logs, and metrics.
@@ -329,7 +330,7 @@ func (c *Config) applyDefaults() {
 		c.Tarpit.ResponseCacheMaxSize = 50_000
 	}
 	if c.Metrics.Listen == "" {
-		c.Metrics.Listen = ":9090"
+		c.Metrics.Listen = "127.0.0.1:9090"
 	}
 	if c.Challenge.Secret == "" {
 		c.Challenge.Secret = "change-me-in-production-or-set-VEILGATE_SECRET"

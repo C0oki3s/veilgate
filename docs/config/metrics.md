@@ -10,6 +10,7 @@ bearer token via `api_key`.
 
 **On this page:**
 
+- [`disabled`](#disabled)
 - [`listen`](#listen)
 - [`api_key`](#api_key)
 - [What's exposed](#whats-exposed)
@@ -19,24 +20,50 @@ bearer token via `api_key`.
 
 ## Parameters
 
+### `disabled`
+
+| Type | Required | Default |
+| --- | --- | --- |
+| bool | no | `false` |
+
+Set `true` to turn off the Prometheus pull endpoint and operator
+dashboard entirely. No listener is opened, no port is bound.
+
+Use this when you only want OTLP push (`telemetry.metrics_push`) and
+don't need a local Prometheus scrape target.
+
+```yaml
+metrics:
+  disabled: true
+```
+
+---
+
 ### `listen`
 
 | Type | Required | Default |
 | --- | --- | --- |
-| string | no | `:9090` |
+| string | no | `127.0.0.1:9090` |
 
-Address the metrics + dashboard listener binds to. Use
-`127.0.0.1:9090` to bind only to loopback - the default config in
-[deployment guide](../deployment/README.md) does this and accesses the dashboard
-via SSH tunnel.
+Address the metrics + dashboard listener binds to. The default binds
+to loopback only — the endpoint is not reachable from the network
+without an explicit bind change or SSH tunnel.
 
 ```yaml
 metrics:
-  listen: "127.0.0.1:9090"
+  listen: "127.0.0.1:9090"   # default — loopback only
 ```
 
-If you need it reachable on the internal network only, bind to the
-internal interface address explicitly:
+To expose on all interfaces (e.g. for a Prometheus scraper on the same
+LAN), bind to `0.0.0.0` and pair it with `api_key`:
+
+```yaml
+metrics:
+  listen: ":9090"
+  api_key: "long-random-secret"
+```
+
+To restrict to a specific internal interface:
 
 ```yaml
 metrics:
