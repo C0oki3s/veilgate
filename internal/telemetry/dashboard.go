@@ -16,11 +16,11 @@ import (
 // are driven by rules/dashboard.yaml -- no hardcoded content.
 type Dashboard struct {
 	mu           sync.Mutex
-	recentEvents []Event
+	recentEvents []DashboardEvent
 	cfgHolder    *rules.Holder[rules.Dashboard]
 }
 
-type Event struct {
+type DashboardEvent struct {
 	Time     time.Time
 	Client   string
 	Path     string
@@ -42,7 +42,7 @@ func (d *Dashboard) cfg() *rules.Dashboard {
 	return new(rules.Dashboard)
 }
 
-func (d *Dashboard) Record(e Event) {
+func (d *Dashboard) Record(e DashboardEvent) {
 	c := d.cfg()
 	max := c.MaxEvents
 	d.mu.Lock()
@@ -57,7 +57,7 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := d.cfg()
 
 	d.mu.Lock()
-	events := append([]Event(nil), d.recentEvents...)
+	events := append([]DashboardEvent(nil), d.recentEvents...)
 	d.mu.Unlock()
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

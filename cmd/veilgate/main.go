@@ -546,26 +546,58 @@ func main() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		var lastDropped uint64
+		var lastBayesEvictions, lastMinerCandidates int64
 		for {
 			select {
 			case <-rootCtx.Done():
 				return
 			case <-ticker.C:
-				telemetry.ClientCardinality.Set(float64(tracker.Len()))
+				trackedN := tracker.Len()
+				telemetry.ClientCardinality.Set(float64(trackedN))
 				fp := scorer.FleetSnapshot()
 				telemetry.FleetFingerprintCardinality.Set(float64(len(fp)))
+				fpCounts := make([]int, 0, len(fp))
 				for _, n := range fp {
 					telemetry.FleetFingerprintIPs.Observe(float64(n))
+					fpCounts = append(fpCounts, n)
 				}
+				var persistQD int
+				var persistDropDelta int64
+				var bayesEntries int
 				if store != nil {
 					d := store.Dropped()
 					if d > lastDropped {
+						persistDropDelta = int64(d - lastDropped)
 						telemetry.PersistDroppedTotal.Add(float64(d - lastDropped))
 						lastDropped = d
 					}
-					telemetry.PersistQueueDepth.Set(float64(store.QueueDepth()))
-					telemetry.MLBayesEntries.Set(float64(mlScorer.Bayes().TotalEntries()))
+					persistQD = store.QueueDepth()
+					bayesEntries = mlScorer.Bayes().TotalEntries()
+					telemetry.PersistQueueDepth.Set(float64(persistQD))
+					telemetry.MLBayesEntries.Set(float64(bayesEntries))
 				}
+				curBayesEvictions := telemetry.BayesEvictionsCount.Load()
+				bayesEvictionsDelta := curBayesEvictions - lastBayesEvictions
+				lastBayesEvictions = curBayesEvictions
+
+				curMinerCandidates := telemetry.MinerCandidatesCount.Load()
+				minerCandidatesDelta := curMinerCandidates - lastMinerCandidates
+				lastMinerCandidates = curMinerCandidates
+
+				telemetry.DefaultBus.Emit(telemetry.Event{
+					Kind: telemetry.KindPeriodic,
+					Periodic: telemetry.PeriodicEvent{
+						TrackedClients:       trackedN,
+						FleetFingerprints:    len(fp),
+						FleetFingerprintIPs:  fpCounts,
+						PersistQueueDepth:    persistQD,
+						PersistDroppedDelta:  persistDropDelta,
+						MLBayesEntries:       bayesEntries,
+						TarpitActiveSessions: int(telemetry.TarpitActiveCount.Load()),
+						BayesEvictionsDelta:  bayesEvictionsDelta,
+						MinerCandidatesDelta: minerCandidatesDelta,
+					},
+				})
 			}
 		}
 	})
@@ -586,6 +618,10 @@ func main() {
 				m := mlHolder.Load()
 				if m == nil || !m.Enabled {
 					telemetry.MLFitsTotal.WithLabelValues("skipped_disabled").Inc()
+					telemetry.DefaultBus.Emit(telemetry.Event{
+						Kind:  telemetry.KindMLFit,
+						MLFit: telemetry.MLFitEvent{Status: "skipped_disabled"},
+					})
 					continue
 				}
 				every := m.IsoForest.RetrainEveryNEvents
@@ -594,13 +630,27 @@ func main() {
 				}
 				if mlScorer.BufferedRows() < every {
 					telemetry.MLFitsTotal.WithLabelValues("skipped_cold").Inc()
+					telemetry.DefaultBus.Emit(telemetry.Event{
+						Kind:  telemetry.KindMLFit,
+						MLFit: telemetry.MLFitEvent{Status: "skipped_cold"},
+					})
 					continue
 				}
 				started := mlScorer.RefitIsoForestAsync(func(rows int, dur time.Duration) {
 					telemetry.MLFitDuration.Observe(dur.Seconds())
 					telemetry.MLFitRows.Observe(float64(rows))
 					telemetry.MLFitsTotal.WithLabelValues("ok").Inc()
-					telemetry.BayesObservedTotal.Set(float64(mlScorer.Observed()))
+					obs := mlScorer.Observed()
+					telemetry.BayesObservedTotal.Set(float64(obs))
+					telemetry.DefaultBus.Emit(telemetry.Event{
+						Kind: telemetry.KindMLFit,
+						MLFit: telemetry.MLFitEvent{
+							Status:      "ok",
+							DurationSec: dur.Seconds(),
+							Rows:        rows,
+							BayesObs:    obs,
+						},
+					})
 					log.Info().
 						Int("rows", rows).
 						Dur("took", dur).
@@ -609,6 +659,10 @@ func main() {
 				})
 				if !started {
 					telemetry.MLFitsTotal.WithLabelValues("skipped_busy").Inc()
+					telemetry.DefaultBus.Emit(telemetry.Event{
+						Kind:  telemetry.KindMLFit,
+						MLFit: telemetry.MLFitEvent{Status: "skipped_busy"},
+					})
 					log.Debug().Msg("iso forest refit skipped — previous fit still running")
 				}
 			}

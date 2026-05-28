@@ -1,8 +1,22 @@
 package telemetry
 
 import (
+	"sync/atomic"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+// Package-level atomics bridge direct call sites that update Prometheus metrics
+// outside the Bus to the 30 s PeriodicEvent so OTelSink achieves full parity.
+//
+// TarpitActiveCount   — incremented/decremented by tarpit.Handler; read as gauge.
+// BayesEvictionsCount — cumulative; periodic ticker computes delta since last read.
+// MinerCandidatesCount — cumulative; periodic ticker computes delta since last read.
+var (
+	TarpitActiveCount    atomic.Int64
+	BayesEvictionsCount  atomic.Int64
+	MinerCandidatesCount atomic.Int64
 )
 
 var (

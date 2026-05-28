@@ -149,6 +149,7 @@ func (m *Miner) Tick() error {
 
 	if len(cands) > 0 {
 		telemetry.MinerCandidates.Add(float64(len(cands)))
+		telemetry.MinerCandidatesCount.Add(int64(len(cands)))
 	}
 
 	if err := m.writeYAML(cands, mc); err != nil {

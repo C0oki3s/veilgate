@@ -52,6 +52,35 @@ func (d Decision) String() string {
 	return "unknown"
 }
 
+// requestLog returns a zerolog event at the level that matches the routing
+// decision, so SigNoz severity coloring works without extra config:
+// tarpit → error (red), challenge → warn (yellow), real/observe → info (blue).
+func requestLog(log zerolog.Logger, d Decision) *zerolog.Event {
+	switch d {
+	case DecisionTarpit:
+		return log.Error()
+	case DecisionChallenge:
+		return log.Warn()
+	default:
+		return log.Info()
+	}
+}
+
+// scoreToThreatLevel maps the raw threat score to a human-readable label.
+// These four labels are stable and can be used as SigNoz filter values.
+func scoreToThreatLevel(score int) string {
+	switch {
+	case score >= 80:
+		return "critical"
+	case score >= 60:
+		return "high"
+	case score >= 30:
+		return "medium"
+	default:
+		return "low"
+	}
+}
+
 // Server wires everything together.
 type Server struct {
 	cfg              *config.Config
@@ -358,13 +387,19 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	score := s.scorer.Score(clientID, r)
 	telemetry.ScoreHistogram.Observe(float64(score.Total))
 
+	evtSignals := make([]telemetry.SignalDetail, 0, len(score.Signals))
+	var evtIPRepCat, evtToolFamily, evtFleetTier, evtPubIPRotCat string
+	var evtIsFleetRotating bool
+
 	for _, sig := range score.Signals {
+		evtSignals = append(evtSignals, telemetry.SignalDetail{Name: sig.Name, Points: sig.Points, Reason: sig.Reason})
 		telemetry.SignalHits.WithLabelValues(sig.Name).Inc()
 		switch sig.Name {
 		case "ip_reputation":
 			// Reason is "client IP matches <cat> CIDR list" — pull cat out.
 			if cat := extractIPRepCategory(sig.Reason); cat != "" {
 				telemetry.IPReputationHits.WithLabelValues(cat).Inc()
+				evtIPRepCat = cat
 			}
 		case "ip_rotation_fleet":
 			tier := "low"
@@ -375,12 +410,15 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 				tier = "mid"
 			}
 			telemetry.FleetRotationFires.WithLabelValues(tier).Inc()
+			evtFleetTier = tier
 		case "ua_rotation":
 			telemetry.UARotationFires.Inc()
 		case "ml_agent_score":
 			telemetry.MLScore.Observe(float64(sig.Points))
 		case "suspicious_ua":
-			telemetry.ToolFamilyHits.WithLabelValues(telemetry.ToolFamilyFromUA(r.UserAgent())).Inc()
+			fam := telemetry.ToolFamilyFromUA(r.UserAgent())
+			telemetry.ToolFamilyHits.WithLabelValues(fam).Inc()
+			evtToolFamily = fam
 		}
 	}
 
@@ -395,6 +433,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		for _, sig := range score.Signals {
 			if sig.Name == "ip_rotation_fleet" {
 				rotating = "yes"
+				evtIsFleetRotating = true
 				tier := "low"
 				switch {
 				case sig.Points >= 40:
@@ -408,6 +447,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 					ipCat = cat
 				}
 				telemetry.PublicIPRotationEvents.WithLabelValues(tier, ipCat).Inc()
+				evtPubIPRotCat = ipCat
 				// Extract distinct count from reason (approximate — parse the number)
 				telemetry.PublicIPRotationDistinctIPs.Observe(float64(sig.Points))
 				break
@@ -440,13 +480,15 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Log every decision for tuning.
-	s.log.Info().
+	// Log every decision for tuning. Level reflects decision severity so
+	// SigNoz can auto-color: tarpit=error(red), challenge=warn(yellow), rest=info(blue).
+	requestLog(s.log, decision).
 		Str("client", clientID).
 		Str("method", r.Method).
 		Str("path", r.URL.Path).
 		Int("score", score.Total).
 		Str("decision", decision.String()).
+		Str("threat_level", scoreToThreatLevel(score.Total)).
 		Interface("signals", score.Signals).
 		Msg("request")
 
@@ -466,8 +508,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// Endpoint correlation — always emit (even score=0) so EndpointRequestTotal
 	// and EndpointScoreTierTotal are accurate denominators. Signal/family
 	// counters only increment when signals actually fired.
-	sigNames := make([]string, len(score.Signals))
-	for i, sig := range score.Signals {
+	sigNames := make([]string, len(evtSignals))
+	for i, sig := range evtSignals {
 		sigNames[i] = sig.Name
 	}
 	telemetry.ObserveEndpoint(r.URL.Path, r.Method, decision.String(), score.Total, sigNames)
@@ -493,7 +535,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(attribute.String("veilgate.score_tier", telemetry.ScoreTier(score.Total)))
 
 	if s.dashboard != nil {
-		s.dashboard.Record(telemetry.Event{
+		s.dashboard.Record(telemetry.DashboardEvent{
 			Time:     time.Now(),
 			Client:   clientID,
 			Path:     r.URL.Path,
@@ -595,7 +637,27 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		proxyHandler.ServeHTTP(rec, r)
 	}
 
-	telemetry.RequestDuration.WithLabelValues(decision.String()).Observe(time.Since(start).Seconds())
+	dur := time.Since(start).Seconds()
+	telemetry.RequestDuration.WithLabelValues(decision.String()).Observe(dur)
+	telemetry.DefaultBus.Emit(telemetry.Event{
+		Kind: telemetry.KindRequest,
+		Request: telemetry.RequestEvent{
+			Decision:        decision.String(),
+			Score:           score.Total,
+			Path:            r.URL.Path,
+			Method:          r.Method,
+			ClientIP:        clientID,
+			UserAgent:       r.UserAgent(),
+			DurationSec:     dur,
+			Signals:         evtSignals,
+			IPRepCategory:   evtIPRepCat,
+			ToolFamily:      evtToolFamily,
+			FleetTier:       evtFleetTier,
+			PubIPRotCat:     evtPubIPRotCat,
+			IsPublicIP:      isPublic,
+			IsFleetRotating: evtIsFleetRotating,
+		},
+	})
 
 	// Feed the response status into the per-client tracker so the
 	// failure-recovery signal can compare with the next request shape.

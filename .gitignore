@@ -39,6 +39,9 @@ docs/security/
 docs/why-veilgate.md
 packages/
 
+# SigNoz dashboard JSON — managed via SigNoz UI, not committed
+configs/dashboards/
+
 # Deployment examples not supported for the current OSS surface.
 # Keep Linux/systemd deployment tracked; ignore the rest.
 deployments/aws/
