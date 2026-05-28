@@ -119,6 +119,12 @@ func InitTelemetry(ctx context.Context, cfg config.TelemetryConfig) (TelemetrySh
 		)
 		otel.SetMeterProvider(mp)
 		shutdowns = append(shutdowns, mp.Shutdown)
+
+		// Register the OTel sink on the global bus so all veilgate.* OTel
+		// instruments are populated independently of the Prometheus registry.
+		if sink := NewOTelSink(mp); sink != nil {
+			DefaultBus.Register(sink)
+		}
 	}
 
 	// ── Logs ─────────────────────────────────────────────────────────────────

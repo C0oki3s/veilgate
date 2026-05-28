@@ -471,6 +471,13 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		sigNames[i] = sig.Name
 	}
 	telemetry.ObserveEndpoint(r.URL.Path, r.Method, decision.String(), score.Total, sigNames)
+	telemetry.DefaultBus.Emit(telemetry.RequestEvent{
+		Decision:    decision.String(),
+		Score:       score.Total,
+		Path:        r.URL.Path,
+		Method:      r.Method,
+		SignalNames: sigNames,
+	})
 
 	// Enrich the OTel span with attack families and individual signal events
 	// so Jaeger/Tempo users can filter traces by attack category.
