@@ -388,6 +388,10 @@ func (h *Handler) serveChallenge(w http.ResponseWriter, r *http.Request, cr *rul
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Content-Type", ct)
 	telemetry.ChallengeIssuedTotal.Inc()
+	telemetry.DefaultBus.Emit(telemetry.Event{
+		Kind:      telemetry.KindChallenge,
+		Challenge: telemetry.ChallengeEvent{Action: "issued", Form: "html"},
+	})
 	w.WriteHeader(sc)
 	_, _ = w.Write(buf.Bytes())
 }
@@ -427,6 +431,10 @@ func (h *Handler) serveSPAChallenge(w http.ResponseWriter, r *http.Request, cr *
 	w.Header().Set("WWW-Authenticate",
 		`Veilgate-Challenge realm="`+r.Host+`"`)
 	telemetry.ChallengeIssuedTotal.Inc()
+	telemetry.DefaultBus.Emit(telemetry.Event{
+		Kind:      telemetry.KindChallenge,
+		Challenge: telemetry.ChallengeEvent{Action: "issued", Form: "spa"},
+	})
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"error":        "challenge_required",
@@ -479,13 +487,25 @@ func (h *Handler) verify(w http.ResponseWriter, r *http.Request, cr *rules.Chall
 	if !ok {
 		if code == http.StatusBadRequest {
 			telemetry.ChallengeFailedTotal.WithLabelValues("bad_request").Inc()
+			telemetry.DefaultBus.Emit(telemetry.Event{
+				Kind:      telemetry.KindChallenge,
+				Challenge: telemetry.ChallengeEvent{Action: "failed", FailReason: "bad_request"},
+			})
 		} else {
 			telemetry.ChallengeFailedTotal.WithLabelValues("unauthorized").Inc()
+			telemetry.DefaultBus.Emit(telemetry.Event{
+				Kind:      telemetry.KindChallenge,
+				Challenge: telemetry.ChallengeEvent{Action: "failed", FailReason: "unauthorized"},
+			})
 		}
 		http.Error(w, "challenge verification failed", code)
 		return
 	}
 	telemetry.ChallengeSolvedTotal.Inc()
+	telemetry.DefaultBus.Emit(telemetry.Event{
+		Kind:      telemetry.KindChallenge,
+		Challenge: telemetry.ChallengeEvent{Action: "solved"},
+	})
 	ts := time.Now().Format(time.RFC3339)
 	mac := h.sign(ts)
 	tokenValue := ts + "." + mac

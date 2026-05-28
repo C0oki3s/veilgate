@@ -219,7 +219,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	n, _ := w.Write([]byte(resp.Body))
 	telemetry.TarpitBytesServed.Add(float64(n))
 
-	telemetry.EstimatedAttackerCostUSD.Add(float64(n) / 1024.0 * 0.003)
+	cost := float64(n) / 1024.0 * 0.003
+	telemetry.EstimatedAttackerCostUSD.Add(cost)
+	telemetry.DefaultBus.Emit(telemetry.Event{
+		Kind: telemetry.KindTarpit,
+		Tarpit: telemetry.TarpitEvent{
+			DelayMs:     int64(delay),
+			BytesServed: n,
+			ContentType: ct,
+			CostUSD:     cost,
+		},
+	})
 }
 
 // route consults injection_strategy.yaml's routes[] list, first match wins.
