@@ -39,6 +39,7 @@ require a process restart unless the page states otherwise.
 | `upload_policies:` | [upload-policies.md](upload-policies.md) | `internal/config.UploadPolicyConfig`, `internal/proxy/upload.go` |
 | `metrics:` | [metrics.md](metrics.md) | `internal/telemetry` |
 | `persist:` | [persist.md](persist.md) | `internal/persist.Store` |
+| `telemetry:` | [telemetry.md](telemetry.md) | `internal/telemetry.InitTelemetry`, `otel.go` |
 | `capture:` | [capture.md](capture.md) | `internal/telemetry.CaptureWriter` |
 
 ## Rule Files
