@@ -7,7 +7,126 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [1.1.4] — 2026-05-28
+
+### Added
+
+- **Signal recommender** (`internal/recommender`): background analysis engine
+  that scans persisted request data and emits candidate custom-signal
+  definitions. Runs on a configurable interval and writes suggestions to
+  `rules/signals.yaml`. Two new Prometheus metrics track analysis cadence:
+  `veilgate_recommender_suggestions_last` and
+  `veilgate_recommender_analysis_duration_seconds`.
+
+- **Behavioral signals** — five new session-level anomaly signals:
+  - `cache_miss_anomaly` — requests that always bypass cache, consistent with
+    headless polling.
+  - `regular_timing` — inter-request interval coefficient of variation below
+    the configured threshold, indicating scripted cadence.
+  - `bundle_mining` — disproportionate requests to JS/CSS asset bundles without
+    corresponding page views.
+  - `recovery_pivot` — client pivots to a different path family immediately
+    after a 4xx, consistent with automated probe-and-retry.
+  - `graph_doc_heavy` — GraphQL introspection and schema requests dominate the
+    session, consistent with API mapping.
+
+- **Session ML dimensions**: per-session feature vector now includes 12
+  additional dimensions (request entropy, path diversity, method mix, timing
+  regularity, header consistency) improving Bayes and Isolation Forest
+  discrimination between humans and bots.
+
+- **Per-IP response cache** (`internal/tarpit/response_cache.go`): scored
+  requests that reach the tarpit reuse a previously-rendered response for the
+  same client within a short TTL. Reduces CPU and memory pressure under
+  sustained single-source attacks without changing what the attacker sees.
+
+- **API blueprint miss signal** (`internal/blueprint`): operator drops an
+  OpenAPI spec or a simple routes list into `rules_dir`; VeilGate fires
+  `api_blueprint_miss` (15 pts, family `recon`) whenever a client probes a
+  path that is in the API namespace but not in the documented routes. Accepts
+  three formats: simple `routes:` list, OpenAPI 3.x `paths:` block, and
+  Swagger 2.0 with `basePath`. Priority order: `api_blueprint.yaml` →
+  `api_blueprint.json` → `openapi.yaml` → `openapi.json`. Hot-reloaded on
+  file change.
+
+- **Comprehensive observability** (`internal/telemetry`):
+  - **37+ Prometheus metrics** across 10 categories: traffic/latency,
+    detector signals, endpoint correlation, challenge funnel, tarpit sessions,
+    online ML (Bayes cap, Isolation Forest), signal recommender, persistence
+    queue, verifier outcomes, and infrastructure cardinality. New metrics
+    include per-decision latency histogram, challenge issued/solved/failed
+    counters, tarpit active sessions gauge, ML Bayes entries/evictions, persist
+    queue depth and drop rate, verifier accepted/rejected split, and four
+    endpoint-correlation counters.
+  - **Endpoint correlation** — four `path_bucket`-keyed counter vectors that
+    share a common label for PromQL joins: `veilgate_endpoint_request_total`,
+    `veilgate_endpoint_signal_total`, `veilgate_endpoint_attack_family_total`,
+    `veilgate_endpoint_score_tier_total`. Path normalisation replaces UUIDs,
+    numeric IDs, and long hex tokens with `{id}` and caps depth at 4 segments
+    to prevent cardinality explosion. Signals are grouped into 9 attack
+    families (`recon`, `auth`, `injection`, `evasion`, `fingerprint`,
+    `behavioral`, `fleet`, `toolchain`, `ml`).
+  - **OpenTelemetry tracing**: two spans per tarpitted or scored request —
+    `veilgate.serve` (full pipeline) and `veilgate.tarpit` (delay + render,
+    nested). Activated by setting `OTEL_EXPORTER_OTLP_ENDPOINT`; pure no-op
+    with zero overhead when unset. Sampling controlled via
+    `OTEL_TRACES_SAMPLER` (default 1 % `parentbased_traceidratio`). Each
+    fired signal is attached as a span event with `name`, `points`, and
+    `reason` fields. Attack families emitted as `veilgate.attack_families`
+    span attribute. Status set to `Error` for tarpit and challenge decisions
+    so trace UIs can filter diverted requests.
+
+- **Scorer refactor** (`internal/detector`): monolithic `scorer.go` split into
+  seven focused files — `scorer_behavioral.go`, `scorer_headers.go`,
+  `scorer_network.go`, `scorer_session.go`, `scorer_timing.go`,
+  `scorer_toolchain.go`, `scorer_custom.go`. Reduces merge surface and makes
+  individual signal groups independently testable.
+
+### Fixed
+
+- **Blueprint cache DoS prevention**: cache entries are pre-claimed with an
+  atomic counter before `sync.Map.LoadOrStore` so concurrent goroutines cannot
+  race past the 4 096-entry cap. Under path-flooding attacks (random UUIDs in
+  paths) the cache degrades gracefully rather than growing unboundedly.
+- **Bayes cap hardening**: `evictLowest` uses a 16-candidate approximation
+  instead of a full scan, keeping eviction O(1) regardless of cap size.
+  `TotalEntries()` is now an exported accessor so the operator dashboard can
+  expose live cap utilisation without locking.
+- **Config-driven behavioral thresholds**: `regular_timing` coefficient of
+  variation, `bundle_mining` ratio, and `recovery_pivot` error rate are now
+  YAML-configurable via `detector:` rather than compiled constants. Existing
+  configs that omit these keys retain the previous defaults.
+- **Critical and medium reliability issues** (infra audit): nil pointer guards
+  on blueprint hot-reload path; per-IP cache TTL enforced under concurrent
+  eviction; ML scorer context cancellation propagated correctly through the
+  refit goroutine; persist queue depth counter now tracked accurately across
+  process restart.
+- **Prometheus cardinality**: endpoint-correlation `path_bucket` label normalises
+  variable segments before emission, preventing label-set explosion under
+  UUID-heavy API traffic.
+
+### Documentation
+
+- `docs/how-to/opentelemetry.md` — new guide: OTLP setup, sampling config,
+  span attribute reference, filter recipes for Jaeger/Tempo/SigNoz, collector
+  config snippets.
+- `docs/how-to/endpoint-correlation.md` — new guide: four-metric correlation
+  model, path normalisation rules, attack-family table, score-tier table,
+  Grafana panel recipes, 5-step investigation workflow.
+- `docs/how-to/api-blueprint.md` — new guide: all three input formats, namespace
+  inference, hot-reload, signal weight tuning.
+- `docs/operations/prometheus-queries.md` — 12 new query sections covering
+  endpoint correlation, challenge funnel, tarpit active sessions and content
+  type, Bayes cap health, verifier outcomes, persist health, and recommender
+  metrics.
+- `docs/functionalities/metrics-dashboard.md` — full metrics reference table
+  covering all 37+ metrics across 10 categories.
+- `docs/config/metrics.md` — added `api_key` bearer-token parameter for
+  protecting `/api/*` dashboard endpoints.
+
+---
+
+## [1.1.3] — 2026-05-24
 
 ### Added
 
@@ -47,7 +166,6 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
       response. Returns a `DecoyMiddlewareFn` with `.setEnabled(bool)` and
       `.update(Partial<DecoyOptions>)` for runtime control without recreating
       the middleware.
-
 
 ---
 
