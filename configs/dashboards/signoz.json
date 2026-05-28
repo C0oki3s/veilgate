@@ -335,15 +335,21 @@
     {
       "id": "p12",
       "title": "Log Stream — Tarpitted & Challenged Requests",
-      "description": "Structured log lines where decision=tarpit or challenge. Fields available: score, path, method, client, signals fired.",
+      "description": "Structured log lines where decision=tarpit or challenge. Columns: score, path, method, client, signals fired.",
       "panelTypes": "list",
       "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
       "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
       "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "",
       "selectedLogFields": [
-        {"dataType":"string","name":"timestamp","type":""},
-        {"dataType":"string","name":"severity_text","type":""},
-        {"dataType":"string","name":"body","type":""}
+        {"dataType":"string","name":"timestamp",     "type":""},
+        {"dataType":"string","name":"severity_text", "type":""},
+        {"dataType":"string","name":"body",          "type":""},
+        {"dataType":"string","name":"decision",      "type":"tag"},
+        {"dataType":"string","name":"score",         "type":"tag"},
+        {"dataType":"string","name":"method",        "type":"tag"},
+        {"dataType":"string","name":"path",          "type":"tag"},
+        {"dataType":"string","name":"client",        "type":"tag"},
+        {"dataType":"string","name":"signals",       "type":"tag"}
       ],
       "selectedTracesFields": [],
       "query": {
@@ -470,9 +476,14 @@
       "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
       "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "",
       "selectedLogFields": [
-        {"dataType":"string","name":"timestamp","type":""},
-        {"dataType":"string","name":"severity_text","type":""},
-        {"dataType":"string","name":"body","type":""}
+        {"dataType":"string","name":"timestamp",     "type":""},
+        {"dataType":"string","name":"severity_text", "type":""},
+        {"dataType":"string","name":"body",          "type":""},
+        {"dataType":"string","name":"decision",      "type":"tag"},
+        {"dataType":"string","name":"score",         "type":"tag"},
+        {"dataType":"string","name":"path",          "type":"tag"},
+        {"dataType":"string","name":"client",        "type":"tag"},
+        {"dataType":"string","name":"signals",       "type":"tag"}
       ],
       "selectedTracesFields": [],
       "query": {
@@ -624,15 +635,21 @@
     {
       "id": "p22",
       "title": "Log Stream — All Requests (veilgate-demo-api)",
-      "description": "Full request log stream for the veilgate-demo-api service across all routing decisions. Use body.<key> filters to drill into specific fields (e.g. body.decision, body.path, body.score).",
+      "description": "Full request log stream across all routing decisions. Columns show every field VeilGate attaches: score, decision, path, method, client, signals. Use body.<key> in the search bar to filter by any attribute.",
       "panelTypes": "list",
       "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
       "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
       "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "",
       "selectedLogFields": [
-        {"dataType":"string","name":"timestamp","type":""},
-        {"dataType":"string","name":"severity_text","type":""},
-        {"dataType":"string","name":"body","type":""}
+        {"dataType":"string","name":"timestamp",     "type":""},
+        {"dataType":"string","name":"severity_text", "type":""},
+        {"dataType":"string","name":"body",          "type":""},
+        {"dataType":"string","name":"decision",      "type":"tag"},
+        {"dataType":"string","name":"score",         "type":"tag"},
+        {"dataType":"string","name":"method",        "type":"tag"},
+        {"dataType":"string","name":"path",          "type":"tag"},
+        {"dataType":"string","name":"client",        "type":"tag"},
+        {"dataType":"string","name":"signals",       "type":"tag"}
       ],
       "selectedTracesFields": [],
       "query": {
