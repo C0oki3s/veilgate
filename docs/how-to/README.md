@@ -20,6 +20,9 @@ operator hits during install or day-2 ops.
 | [Monitor with Prometheus + Grafana](monitor-with-prometheus.md) | When you want history, not just live metrics |
 | [Install community rules](install-community-rules.md) | Pull the latest community-maintained detection rules from veilgate-rules |
 | [ShopStorm API: server-to-server](shopstorm-api-server-to-server.md) | Call the ShopStorm demo API from a backend service using HMAC signing |
+| [API blueprinting](api-blueprint.md) | Provide your OpenAPI / route list so VeilGate can detect undocumented-path probing |
+| [OpenTelemetry tracing](opentelemetry.md) | Ship request traces to Jaeger, Tempo, or SigNoz for per-request signal inspection |
+| [Endpoint correlation](endpoint-correlation.md) | Use Prometheus endpoint-correlation metrics to identify attacked routes and attack families |
 
 If you don't see your task here, the [configuration reference](../config/README.md)
 documents every individual setting.
