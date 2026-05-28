@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/C0oki3s/veilgate/internal/config"
 	"github.com/C0oki3s/veilgate/internal/fakeauth"
 	"github.com/C0oki3s/veilgate/internal/rules"
@@ -48,6 +50,13 @@ type Handler struct {
 	// replay later. Optional — nil disables registration (detection still
 	// works for any tokens pre-seeded into the table by other means).
 	canaryReg CanaryRegistrar
+
+	// respCache stores the first rendered response per (clientID, path) so
+	// re-requests from the same IP always receive identical bytes. Agents
+	// routinely re-fetch the same path 3-9 times; without the cache each
+	// render produces slightly different timestamps/visit-counts which could
+	// signal that the response is generated rather than static.
+	respCache *ResponseCache
 }
 
 // PayloadInjector is implemented by the payloads package (phase 3).
@@ -73,14 +82,17 @@ func NewHandler(cfg *config.TarpitConfig, store *ProfileStore, injector PayloadI
 	}
 	vuln := new(rules.Vulnerabilities)
 	strat := new(rules.InjectionStrategy)
+	cacheTTL := time.Duration(cfg.ResponseCacheTTLMinutes) * time.Minute
+	cacheMax := cfg.ResponseCacheMaxSize
 	return &Handler{
-		cfg:      cfg,
-		profiles: store,
-		renderer: NewRenderer(),
-		injector: injector,
-		vuln:     rules.NewHolder(vuln),
-		strategy: rules.NewHolder(strat),
-		regexes:  make(map[string]*regexp.Regexp),
+		cfg:       cfg,
+		profiles:  store,
+		renderer:  NewRenderer(),
+		injector:  injector,
+		vuln:      rules.NewHolder(vuln),
+		strategy:  rules.NewHolder(strat),
+		regexes:   make(map[string]*regexp.Regexp),
+		respCache: NewResponseCache(cacheTTL, cacheMax),
 	}
 }
 
@@ -136,37 +148,52 @@ func (h *Handler) invalidateRegexCache() {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx, span := telemetry.Tracer.Start(r.Context(), "veilgate.tarpit")
+	defer span.End()
+	r = r.WithContext(ctx)
+
+	telemetry.TarpitActiveSessions.Inc()
+	defer telemetry.TarpitActiveSessions.Dec()
+
 	clientID := clientIP(r)
 	profile := h.profiles.Get(clientID)
 
+	// The tarpit delay applies regardless of cache state — we still want to
+	// slow down agents even when serving a cached response.
 	delay := randBetween(h.cfg.MinLatencyMs, h.cfg.MaxLatencyMs)
 	time.Sleep(time.Duration(delay) * time.Millisecond)
 	telemetry.TarpitLatencyMs.Add(float64(delay))
 
-	resp := h.route(r, profile)
+	var resp Response
+	if cached, ok := h.respCache.Get(clientID, r.URL.Path); ok {
+		resp = cached
+	} else {
+		resp = h.route(r, profile)
 
-	resp.Body = h.injector.Inject(resp.ContentType, resp.Body, InjectionContext{
-		Path:     r.URL.Path,
-		ClientID: clientID,
-		Visits:   profile.Visits,
-	})
+		resp.Body = h.injector.Inject(resp.ContentType, resp.Body, InjectionContext{
+			Path:     r.URL.Path,
+			ClientID: clientID,
+			Visits:   profile.Visits,
+		})
 
-	if len(resp.Body) > h.cfg.MaxBodyBytes {
-		resp.Body = resp.Body[:h.cfg.MaxBodyBytes]
-	}
-
-	// Register every token-shaped string in the response body so that a
-	// subsequent request carrying the same token fires canary_replay.
-	// Fire-and-forget in a goroutine — the hot path must not stall on DB I/O.
-	if h.canaryReg != nil {
-		if toks := fakeauth.ExtractCanaries(resp.Body); len(toks) > 0 {
-			reg := h.canaryReg
-			go func() {
-				for _, tok := range toks {
-					_ = reg.InsertCanary(tok, clientID, 24*time.Hour)
-				}
-			}()
+		if len(resp.Body) > h.cfg.MaxBodyBytes {
+			resp.Body = resp.Body[:h.cfg.MaxBodyBytes]
 		}
+
+		// Register canaries only on first render — re-registering on every
+		// cache hit would flood the canary table with duplicates.
+		if h.canaryReg != nil {
+			if toks := fakeauth.ExtractCanaries(resp.Body); len(toks) > 0 {
+				reg := h.canaryReg
+				go func() {
+					for _, tok := range toks {
+						_ = reg.InsertCanary(tok, clientID, 24*time.Hour)
+					}
+				}()
+			}
+		}
+
+		h.respCache.Set(clientID, r.URL.Path, resp)
 	}
 
 	for k, v := range resp.Headers {
@@ -181,6 +208,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Vary", "Origin")
 	}
+	ct := telemetry.ContentTypeCategory(resp.ContentType)
+	telemetry.TarpitTemplateTypeTotal.WithLabelValues(ct).Inc()
+	span.SetAttributes(
+		attribute.String("tarpit.content_type", ct),
+		attribute.Int("tarpit.delay_ms", delay),
+		attribute.String("http.path", r.URL.Path),
+	)
 	w.WriteHeader(resp.Status)
 	n, _ := w.Write([]byte(resp.Body))
 	telemetry.TarpitBytesServed.Add(float64(n))

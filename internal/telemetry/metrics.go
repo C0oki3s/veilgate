@@ -176,6 +176,122 @@ var (
 		Name: "veilgate_ml_bayes_observed",
 		Help: "Total weak-labelled examples sent to the online Bayes classifier.",
 	})
+
+	// RequestDuration — end-to-end proxy latency split by routing decision.
+	RequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "veilgate_request_duration_seconds",
+		Help:    "End-to-end proxy request latency in seconds, by routing decision.",
+		Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+	}, []string{"decision"})
+
+	// ChallengeIssuedTotal — one per PoW page (HTML or JSON) served.
+	ChallengeIssuedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "veilgate_challenge_issued_total",
+		Help: "Total PoW challenge pages served to clients.",
+	})
+
+	// ChallengeSolvedTotal — one per successful verify POST.
+	ChallengeSolvedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "veilgate_challenge_solved_total",
+		Help: "Total PoW challenge proofs successfully verified.",
+	})
+
+	// ChallengeFailedTotal — failed verify POSTs by failure reason.
+	ChallengeFailedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "veilgate_challenge_failed_total",
+		Help: "Failed PoW challenge verifications by failure reason.",
+	}, []string{"reason"}) // "bad_request", "unauthorized"
+
+	// RecommenderSuggestionsLast — count of suggestions from the most recent pass.
+	RecommenderSuggestionsLast = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "veilgate_recommender_suggestions_last",
+		Help: "Number of signal suggestions produced in the last recommender pass.",
+	})
+
+	// RecommenderAnalysisDuration — time for one recommender analysis pass.
+	RecommenderAnalysisDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "veilgate_recommender_analysis_duration_seconds",
+		Help:    "Time taken by one signal recommender analysis pass.",
+		Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60},
+	})
+
+	// MLBayesEntries — current distinct (feature, bucket) pair count.
+	MLBayesEntries = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "veilgate_ml_bayes_entries",
+		Help: "Current number of distinct (feature, bucket) pairs in the Bayes histogram.",
+	})
+
+	// MLBayesEvictionsTotal — total cap-evictions from the Bayes histogram.
+	MLBayesEvictionsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "veilgate_ml_bayes_evictions_total",
+		Help: "Total (feature, bucket) pairs evicted from the Bayes histogram cap.",
+	})
+
+	// PersistDroppedTotal — events dropped due to write-queue saturation.
+	PersistDroppedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "veilgate_persist_dropped_total",
+		Help: "Total events dropped due to persist write-queue back-pressure.",
+	})
+
+	// VerifierResultTotal — verifier chain outcomes by type and result.
+	VerifierResultTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "veilgate_verifier_result_total",
+		Help: "Verifier chain outcomes by verifier type and result (accepted/rejected).",
+	}, []string{"verifier_type", "result"})
+
+	// TarpitActiveSessions — in-flight tarpit ServeHTTP calls.
+	TarpitActiveSessions = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "veilgate_tarpit_active_sessions",
+		Help: "Number of tarpit ServeHTTP calls currently in flight.",
+	})
+
+	// TarpitTemplateTypeTotal — tarpit responses by content category.
+	TarpitTemplateTypeTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "veilgate_tarpit_template_type_total",
+		Help: "Count of tarpit responses served per content-type category.",
+	}, []string{"type"}) // "json", "html", "graphql", "text", "other"
+
+	// EndpointSignalTotal — every detection signal correlated to the
+	// normalised endpoint it fired on, plus the HTTP method and routing
+	// decision. Answers "which signals fire on which endpoints, and what
+	// did VeilGate do about it?"
+	//
+	// path_bucket: UUID/numeric segments collapsed to {id}, depth ≤ 4.
+	// signal:      exact signal name (e.g. "injection_marker", "schema_first").
+	// method:      HTTP method (GET, POST, PUT …).
+	// decision:    proxy outcome (real, tarpit, challenge, observe).
+	EndpointSignalTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "veilgate_endpoint_signal_total",
+		Help: "Detection signal hits per endpoint+method+decision. Use to answer which signals fire on which endpoints.",
+	}, []string{"path_bucket", "signal", "method", "decision"})
+
+	// EndpointAttackFamilyTotal — signals bucketed into 9 attack families
+	// per endpoint. A single request can increment multiple families.
+	// Answers "what attack category is targeting this endpoint?"
+	//
+	// family: recon | auth | injection | evasion | fingerprint |
+	//         behavioral | fleet | toolchain | ml
+	EndpointAttackFamilyTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "veilgate_endpoint_attack_family_total",
+		Help: "Attack-family hits per endpoint+method+decision. Groups signals into recon/auth/injection/evasion/fingerprint/behavioral/fleet/toolchain/ml.",
+	}, []string{"path_bucket", "family", "method", "decision"})
+
+	// EndpointScoreTierTotal — score severity tier per endpoint and
+	// decision. Answers "how dangerous are the requests hitting this
+	// endpoint?" without needing to know individual signal names.
+	//
+	// tier: critical (≥80) | high (60–79) | medium (40–59) | low (<40)
+	EndpointScoreTierTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "veilgate_endpoint_score_tier_total",
+		Help: "Request count per endpoint+score-tier+decision. Shows attack severity distribution per endpoint.",
+	}, []string{"path_bucket", "tier", "decision"})
+
+	// EndpointRequestTotal — all scored requests per endpoint, method, and
+	// decision. Use as the denominator when computing per-endpoint signal rates.
+	EndpointRequestTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "veilgate_endpoint_request_total",
+		Help: "All scored requests per endpoint+method+decision. Denominator for per-endpoint signal/attack rates.",
+	}, []string{"path_bucket", "method", "decision"})
 )
 
 // ToolFamilyFromUA maps a suspicious-UA match substring back to a

@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver, no CGO
@@ -68,6 +70,10 @@ type Store struct {
 	dropped       uint64
 	wg            sync.WaitGroup
 	stop          chan struct{}
+
+	// lastDropLog gates the "queue full, dropping" warning to at most once per
+	// minute so a sustained back-pressure episode doesn't flood the log.
+	lastDropLog atomic.Int64 // unix seconds of last logged drop
 }
 
 // Config drives Open. All fields have sane zero-value defaults.
@@ -189,6 +195,7 @@ func (s *Store) Record(e Event) {
 	case s.queue <- e:
 	default:
 		s.dropped++
+		s.warnDrop()
 	}
 }
 
@@ -201,11 +208,26 @@ func (s *Store) RollupUpdate(d RollupDelta) {
 	case s.rollupQueue <- d:
 	default:
 		s.dropped++
+		s.warnDrop()
+	}
+}
+
+// warnDrop emits a log warning at most once per minute when the write queue
+// is saturated, so operators know the flusher is falling behind without
+// drowning the log under per-request noise.
+func (s *Store) warnDrop() {
+	now := time.Now().Unix()
+	last := s.lastDropLog.Load()
+	if now-last >= 60 && s.lastDropLog.CompareAndSwap(last, now) {
+		log.Printf("persist: write queue full — events are being dropped (total dropped so far: %d); check flusher health", s.dropped)
 	}
 }
 
 // Dropped returns the cumulative count of events dropped due to back-pressure.
 func (s *Store) Dropped() uint64 { return s.dropped }
+
+// QueueDepth returns the current number of items pending in the write queue.
+func (s *Store) QueueDepth() int { return len(s.queue) }
 
 func (s *Store) flusher() {
 	defer s.wg.Done()
@@ -290,6 +312,32 @@ commit:
 		}
 	}
 	_ = tx.Commit()
+
+	// Hard row cap: if the events table has grown past the ceiling, trim the
+	// oldest 10 % immediately rather than waiting for the next maintenance
+	// cycle. This prevents unbounded growth when the operator disables
+	// retention or the maintenance goroutine stalls.
+	s.enforceRowCap()
+}
+
+// maxEventRows is the hard ceiling on the events table. 10 million rows at
+// roughly 500 bytes each is ~5 GB — generous for most deployments. Operators
+// who need more should set retain_hours to expire rows sooner instead.
+const maxEventRows = 10_000_000
+
+// enforceRowCap trims the oldest 10% of events when the table exceeds
+// maxEventRows. Runs inline after each flush batch; skips the COUNT(*) scan
+// when fewer than 1000 rows were just committed to avoid querying every tick.
+func (s *Store) enforceRowCap() {
+	var count int64
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM events`).Scan(&count); err != nil {
+		return
+	}
+	if count <= maxEventRows {
+		return
+	}
+	trim := count / 10 // remove oldest 10 %
+	s.db.Exec(`DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY id ASC LIMIT ?)`, trim)
 }
 
 // QueryRollup returns every rollup row; small table by design (bounded by
@@ -434,6 +482,67 @@ func ensureCandidateColumns(db *sql.DB) error {
 		}
 	}
 	return nil
+}
+
+// PathSample is one row returned by QueryPathSamples.
+type PathSample struct {
+	Path      string
+	Method    string
+	Score     int
+	Decision  string
+	UserAgent string
+}
+
+// QueryPathSamples returns up to limit recent (path, method, score, decision,
+// user_agent) rows since the given time. Used by the signal recommender to
+// cluster paths and compute precision without complex SQL aggregations.
+func (s *Store) QueryPathSamples(since time.Time, limit int) ([]PathSample, error) {
+	rows, err := s.db.Query(
+		`SELECT path, method, score, decision, user_agent
+		 FROM events
+		 WHERE ts >= ?
+		 ORDER BY id DESC
+		 LIMIT ?`,
+		since.UTC().Format(time.RFC3339), limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PathSample
+	for rows.Next() {
+		var p PathSample
+		if err := rows.Scan(&p.Path, &p.Method, &p.Score, &p.Decision, &p.UserAgent); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// CountEventsByDecision returns aggregate tarpit and clean event counts since
+// the given time. An event is "tarpitted" when decision='tarpit' or its score
+// meets or exceeds tarpitThreshold. An event is "clean" when score = 0.
+func (s *Store) CountEventsByDecision(since time.Time, tarpitThreshold int) (tarpitCount, cleanCount int, err error) {
+	row := s.db.QueryRow(
+		`SELECT
+			SUM(CASE WHEN decision = 'tarpit' OR score >= ? THEN 1 ELSE 0 END),
+			SUM(CASE WHEN score = 0 THEN 1 ELSE 0 END)
+		 FROM events
+		 WHERE ts >= ?`,
+		tarpitThreshold, since.UTC().Format(time.RFC3339),
+	)
+	var tp, cl interface{}
+	if err = row.Scan(&tp, &cl); err != nil {
+		return 0, 0, err
+	}
+	if tp != nil {
+		tarpitCount = int(tp.(int64))
+	}
+	if cl != nil {
+		cleanCount = int(cl.(int64))
+	}
+	return tarpitCount, cleanCount, nil
 }
 
 // Trim deletes events older than cutoff. Runs inside a single transaction.
@@ -657,4 +766,65 @@ func (s *Store) Maintenance(ctx context.Context, every time.Duration, onError fu
 			}
 		}
 	}
+}
+
+// UpsertSuggestions stores one batch of signal recommendations.
+// Each recommendation is keyed by name; subsequent upserts replace the row so
+// the handler always serves the most recent analysis cycle's output.
+// jsonEncode must produce the JSON for each recommendation — passed as a func
+// so store.go doesn't import the recommender package.
+func (s *Store) UpsertSuggestions(names []string, confidences []float64, supports []int, jsons [][]byte) error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare(`INSERT INTO signal_suggestions (name, confidence, support, proposed_at, json)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(name) DO UPDATE SET
+			confidence  = excluded.confidence,
+			support     = excluded.support,
+			proposed_at = excluded.proposed_at,
+			json        = excluded.json`)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer stmt.Close()
+	for i, name := range names {
+		if _, err := stmt.Exec(name, confidences[i], supports[i], now, string(jsons[i])); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// ListSuggestions returns the stored signal suggestions as raw JSON objects,
+// ordered by confidence descending. Returns nil when no suggestions are stored.
+func (s *Store) ListSuggestions() ([]json.RawMessage, error) {
+	if s == nil || s.db == nil {
+		return nil, nil
+	}
+	rows, err := s.db.Query(
+		`SELECT json FROM signal_suggestions ORDER BY confidence DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []json.RawMessage
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		out = append(out, json.RawMessage(raw))
+	}
+	return out, rows.Err()
 }

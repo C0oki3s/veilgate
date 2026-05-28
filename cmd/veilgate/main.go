@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -20,11 +23,13 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/C0oki3s/veilgate/internal/audit"
+	"github.com/C0oki3s/veilgate/internal/blueprint"
 	"github.com/C0oki3s/veilgate/internal/challenge"
 	"github.com/C0oki3s/veilgate/internal/config"
 	"github.com/C0oki3s/veilgate/internal/detector"
 	"github.com/C0oki3s/veilgate/internal/h2fp"
 	"github.com/C0oki3s/veilgate/internal/ml"
+	"github.com/C0oki3s/veilgate/internal/recommender"
 	"github.com/C0oki3s/veilgate/internal/payloads"
 	"github.com/C0oki3s/veilgate/internal/persist"
 	"github.com/C0oki3s/veilgate/internal/proxy"
@@ -200,6 +205,26 @@ func parseDurationOrZero(s string) (time.Duration, error) {
 	return time.ParseDuration(s)
 }
 
+// apiKeyMiddleware protects a handler with a static bearer token. The
+// comparison uses hmac.Equal (constant-time) to prevent timing oracle attacks.
+// When key is empty the middleware is a no-op and next is called directly.
+func apiKeyMiddleware(key string, next http.HandlerFunc) http.HandlerFunc {
+	if key == "" {
+		return next
+	}
+	wantHash := sha256.Sum256([]byte(key))
+	return func(w http.ResponseWriter, r *http.Request) {
+		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		gotHash := sha256.Sum256([]byte(got))
+		if !hmac.Equal(wantHash[:], gotHash[:]) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="veilgate"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
+
 // canaryAdapter wraps persist.Store so it satisfies the
 // detector.CanaryLookup interface (which deliberately doesn't import
 // persist to avoid the import cycle).
@@ -292,6 +317,32 @@ func main() {
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	defer rootCancel()
 
+	// OpenTelemetry — no-op when OTEL_EXPORTER_OTLP_ENDPOINT is unset.
+	otelShutdown, err := telemetry.InitTracer(rootCtx)
+	if err != nil {
+		log.Warn().Err(err).Msg("otel tracer init failed; continuing without tracing")
+	} else {
+		defer func() { _ = otelShutdown(context.Background()) }()
+	}
+
+	// Supervised goroutine launcher. A panic in any background worker is
+	// logged and the WaitGroup is decremented so shutdown never deadlocks.
+	var bgWg sync.WaitGroup
+	withRecover := func(name string, fn func()) {
+		bgWg.Add(1)
+		go func() {
+			defer bgWg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Str("goroutine", name).
+						Interface("panic", r).
+						Msg("recovered panic; goroutine exiting")
+				}
+			}()
+			fn()
+		}()
+	}
+
 	detectorRules, err := rules.LoadDetector(cfg.RulesDir)
 	if err != nil {
 		log.Fatal().Err(err).Msg("load detector rules")
@@ -305,6 +356,21 @@ func main() {
 	scorer := detector.NewScorer(tracker, cfg.Detector.ProbePaths, cfg.Detector.TrustedIPs)
 	scorer.SetRules(detectorRules)
 	scorer.SetIPReputation(ipRep)
+
+	if signalsVal, err := rules.LoadSignals(cfg.RulesDir); err != nil {
+		log.Warn().Err(err).Msg("load signals.yaml failed; all signals enabled with default points")
+	} else {
+		scorer.SetSignals(signalsVal)
+	}
+
+	// API Blueprint — optional; api_blueprint_miss signal is silently disabled
+	// when no blueprint file is found in rulesDir.
+	if bpVal, err := blueprint.Load(cfg.RulesDir); err != nil {
+		log.Warn().Err(err).Msg("load api blueprint failed; api_blueprint_miss signal disabled")
+	} else if bpVal != nil {
+		scorer.SetBlueprint(bpVal)
+		log.Info().Int("routes", bpVal.RouteCount()).Msg("api blueprint loaded")
+	}
 
 	// HTTP/2 SETTINGS fingerprint store. Always-on; the actual capture
 	// happens at the http2 connection-establishment hook (operators
@@ -363,14 +429,15 @@ func main() {
 			log.Fatal().Err(err).Str("path", cfg.Persist.Path).Msg("open persist store")
 		}
 		log.Info().Str("path", cfg.Persist.Path).Msg("persist store open")
-		defer store.Close()
 
 		// Canary table lives in the same store; wire the detector lookup.
 		scorer.SetCanaryLookup(canaryAdapter{store})
 
 		// Periodic maintenance: WAL checkpoint truncation + canary GC.
-		go store.Maintenance(rootCtx, 5*time.Minute, func(err error) {
-			log.Warn().Err(err).Msg("persist maintenance")
+		withRecover("persist.maintenance", func() {
+			store.Maintenance(rootCtx, 5*time.Minute, func(err error) {
+				log.Warn().Err(err).Msg("persist maintenance")
+			})
 		})
 	}
 
@@ -414,6 +481,7 @@ func main() {
 	}
 	mlScorer := ml.NewScorer(mlHolder)
 	scorer.SetML(mlScorer, mlExtractor, cfg.Detector.ScoreChallengeThreshold)
+	scorer.SetMLTarpitThreshold(cfg.Detector.ScoreTarpitThreshold)
 
 	// Path redaction. Built-in default rules cover UUIDs / numeric IDs
 	// / hex / base64; any custom regexes in ml.yaml are appended.
@@ -438,7 +506,7 @@ func main() {
 	}
 
 	// Background GC for stale client state + cardinality gauges.
-	go func() {
+	withRecover("gc", func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 		for {
@@ -456,15 +524,16 @@ func main() {
 				}
 			}
 		}
-	}()
+	})
 
 	// Cardinality gauges — tiny poll so the Prometheus graphs have
 	// something to plot for "how many unique clients / fingerprints
 	// are we tracking right now". 30s is short enough to feel live,
 	// long enough that the locks don't cost anything.
-	go func() {
+	withRecover("cardinality.gauges", func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
+		var lastDropped uint64
 		for {
 			select {
 			case <-rootCtx.Done():
@@ -476,16 +545,25 @@ func main() {
 				for _, n := range fp {
 					telemetry.FleetFingerprintIPs.Observe(float64(n))
 				}
+				if store != nil {
+					d := store.Dropped()
+					if d > lastDropped {
+						telemetry.PersistDroppedTotal.Add(float64(d - lastDropped))
+						lastDropped = d
+					}
+					telemetry.PersistQueueDepth.Set(float64(store.QueueDepth()))
+					telemetry.MLBayesEntries.Set(float64(mlScorer.Bayes().TotalEntries()))
+				}
 			}
 		}
-	}()
+	})
 
 	// Isolation Forest refit loop — decoupled from request path AND
 	// from the ticker itself. A fit runs on its own goroutine; if the
 	// previous fit is still in-flight when the next tick arrives, we
 	// skip it rather than stack, so ingestion (Observe) is never
 	// slowed down by retrain contention.
-	go func() {
+	withRecover("isoforest.refit", func() {
 		t := time.NewTicker(1 * time.Minute)
 		defer t.Stop()
 		for {
@@ -523,17 +601,28 @@ func main() {
 				}
 			}
 		}
-	}()
+	})
 
 	// Rule miner — proposes candidates into rules/learned.yaml.
 	miner := ml.NewMiner(mlScorer.Bayes(), mlHolder, store, cfg.RulesDir)
-	go miner.Run(rootCtx, func(err error) {
-		log.Warn().Err(err).Msg("miner tick")
+	withRecover("miner", func() {
+		miner.Run(rootCtx, func(err error) {
+			log.Warn().Err(err).Msg("miner tick")
+		})
+	})
+
+	// Signal recommender — analyses live traffic and writes suggestions to
+	// signal_suggestions.yaml. Never modifies signals.yaml.
+	sigRec := recommender.New(store, mlHolder, cfg.RulesDir, cfg.Detector.ScoreTarpitThreshold)
+	withRecover("signal.recommender", func() {
+		sigRec.Run(rootCtx, func(err error) {
+			log.Warn().Err(err).Msg("signal recommender tick")
+		})
 	})
 
 	// Trim + CSV dump goroutine — replaces the old JSONL rotation script.
 	if store != nil && cfg.Persist.RetentionDays > 0 {
-		go func() {
+		withRecover("persist.trim", func() {
 			t := time.NewTicker(6 * time.Hour)
 			defer t.Stop()
 			for {
@@ -559,7 +648,7 @@ func main() {
 					log.Info().Int64("rows", n).Msg("persist trimmed")
 				}
 			}
-		}()
+		})
 	}
 
 	profileStore := tarpit.NewProfileStore()
@@ -638,8 +727,10 @@ func main() {
 		// cost is one ticker — cheap.
 		if cfg.Capture.RetentionHours > 0 {
 			every, _ := time.ParseDuration(cfg.Capture.JanitorEvery)
-			go cap.RunJanitor(rootCtx, every, func(err error) {
-				log.Warn().Err(err).Msg("capture janitor")
+			withRecover("capture.janitor", func() {
+				cap.RunJanitor(rootCtx, every, func(err error) {
+					log.Warn().Err(err).Msg("capture janitor")
+				})
 			})
 		}
 		log.Info().
@@ -661,6 +752,14 @@ func main() {
 			scorer.SetRules(d)
 			return nil
 		})
+		w.Register("signals.yaml", func() error {
+			sg, err := rules.LoadSignals(cfg.RulesDir)
+			if err != nil {
+				return err
+			}
+			scorer.SetSignals(sg)
+			return nil
+		})
 		w.Register("ip_reputation.yaml", func() error {
 			ir, err := rules.LoadIPReputation(cfg.RulesDir)
 			if err != nil {
@@ -669,6 +768,24 @@ func main() {
 			scorer.SetIPReputation(ir)
 			return nil
 		})
+		// Blueprint hot-reload: watch all four candidate filenames so any
+		// change (add/edit) triggers a reload without a process restart.
+		reloadBlueprint := func() error {
+			m, err := blueprint.Load(cfg.RulesDir)
+			if err != nil {
+				return err
+			}
+			scorer.SetBlueprint(m)
+			if m != nil {
+				log.Info().Int("routes", m.RouteCount()).Msg("api blueprint reloaded")
+			} else {
+				log.Info().Msg("api blueprint removed")
+			}
+			return nil
+		}
+		for _, bpFile := range []string{"api_blueprint.yaml", "api_blueprint.json", "openapi.yaml", "openapi.json"} {
+			w.Register(bpFile, reloadBlueprint)
+		}
 		w.Register("templates.yaml", func() error {
 			v, err := rules.LoadTemplates(cfg.RulesDir)
 			if err != nil {
@@ -783,14 +900,17 @@ func main() {
 				}
 			}
 		}
-		go w.Run(rootCtx, func(name string, err error) {
-			log.Warn().Str("file", name).Err(err).Msg("rules reload")
+		withRecover("rules.watcher", func() {
+			w.Run(rootCtx, func(name string, err error) {
+				log.Warn().Str("file", name).Err(err).Msg("rules reload")
+			})
 		})
 	}
 
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", promhttp.Handler())
 	metricsMux.Handle("/", dash)
+	metricsMux.HandleFunc("/api/signal-suggestions", apiKeyMiddleware(cfg.Metrics.APIKey, sigRec.Handler()))
 
 	mainSrv := &http.Server{
 		Addr:              cfg.Listen,
@@ -841,13 +961,29 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	log.Info().Msg("shutting down")
+
+	// Cancel the root context first so all background goroutines (miner,
+	// recommender, GC, watcher) stop accepting new work. This must happen
+	// before server shutdown and before store.Close() so goroutines that
+	// write to the store are not mid-write when the DB is closed.
+	rootCancel()
+	bgWg.Wait() // block until every supervised goroutine has exited
+
 	if auditLog != nil {
 		_ = auditLog.Log(audit.Entry{Actor: "system", Action: "process.stop",
 			Detail: "veilgate received SIGINT/SIGTERM"})
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_ = mainSrv.Shutdown(ctx)
-	_ = metricsSrv.Shutdown(ctx)
+	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutCancel()
+	_ = mainSrv.Shutdown(shutCtx)
+	_ = metricsSrv.Shutdown(shutCtx)
+
+	// Close the store after servers have drained. Any events queued by the
+	// last in-flight requests are now enqueued; store.Close flushes them.
+	if store != nil {
+		if err := store.Close(); err != nil {
+			log.Error().Err(err).Msg("persist store close")
+		}
+	}
 }

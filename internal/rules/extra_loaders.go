@@ -233,6 +233,37 @@ type ML struct {
 			Replace string `yaml:"replace"`
 		} `yaml:"custom"`
 	} `yaml:"path_redaction"`
+
+	// SignalRecommender drives the automatic signal suggestion engine.
+	// It analyses live traffic from the event store and proposes custom_signals
+	// entries for signals.yaml. Suggestions are written to signal_suggestions.yaml
+	// (never to signals.yaml itself) and served via GET /api/signal-suggestions.
+	SignalRecommender SignalRecommenderConfig `yaml:"signal_recommender"`
+}
+
+// SignalRecommenderConfig controls the automatic signal suggestion engine.
+type SignalRecommenderConfig struct {
+	// Enabled gates the background analysis goroutine.
+	Enabled bool `yaml:"enabled"`
+	// IntervalHours sets how often the background pass fires. Default 24.
+	IntervalHours int `yaml:"interval_hours"`
+	// MinConfidence is the precision floor: tarpitted/(tarpitted+clean) for
+	// a pattern must meet this before it is suggested. Default 0.85.
+	MinConfidence float64 `yaml:"min_confidence"`
+	// MinSupport is the minimum number of matching requests required.
+	// Default 30.
+	MinSupport int `yaml:"min_support"`
+	// MaxSuggestions caps the output list length. Default 20.
+	MaxSuggestions int `yaml:"max_suggestions"`
+	// LookbackHours controls how far back into the event store the analysis
+	// looks. Default 168 (7 days).
+	LookbackHours int `yaml:"lookback_hours"`
+	// WritePath is the filename (relative to rules_dir) for the YAML report.
+	// Default "signal_suggestions.yaml".
+	WritePath string `yaml:"write_path"`
+	// FalsePositiveThreshold rejects a suggestion if more than this fraction
+	// of clean traffic would match. Default 0.02 (2%).
+	FalsePositiveThreshold float64 `yaml:"false_positive_threshold"`
 }
 
 // CandidateInfo holds optional human-readable metadata for a learned candidate.

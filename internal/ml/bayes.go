@@ -3,7 +3,18 @@ package ml
 import (
 	"math"
 	"sync"
+
+	"github.com/C0oki3s/veilgate/internal/telemetry"
 )
+
+// MaxBayesEntries is the hard ceiling on the number of distinct
+// (feature, bucket) pairs stored in the histogram. Without a cap,
+// adversarial traffic with high-cardinality path n-grams (e.g. random
+// UUIDs in URLs) grows the map unboundedly. When the cap is hit the
+// entry with the lowest total count (agent+human) is evicted — it is
+// below the miner's min_support threshold anyway and would never be
+// promoted.
+const MaxBayesEntries = 100_000
 
 // Bayes is a streaming multinomial Naive Bayes classifier with Laplace
 // smoothing. We keep per-feature counts instead of per-(feature,class)
@@ -26,7 +37,8 @@ type Bayes struct {
 	// so we don't rebuild it on every Posterior call.
 	vocab map[string]int
 
-	smoothing float64
+	smoothing   float64
+	totalEntries int // cached count of distinct (feature, bucket) pairs
 }
 
 // NewBayes constructs an empty classifier.
@@ -72,6 +84,10 @@ func (b *Bayes) Update(v Vec, label string) {
 		existing, seen := m[f.Bucket]
 		if !seen {
 			b.vocab[f.Name]++
+			b.totalEntries++
+			if b.totalEntries > MaxBayesEntries {
+				b.evictLowest()
+			}
 		}
 		if label == "agent" {
 			existing[0]++
@@ -80,6 +96,50 @@ func (b *Bayes) Update(v Vec, label string) {
 		}
 		m[f.Bucket] = existing
 	}
+}
+
+// evictLowest removes a low-count (feature, bucket) pair. Uses random sampling
+// (examine up to 16 candidates, evict the minimum among them) so the operation
+// is O(1) under adversarial UUID floods rather than O(n). Called under write lock.
+func (b *Bayes) evictLowest() {
+	const sampleSize = 16
+	var minFeat, minBucket string
+	minTotal := math.MaxInt64
+	sampled := 0
+outer:
+	for feat, m := range b.counts {
+		for bk, pair := range m {
+			if t := pair[0] + pair[1]; t < minTotal {
+				minTotal = t
+				minFeat = feat
+				minBucket = bk
+			}
+			sampled++
+			if sampled >= sampleSize {
+				break outer
+			}
+		}
+	}
+	if minFeat == "" {
+		return
+	}
+	delete(b.counts[minFeat], minBucket)
+	b.vocab[minFeat]--
+	if b.vocab[minFeat] <= 0 {
+		delete(b.vocab, minFeat)
+		delete(b.counts, minFeat)
+	}
+	b.totalEntries--
+	telemetry.MLBayesEvictionsTotal.Inc()
+}
+
+// TotalEntries returns the current number of distinct (feature, bucket) pairs
+// stored in the histogram. Safe for concurrent use.
+func (b *Bayes) TotalEntries() int {
+	b.mu.RLock()
+	n := b.totalEntries
+	b.mu.RUnlock()
+	return n
 }
 
 // Posterior returns P(agent | v) using additive-smoothed multinomial NB
@@ -172,6 +232,7 @@ func (b *Bayes) Seed(feature, bucket string, agentCount, humanCount int) {
 	existing := m[bucket]
 	if existing[0] == 0 && existing[1] == 0 {
 		b.vocab[feature]++
+		b.totalEntries++
 	}
 	existing[0] += agentCount
 	existing[1] += humanCount

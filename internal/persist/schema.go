@@ -88,8 +88,21 @@ CREATE TABLE IF NOT EXISTS tarpit_canaries (
 );
 CREATE INDEX IF NOT EXISTS idx_canary_expires ON tarpit_canaries(expires_at);
 CREATE INDEX IF NOT EXISTS idx_canary_client ON tarpit_canaries(client_id);
+
+-- v4: signal_suggestions. One row per named suggestion; upserted on
+-- each recommender cycle so the HTTP handler can serve cached results
+-- without re-running the full analysis on every request.
+CREATE TABLE IF NOT EXISTS signal_suggestions (
+	id          INTEGER PRIMARY KEY AUTOINCREMENT,
+	name        TEXT    NOT NULL UNIQUE,
+	confidence  REAL    NOT NULL,
+	support     INTEGER NOT NULL,
+	proposed_at TEXT    NOT NULL,
+	json        TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_suggestions_confidence ON signal_suggestions(confidence DESC);
 `
 
-// v3 adds audit_log + tarpit_canaries on top of v2. Both tables are
-// new so the migration is purely additive — no ALTER on existing rows.
-const schemaVersion = 3
+// v4 adds signal_suggestions on top of v3. Purely additive — IF NOT EXISTS
+// DDL handles existing databases without any ALTER TABLE.
+const schemaVersion = 4

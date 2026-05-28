@@ -12,6 +12,7 @@ import (
 
 	"github.com/C0oki3s/veilgate/internal/persist"
 	"github.com/C0oki3s/veilgate/internal/rules"
+	"github.com/C0oki3s/veilgate/internal/telemetry"
 )
 
 // Miner walks the Bayes snapshot on a schedule, discovers high-confidence
@@ -144,6 +145,10 @@ func (m *Miner) Tick() error {
 				Support:   c.Support,
 			})
 		}
+	}
+
+	if len(cands) > 0 {
+		telemetry.MinerCandidates.Add(float64(len(cands)))
 	}
 
 	if err := m.writeYAML(cands, mc); err != nil {

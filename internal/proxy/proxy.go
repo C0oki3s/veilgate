@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/C0oki3s/veilgate/internal/challenge"
 	"github.com/C0oki3s/veilgate/internal/config"
@@ -346,6 +349,11 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		r = withUploadBodyLimit(r, uploadPolicy)
 	}
 
+	start := time.Now()
+	ctx, span := telemetry.Tracer.Start(r.Context(), "veilgate.serve")
+	defer span.End()
+	r = r.WithContext(ctx)
+
 	clientID := resolveClientIP(r, s.trustedProxies)
 	score := s.scorer.Score(clientID, r)
 	telemetry.ScoreHistogram.Observe(float64(score.Total))
@@ -443,6 +451,46 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		Msg("request")
 
 	telemetry.RequestsTotal.WithLabelValues(decision.String()).Inc()
+
+	span.SetAttributes(
+		attribute.String("veilgate.decision", decision.String()),
+		attribute.Int("veilgate.score", score.Total),
+		attribute.String("http.method", r.Method),
+		attribute.String("http.path", r.URL.Path),
+		attribute.String("net.peer.ip", clientID),
+	)
+	if decision == DecisionTarpit || decision == DecisionChallenge {
+		span.SetStatus(codes.Error, decision.String())
+	}
+
+	// Endpoint correlation — always emit (even score=0) so EndpointRequestTotal
+	// and EndpointScoreTierTotal are accurate denominators. Signal/family
+	// counters only increment when signals actually fired.
+	sigNames := make([]string, len(score.Signals))
+	for i, sig := range score.Signals {
+		sigNames[i] = sig.Name
+	}
+	telemetry.ObserveEndpoint(r.URL.Path, r.Method, decision.String(), score.Total, sigNames)
+
+	// Enrich the OTel span with attack families and individual signal events
+	// so Jaeger/Tempo users can filter traces by attack category.
+	if len(score.Signals) > 0 {
+		families := make(map[string]struct{}, 4)
+		for i, sig := range score.Signals {
+			families[telemetry.SignalFamily(sig.Name)] = struct{}{}
+			span.AddEvent("signal", trace.WithAttributes(
+				attribute.String("name", sigNames[i]),
+				attribute.Int("points", sig.Points),
+				attribute.String("reason", sig.Reason),
+			))
+		}
+		famList := make([]string, 0, len(families))
+		for f := range families {
+			famList = append(famList, f)
+		}
+		span.SetAttributes(attribute.StringSlice("veilgate.attack_families", famList))
+	}
+	span.SetAttributes(attribute.String("veilgate.score_tier", telemetry.ScoreTier(score.Total)))
 
 	if s.dashboard != nil {
 		s.dashboard.Record(telemetry.Event{
@@ -547,6 +595,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		proxyHandler.ServeHTTP(rec, r)
 	}
 
+	telemetry.RequestDuration.WithLabelValues(decision.String()).Observe(time.Since(start).Seconds())
+
 	// Feed the response status into the per-client tracker so the
 	// failure-recovery signal can compare with the next request shape.
 	if s.tracker != nil && rec.status > 0 {
@@ -556,6 +606,12 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		// of inspecting the response content-type on the hot path.
 		if decision == DecisionReal && rec.status/100 == 2 && isJSAssetPath(r.URL.Path) {
 			s.tracker.RecordJSAsset(clientID)
+		}
+		// Arm the no_cookie_return signal when the tarpit included a
+		// Set-Cookie. The tarpit writes headers before WriteHeader, so
+		// they are readable from rec.Header() after ServeHTTP returns.
+		if decision == DecisionTarpit && len(rec.Header()["Set-Cookie"]) > 0 {
+			s.tracker.RecordSetCookie(clientID)
 		}
 	}
 }
@@ -801,16 +857,23 @@ func (s *Server) serveWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handshake complete — tunnel raw bytes in both directions.
+	// Tunnel raw bytes in both directions. Each goroutine closes its write
+	// target when the read side returns (EOF or error), which unblocks the
+	// other goroutine immediately instead of leaving it blocked on a
+	// half-closed connection indefinitely. Both goroutines must finish
+	// before we return so upstreamConn is not closed under them.
 	done := make(chan struct{}, 2)
 	go func() {
 		defer func() { done <- struct{}{} }()
-		io.Copy(upstreamConn, clientBuf) // clientBuf wraps clientConn
+		io.Copy(upstreamConn, clientBuf)
+		upstreamConn.Close()
 	}()
 	go func() {
 		defer func() { done <- struct{}{} }()
-		io.Copy(clientConn, upstreamBuf) // upstreamBuf wraps upstreamConn
+		io.Copy(clientConn, upstreamBuf)
+		clientConn.Close()
 	}()
+	<-done
 	<-done
 }
 

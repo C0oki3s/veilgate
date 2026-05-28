@@ -287,7 +287,7 @@ func reservoirSample(data [][]float64, n int) [][]float64 {
 	}
 	out := make([][]float64, n)
 	copy(out, data[:n])
-	rng := rand.New(rand.NewSource(int64(len(data))))
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for i := n; i < len(data); i++ {
 		j := rng.Intn(i + 1)
 		if j < n {

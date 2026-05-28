@@ -29,6 +29,20 @@ type ClientEvent struct {
 	// over the stage sequence) doesn't re-tokenize the path on every
 	// request.
 	ToolStage string
+	// HeaderBitmap is a 32-bit presence mask of interesting request headers
+	// (same set as the fleet-rotation signal uses). Stored per-event so the
+	// header_mutation signal can detect mid-session header drops without
+	// re-parsing the request.
+	HeaderBitmap string
+	// HasConditional is true when the request carried If-None-Match or
+	// If-Modified-Since. Used by the cache_miss_anomaly signal to detect
+	// agents that repeat-fetch the same path without cache discipline.
+	HasConditional bool
+	// HasOriginHeader is true when the request carried an Origin header,
+	// indicating a cross-domain XHR/fetch (SPA calling a different-domain API).
+	// Used by the no_cookie_return signal to avoid firing when the browser
+	// legitimately cannot return a cookie without credentials:include + CORS.
+	HasOriginHeader bool
 }
 
 // ClientState tracks rolling behavior for a single client (IP).
@@ -76,6 +90,25 @@ type ClientState struct {
 	// toward a flat list of independent document fetches.
 	DocumentFetches    int
 	SubresourceFetches int
+
+	// HeaderMutations counts how many times the header-presence bitmap
+	// changed between consecutive requests. Agents often drop or add
+	// headers mid-session as they switch between tool calls; real browsers
+	// keep a stable header set throughout a session.
+	HeaderMutations  int
+	LastHeaderBitmap string
+
+	// SetCookieReceived is set by the proxy when a tarpit response
+	// included a Set-Cookie header. The no_cookie_return signal fires
+	// when this is true and CookiesSent stays zero across subsequent
+	// requests — a stateless HTTP client that ignores cookie jars.
+	SetCookieReceived bool
+	// HasCrossOriginRequests is set when any request from this client carried
+	// an Origin header. A browser making cross-domain XHR/fetch calls may
+	// legitimately not return cookies if the response lacked
+	// Access-Control-Allow-Credentials or if the cookie was SameSite=Strict.
+	// The no_cookie_return signal skips this client to avoid false positives.
+	HasCrossOriginRequests bool
 }
 
 // Tracker holds per-client state across the process.
@@ -123,6 +156,21 @@ func (t *Tracker) Record(clientID string, evt ClientEvent) *ClientState {
 		// no info — typical for libraries; ignore for the topology ratio.
 	default:
 		st.SubresourceFetches++
+	}
+
+	// Detect header-presence mutations between consecutive requests.
+	// An empty bitmap on the very first request initialises the baseline
+	// without counting as a mutation.
+	if evt.HeaderBitmap != "" {
+		if st.LastHeaderBitmap != "" && evt.HeaderBitmap != st.LastHeaderBitmap {
+			st.HeaderMutations++
+		}
+		st.LastHeaderBitmap = evt.HeaderBitmap
+	}
+	// Mark cross-origin requests; once set it is never cleared because the
+	// no_cookie_return signal should stay suppressed for the whole session.
+	if evt.HasOriginHeader {
+		st.HasCrossOriginRequests = true
 	}
 
 	if st.UniqueUAs == nil {
@@ -178,6 +226,24 @@ func (t *Tracker) RecordJSAsset(clientID string) {
 	}
 	st.mu.Lock()
 	st.LastJSAssetAt = time.Now()
+	st.mu.Unlock()
+}
+
+// RecordSetCookie marks that the tarpit served a Set-Cookie to this client.
+// Called from the proxy after writing a tarpit response that included a
+// Set-Cookie header. Arms the no_cookie_return signal.
+func (t *Tracker) RecordSetCookie(clientID string) {
+	if t == nil {
+		return
+	}
+	t.mu.RLock()
+	st := t.clients[clientID]
+	t.mu.RUnlock()
+	if st == nil {
+		return
+	}
+	st.mu.Lock()
+	st.SetCookieReceived = true
 	st.mu.Unlock()
 }
 

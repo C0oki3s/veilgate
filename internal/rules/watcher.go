@@ -147,6 +147,14 @@ func (w *Watcher) Run(ctx context.Context, onError func(filename string, err err
 			if onError != nil {
 				onError("", err)
 			}
+			// If the rules directory itself was deleted and recreated (e.g.
+			// during a config management deploy), the kernel removes the
+			// inotify watch silently. Re-add it so reloads resume without a
+			// process restart. We also re-add all registered subdirectories.
+			_ = w.fsw.Add(w.dir)
+			for subdir := range w.subdirMap {
+				_ = w.fsw.Add(subdir)
+			}
 		}
 	}
 }

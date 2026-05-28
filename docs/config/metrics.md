@@ -5,12 +5,13 @@
 > **Reload:** restart required.
 
 VeilGate exposes Prometheus metrics and the live operator dashboard on
-the same listener. Both are unauthenticated - keep this listener
-private.
+the same listener. The `/api/*` sub-paths can be protected with a
+bearer token via `api_key`.
 
 **On this page:**
 
 - [`listen`](#listen)
+- [`api_key`](#api_key)
 - [What's exposed](#whats-exposed)
 - [Securing the endpoint](#securing-the-endpoint)
 - [Example](#example)
@@ -41,6 +42,35 @@ internal interface address explicitly:
 metrics:
   listen: "10.0.5.20:9090"
 ```
+
+## `api_key`
+
+| Type | Required | Default |
+| --- | --- | --- |
+| string | no | `""` (no auth) |
+
+Bearer token that must be present on all requests to `/api/*` endpoints
+(e.g. `/api/signal-suggestions`). When empty, those endpoints are open
+to any caller that can reach the metrics listener.
+
+The token is compared in constant time using HMAC equality to prevent
+timing attacks.
+
+```yaml
+metrics:
+  listen: "127.0.0.1:9090"
+  api_key: "change-me-to-a-long-random-secret"
+```
+
+Clients must send the token as an `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer change-me-to-a-long-random-secret" \
+  http://127.0.0.1:9090/api/signal-suggestions
+```
+
+If the key is wrong the server responds `401 Unauthorized` with a
+`WWW-Authenticate: Bearer realm="veilgate"` header.
 
 ## What's exposed
 

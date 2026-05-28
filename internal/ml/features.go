@@ -540,6 +540,49 @@ func (e *Extractor) timingBucket(gap float64) string {
 	return fmt.Sprintf("gt_%g", e.TimingBuckets[len(e.TimingBuckets)-1])
 }
 
+// SessionStats carries derived cross-request metrics that the per-request
+// Extract function cannot see on its own. The detector.Scorer computes these
+// from tracker state and passes them to ExtractWithSession so the Isolation
+// Forest and Naive Bayes can learn their normal distributions from real traffic
+// (observe mode) rather than having thresholds hardcoded in Go.
+//
+// All values should be raw counts or 0/1 flags — the IF normalises internally.
+type SessionStats struct {
+	// HeaderMutations is how many times the stable-header bitmap changed
+	// between consecutive requests (state.HeaderMutations).
+	HeaderMutations float64
+	// MaxRepeatFetches is the highest per-path fetch count seen within the
+	// 3-minute burst window, counting only paths with zero conditional headers.
+	MaxRepeatFetches float64
+	// DistinctAuthCats is the count of distinct auth-endpoint categories
+	// (login, oauth_token, auth_token, …) hit within the last 5 minutes.
+	DistinctAuthCats float64
+	// SchemaFirstHit is 1.0 when one of the client's first three requests
+	// targeted an API schema endpoint (openapi, swagger, graphql, …) and
+	// the UA was not browser-shaped. 0.0 otherwise.
+	SchemaFirstHit float64
+	// DoubleEncCount is the number of %25XX sequences (double URL-encoding)
+	// found in the current request URI.
+	DoubleEncCount float64
+}
+
+// ExtractWithSession runs the standard per-request feature extraction and
+// then appends the five session-derived numeric dimensions. The Isolation
+// Forest sees these as additional axes, so it can flag sessions where the
+// mutation rate or repeat-fetch count drifts outside the distribution
+// learned from observe-mode traffic — without any hardcoded threshold.
+func (e *Extractor) ExtractWithSession(r *http.Request, gapSeconds float64, ja4 string, sess SessionStats) Vec {
+	v := e.Extract(r, gapSeconds, ja4)
+	v.Numeric = append(v.Numeric,
+		sess.HeaderMutations,
+		sess.MaxRepeatFetches,
+		sess.DistinctAuthCats,
+		sess.SchemaFirstHit,
+		sess.DoubleEncCount,
+	)
+	return v
+}
+
 // GapSince returns the seconds since prev, clamped to [0, max] to keep
 // the Isolation Forest from seeing outliers that dominate its scale.
 func GapSince(prev, now time.Time, max float64) float64 {
