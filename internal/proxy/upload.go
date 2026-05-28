@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/C0oki3s/veilgate/internal/config"
+	"github.com/C0oki3s/veilgate/internal/telemetry"
 	"github.com/C0oki3s/veilgate/internal/verifier"
 )
 
@@ -278,12 +279,19 @@ func (s *Server) credentialAccepted(r *http.Request, verifierPolicy string) (boo
 			res = s.verifiers.Verify(r)
 		}
 		if res.Accepted {
+			name := res.Name
+			if name == "" {
+				name = "unknown"
+			}
+			telemetry.VerifierResultTotal.WithLabelValues(name, "accepted").Inc()
 			return true, res
 		}
 	}
 	if s.challengeHandler != nil && s.challengeHandler.Passed(r) {
+		telemetry.VerifierResultTotal.WithLabelValues("challenge", "accepted").Inc()
 		return true, verifier.Result{Name: "challenge", Reason: "valid challenge token"}
 	}
+	telemetry.VerifierResultTotal.WithLabelValues("none", "rejected").Inc()
 	return false, verifier.Result{}
 }
 

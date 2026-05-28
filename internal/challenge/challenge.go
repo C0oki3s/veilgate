@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/C0oki3s/veilgate/internal/rules"
+	"github.com/C0oki3s/veilgate/internal/telemetry"
 )
 
 // defaultStartPageTmpl is the built-in HTML+JS page served at
@@ -386,6 +387,7 @@ func (h *Handler) serveChallenge(w http.ResponseWriter, r *http.Request, cr *rul
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Content-Type", ct)
+	telemetry.ChallengeIssuedTotal.Inc()
 	w.WriteHeader(sc)
 	_, _ = w.Write(buf.Bytes())
 }
@@ -424,6 +426,7 @@ func (h *Handler) serveSPAChallenge(w http.ResponseWriter, r *http.Request, cr *
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("WWW-Authenticate",
 		`Veilgate-Challenge realm="`+r.Host+`"`)
+	telemetry.ChallengeIssuedTotal.Inc()
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"error":        "challenge_required",
@@ -474,9 +477,15 @@ func isXHROrFetch(r *http.Request) bool {
 func (h *Handler) verify(w http.ResponseWriter, r *http.Request, cr *rules.ChallengeRules) {
 	ok, code := h.verifyPOW(r, cr)
 	if !ok {
+		if code == http.StatusBadRequest {
+			telemetry.ChallengeFailedTotal.WithLabelValues("bad_request").Inc()
+		} else {
+			telemetry.ChallengeFailedTotal.WithLabelValues("unauthorized").Inc()
+		}
 		http.Error(w, "challenge verification failed", code)
 		return
 	}
+	telemetry.ChallengeSolvedTotal.Inc()
 	ts := time.Now().Format(time.RFC3339)
 	mac := h.sign(ts)
 	tokenValue := ts + "." + mac

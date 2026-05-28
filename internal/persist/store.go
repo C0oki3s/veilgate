@@ -226,6 +226,9 @@ func (s *Store) warnDrop() {
 // Dropped returns the cumulative count of events dropped due to back-pressure.
 func (s *Store) Dropped() uint64 { return s.dropped }
 
+// QueueDepth returns the current number of items pending in the write queue.
+func (s *Store) QueueDepth() int { return len(s.queue) }
+
 func (s *Store) flusher() {
 	defer s.wg.Done()
 	t := time.NewTicker(s.flushInterval)
@@ -763,4 +766,65 @@ func (s *Store) Maintenance(ctx context.Context, every time.Duration, onError fu
 			}
 		}
 	}
+}
+
+// UpsertSuggestions stores one batch of signal recommendations.
+// Each recommendation is keyed by name; subsequent upserts replace the row so
+// the handler always serves the most recent analysis cycle's output.
+// jsonEncode must produce the JSON for each recommendation — passed as a func
+// so store.go doesn't import the recommender package.
+func (s *Store) UpsertSuggestions(names []string, confidences []float64, supports []int, jsons [][]byte) error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare(`INSERT INTO signal_suggestions (name, confidence, support, proposed_at, json)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(name) DO UPDATE SET
+			confidence  = excluded.confidence,
+			support     = excluded.support,
+			proposed_at = excluded.proposed_at,
+			json        = excluded.json`)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer stmt.Close()
+	for i, name := range names {
+		if _, err := stmt.Exec(name, confidences[i], supports[i], now, string(jsons[i])); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// ListSuggestions returns the stored signal suggestions as raw JSON objects,
+// ordered by confidence descending. Returns nil when no suggestions are stored.
+func (s *Store) ListSuggestions() ([]json.RawMessage, error) {
+	if s == nil || s.db == nil {
+		return nil, nil
+	}
+	rows, err := s.db.Query(
+		`SELECT json FROM signal_suggestions ORDER BY confidence DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []json.RawMessage
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		out = append(out, json.RawMessage(raw))
+	}
+	return out, rows.Err()
 }

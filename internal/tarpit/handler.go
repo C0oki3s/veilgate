@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/C0oki3s/veilgate/internal/config"
 	"github.com/C0oki3s/veilgate/internal/fakeauth"
 	"github.com/C0oki3s/veilgate/internal/rules"
@@ -146,6 +148,13 @@ func (h *Handler) invalidateRegexCache() {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx, span := telemetry.Tracer.Start(r.Context(), "veilgate.tarpit")
+	defer span.End()
+	r = r.WithContext(ctx)
+
+	telemetry.TarpitActiveSessions.Inc()
+	defer telemetry.TarpitActiveSessions.Dec()
+
 	clientID := clientIP(r)
 	profile := h.profiles.Get(clientID)
 
@@ -199,6 +208,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Vary", "Origin")
 	}
+	ct := telemetry.ContentTypeCategory(resp.ContentType)
+	telemetry.TarpitTemplateTypeTotal.WithLabelValues(ct).Inc()
+	span.SetAttributes(
+		attribute.String("tarpit.content_type", ct),
+		attribute.Int("tarpit.delay_ms", delay),
+		attribute.String("http.path", r.URL.Path),
+	)
 	w.WriteHeader(resp.Status)
 	n, _ := w.Write([]byte(resp.Body))
 	telemetry.TarpitBytesServed.Add(float64(n))

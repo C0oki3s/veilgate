@@ -19,6 +19,7 @@ import (
 
 	"github.com/C0oki3s/veilgate/internal/persist"
 	"github.com/C0oki3s/veilgate/internal/rules"
+	"github.com/C0oki3s/veilgate/internal/telemetry"
 )
 
 // SignalRecommendation is one proposed custom signal with full metadata.
@@ -95,11 +96,19 @@ func (r *Recommender) Run(ctx context.Context, onError func(error)) {
 		if m := r.loadML(); m != nil && !m.SignalRecommender.Enabled {
 			continue
 		}
+		t0 := time.Now()
 		recs, err := r.Analyze(ctx)
+		telemetry.RecommenderAnalysisDuration.Observe(time.Since(t0).Seconds())
 		if err != nil && onError != nil {
 			onError(err)
 			continue
 		}
+		telemetry.RecommenderSuggestionsLast.Set(float64(len(recs)))
+		// Primary: persist to DB so the HTTP handler can serve cached results.
+		if err := r.storeSuggestions(recs); err != nil && onError != nil {
+			onError(err)
+		}
+		// Secondary: write human-readable YAML for operator review.
 		if err := r.WriteSuggestions(recs); err != nil && onError != nil {
 			onError(err)
 		}
@@ -107,7 +116,8 @@ func (r *Recommender) Run(ctx context.Context, onError func(error)) {
 }
 
 // Handler returns an http.HandlerFunc for GET /api/signal-suggestions.
-// Accepts query params min_confidence (float) and min_support (int) as overrides.
+// Serves cached results from the DB (written by the background Run loop).
+// Falls back to an inline analysis pass when the DB has no stored suggestions.
 func (r *Recommender) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodGet {
@@ -118,6 +128,23 @@ func (r *Recommender) Handler() http.HandlerFunc {
 			http.Error(w, "persist store not enabled", http.StatusServiceUnavailable)
 			return
 		}
+		// Serve from the DB cache written by Run() — avoids re-running the full
+		// analysis on every HTTP request.
+		cached, err := r.store.ListSuggestions()
+		if err == nil && len(cached) > 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Suggestions-Source", "cache")
+			_, _ = w.Write([]byte("["))
+			for i, raw := range cached {
+				if i > 0 {
+					_, _ = w.Write([]byte(","))
+				}
+				_, _ = w.Write(raw)
+			}
+			_, _ = w.Write([]byte("]"))
+			return
+		}
+		// Cache miss — run the analysis inline.
 		cfg := r.buildConfig()
 		if v := req.URL.Query().Get("min_confidence"); v != "" {
 			if f, err := strconv.ParseFloat(v, 64); err == nil {
@@ -138,6 +165,7 @@ func (r *Recommender) Handler() http.HandlerFunc {
 			recs = []SignalRecommendation{}
 		}
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Suggestions-Source", "live")
 		_ = json.NewEncoder(w).Encode(recs)
 	}
 }
@@ -163,6 +191,29 @@ func (r *Recommender) WriteSuggestions(recs []SignalRecommendation) error {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// storeSuggestions persists recs to the DB so the Handler can serve them
+// without re-running the analysis. A no-op when store is nil or recs is empty.
+func (r *Recommender) storeSuggestions(recs []SignalRecommendation) error {
+	if r.store == nil || len(recs) == 0 {
+		return nil
+	}
+	names := make([]string, len(recs))
+	confidences := make([]float64, len(recs))
+	supports := make([]int, len(recs))
+	jsons := make([][]byte, len(recs))
+	for i, rec := range recs {
+		names[i] = rec.Name
+		confidences[i] = rec.Confidence
+		supports[i] = rec.Support
+		b, err := json.Marshal(rec)
+		if err != nil {
+			return fmt.Errorf("storeSuggestions: marshal: %w", err)
+		}
+		jsons[i] = b
+	}
+	return r.store.UpsertSuggestions(names, confidences, supports, jsons)
 }
 
 // ── internal helpers ─────────────────────────────────────────────────────────

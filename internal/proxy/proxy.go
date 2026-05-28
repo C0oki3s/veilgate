@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/C0oki3s/veilgate/internal/challenge"
 	"github.com/C0oki3s/veilgate/internal/config"
@@ -346,6 +349,11 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		r = withUploadBodyLimit(r, uploadPolicy)
 	}
 
+	start := time.Now()
+	ctx, span := telemetry.Tracer.Start(r.Context(), "veilgate.serve")
+	defer span.End()
+	r = r.WithContext(ctx)
+
 	clientID := resolveClientIP(r, s.trustedProxies)
 	score := s.scorer.Score(clientID, r)
 	telemetry.ScoreHistogram.Observe(float64(score.Total))
@@ -443,6 +451,46 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		Msg("request")
 
 	telemetry.RequestsTotal.WithLabelValues(decision.String()).Inc()
+
+	span.SetAttributes(
+		attribute.String("veilgate.decision", decision.String()),
+		attribute.Int("veilgate.score", score.Total),
+		attribute.String("http.method", r.Method),
+		attribute.String("http.path", r.URL.Path),
+		attribute.String("net.peer.ip", clientID),
+	)
+	if decision == DecisionTarpit || decision == DecisionChallenge {
+		span.SetStatus(codes.Error, decision.String())
+	}
+
+	// Endpoint correlation — always emit (even score=0) so EndpointRequestTotal
+	// and EndpointScoreTierTotal are accurate denominators. Signal/family
+	// counters only increment when signals actually fired.
+	sigNames := make([]string, len(score.Signals))
+	for i, sig := range score.Signals {
+		sigNames[i] = sig.Name
+	}
+	telemetry.ObserveEndpoint(r.URL.Path, r.Method, decision.String(), score.Total, sigNames)
+
+	// Enrich the OTel span with attack families and individual signal events
+	// so Jaeger/Tempo users can filter traces by attack category.
+	if len(score.Signals) > 0 {
+		families := make(map[string]struct{}, 4)
+		for i, sig := range score.Signals {
+			families[telemetry.SignalFamily(sig.Name)] = struct{}{}
+			span.AddEvent("signal", trace.WithAttributes(
+				attribute.String("name", sigNames[i]),
+				attribute.Int("points", sig.Points),
+				attribute.String("reason", sig.Reason),
+			))
+		}
+		famList := make([]string, 0, len(families))
+		for f := range families {
+			famList = append(famList, f)
+		}
+		span.SetAttributes(attribute.StringSlice("veilgate.attack_families", famList))
+	}
+	span.SetAttributes(attribute.String("veilgate.score_tier", telemetry.ScoreTier(score.Total)))
 
 	if s.dashboard != nil {
 		s.dashboard.Record(telemetry.Event{
@@ -546,6 +594,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		proxyHandler.ServeHTTP(rec, r)
 	}
+
+	telemetry.RequestDuration.WithLabelValues(decision.String()).Observe(time.Since(start).Seconds())
 
 	// Feed the response status into the per-client tracker so the
 	// failure-recovery signal can compare with the next request shape.
