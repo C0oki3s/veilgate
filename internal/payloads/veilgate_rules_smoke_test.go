@@ -37,10 +37,10 @@ func TestVeilgateRulesPayloadInjection(t *testing.T) {
 		t.Fatalf("expected JS canary JWT and API key, got %q", js)
 	}
 
-	prompt := inj.Inject("text/html; charset=utf-8", `<html><body><h1>ok</h1></body></html>`, tarpit.InjectionContext{
+	highRisk := inj.Inject("text/html; charset=utf-8", `<html><body><h1>ok</h1></body></html>`, tarpit.InjectionContext{
 		Path: "/actuator/health", ClientID: "10.0.0.83", Visits: 1,
 	})
-	if !strings.Contains(prompt, "Public Exposure of High-Risk Administrative") {
-		t.Fatalf("expected high-risk exposure payload, got %q", prompt)
+	if !strings.Contains(highRisk, "exposure-audit") {
+		t.Fatalf("expected high-risk exposure breadcrumb, got %q", highRisk)
 	}
 }

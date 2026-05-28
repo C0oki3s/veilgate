@@ -131,6 +131,7 @@ outer:
 	}
 	b.totalEntries--
 	telemetry.MLBayesEvictionsTotal.Inc()
+	telemetry.BayesEvictionsCount.Add(1)
 }
 
 // TotalEntries returns the current number of distinct (feature, bucket) pairs

@@ -52,6 +52,13 @@ type OTelSink struct {
 	persistQD      otelmetric.Int64Gauge
 	persistDropped otelmetric.Int64Counter
 	mlBayesEntries otelmetric.Int64Gauge
+	// parity with Prometheus — previously missing from OTel
+	tarpitSessions  otelmetric.Int64Gauge
+	bayesEvictions  otelmetric.Int64Counter
+	minerCandidates otelmetric.Int64Counter
+	verifierResult  otelmetric.Int64Counter
+	recommenderSugg otelmetric.Int64Gauge
+	recommenderDur  otelmetric.Float64Histogram
 }
 
 // NewOTelSink creates all instruments on the given MeterProvider.
@@ -151,6 +158,21 @@ func NewOTelSink(mp otelmetric.MeterProvider) *OTelSink {
 	s.mlBayesEntries, _ = m.Int64Gauge("veilgate.ml.bayes_entries",
 		otelmetric.WithDescription("Current distinct (feature, bucket) pairs in the Bayes histogram."))
 
+	// ── Parity additions (previously Prometheus-only) ─────────────────────────
+	s.tarpitSessions, _ = m.Int64Gauge("veilgate.tarpit.active_sessions",
+		otelmetric.WithDescription("Number of tarpit ServeHTTP calls currently in flight."))
+	s.bayesEvictions, _ = m.Int64Counter("veilgate.ml.bayes_evictions.total",
+		otelmetric.WithDescription("Total (feature, bucket) pairs evicted from the Bayes histogram cap."))
+	s.minerCandidates, _ = m.Int64Counter("veilgate.ml.miner_candidates.total",
+		otelmetric.WithDescription("Total rule candidates the ML miner has emitted into learned.yaml."))
+	s.verifierResult, _ = m.Int64Counter("veilgate.verifier.result.total",
+		otelmetric.WithDescription("Verifier chain outcomes by verifier type and result (accepted/rejected)."))
+	s.recommenderSugg, _ = m.Int64Gauge("veilgate.recommender.suggestions_last",
+		otelmetric.WithDescription("Number of signal suggestions produced in the last recommender pass."))
+	s.recommenderDur, _ = m.Float64Histogram("veilgate.recommender.analysis_duration",
+		otelmetric.WithDescription("Time taken by one signal recommender analysis pass, seconds."),
+		otelmetric.WithExplicitBucketBoundaries(0.1, 0.5, 1, 2, 5, 10, 30, 60))
+
 	return s
 }
 
@@ -167,6 +189,10 @@ func (s *OTelSink) OnEvent(e Event) {
 		s.onMLFit(e.MLFit)
 	case KindPeriodic:
 		s.onPeriodic(e.Periodic)
+	case KindVerifier:
+		s.onVerifier(e.Verifier)
+	case KindRecommender:
+		s.onRecommender(e.Recommender)
 	}
 }
 
@@ -299,4 +325,25 @@ func (s *OTelSink) onPeriodic(e PeriodicEvent) {
 		s.persistDropped.Add(ctx, e.PersistDroppedDelta)
 	}
 	s.mlBayesEntries.Record(ctx, int64(e.MLBayesEntries))
+	s.tarpitSessions.Record(ctx, int64(e.TarpitActiveSessions))
+	if e.BayesEvictionsDelta > 0 {
+		s.bayesEvictions.Add(ctx, e.BayesEvictionsDelta)
+	}
+	if e.MinerCandidatesDelta > 0 {
+		s.minerCandidates.Add(ctx, e.MinerCandidatesDelta)
+	}
+}
+
+func (s *OTelSink) onVerifier(e VerifierEvent) {
+	ctx := context.Background()
+	s.verifierResult.Add(ctx, 1, otelmetric.WithAttributes(
+		attribute.String("verifier_type", e.Name),
+		attribute.String("result", e.Result),
+	))
+}
+
+func (s *OTelSink) onRecommender(e RecommenderEvent) {
+	ctx := context.Background()
+	s.recommenderSugg.Record(ctx, int64(e.Suggestions))
+	s.recommenderDur.Record(ctx, e.DurationSec)
 }

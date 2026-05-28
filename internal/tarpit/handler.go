@@ -154,6 +154,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	telemetry.TarpitActiveSessions.Inc()
 	defer telemetry.TarpitActiveSessions.Dec()
+	telemetry.TarpitActiveCount.Add(1)
+	defer telemetry.TarpitActiveCount.Add(-1)
 
 	clientID := clientIP(r)
 	profile := h.profiles.Get(clientID)

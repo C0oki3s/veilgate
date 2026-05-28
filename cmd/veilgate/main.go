@@ -546,6 +546,7 @@ func main() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		var lastDropped uint64
+		var lastBayesEvictions, lastMinerCandidates int64
 		for {
 			select {
 			case <-rootCtx.Done():
@@ -575,15 +576,26 @@ func main() {
 					telemetry.PersistQueueDepth.Set(float64(persistQD))
 					telemetry.MLBayesEntries.Set(float64(bayesEntries))
 				}
+				curBayesEvictions := telemetry.BayesEvictionsCount.Load()
+				bayesEvictionsDelta := curBayesEvictions - lastBayesEvictions
+				lastBayesEvictions = curBayesEvictions
+
+				curMinerCandidates := telemetry.MinerCandidatesCount.Load()
+				minerCandidatesDelta := curMinerCandidates - lastMinerCandidates
+				lastMinerCandidates = curMinerCandidates
+
 				telemetry.DefaultBus.Emit(telemetry.Event{
 					Kind: telemetry.KindPeriodic,
 					Periodic: telemetry.PeriodicEvent{
-						TrackedClients:      trackedN,
-						FleetFingerprints:   len(fp),
-						FleetFingerprintIPs: fpCounts,
-						PersistQueueDepth:   persistQD,
-						PersistDroppedDelta: persistDropDelta,
-						MLBayesEntries:      bayesEntries,
+						TrackedClients:       trackedN,
+						FleetFingerprints:    len(fp),
+						FleetFingerprintIPs:  fpCounts,
+						PersistQueueDepth:    persistQD,
+						PersistDroppedDelta:  persistDropDelta,
+						MLBayesEntries:       bayesEntries,
+						TarpitActiveSessions: int(telemetry.TarpitActiveCount.Load()),
+						BayesEvictionsDelta:  bayesEvictionsDelta,
+						MinerCandidatesDelta: minerCandidatesDelta,
 					},
 				})
 			}

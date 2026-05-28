@@ -52,6 +52,35 @@ func (d Decision) String() string {
 	return "unknown"
 }
 
+// requestLog returns a zerolog event at the level that matches the routing
+// decision, so SigNoz severity coloring works without extra config:
+// tarpit → error (red), challenge → warn (yellow), real/observe → info (blue).
+func requestLog(log zerolog.Logger, d Decision) *zerolog.Event {
+	switch d {
+	case DecisionTarpit:
+		return log.Error()
+	case DecisionChallenge:
+		return log.Warn()
+	default:
+		return log.Info()
+	}
+}
+
+// scoreToThreatLevel maps the raw threat score to a human-readable label.
+// These four labels are stable and can be used as SigNoz filter values.
+func scoreToThreatLevel(score int) string {
+	switch {
+	case score >= 80:
+		return "critical"
+	case score >= 60:
+		return "high"
+	case score >= 30:
+		return "medium"
+	default:
+		return "low"
+	}
+}
+
 // Server wires everything together.
 type Server struct {
 	cfg              *config.Config
@@ -451,13 +480,15 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Log every decision for tuning.
-	s.log.Info().
+	// Log every decision for tuning. Level reflects decision severity so
+	// SigNoz can auto-color: tarpit=error(red), challenge=warn(yellow), rest=info(blue).
+	requestLog(s.log, decision).
 		Str("client", clientID).
 		Str("method", r.Method).
 		Str("path", r.URL.Path).
 		Int("score", score.Total).
 		Str("decision", decision.String()).
+		Str("threat_level", scoreToThreatLevel(score.Total)).
 		Interface("signals", score.Signals).
 		Msg("request")
 

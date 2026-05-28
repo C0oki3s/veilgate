@@ -284,14 +284,17 @@ func (s *Server) credentialAccepted(r *http.Request, verifierPolicy string) (boo
 				name = "unknown"
 			}
 			telemetry.VerifierResultTotal.WithLabelValues(name, "accepted").Inc()
+			telemetry.DefaultBus.Emit(telemetry.Event{Kind: telemetry.KindVerifier, Verifier: telemetry.VerifierEvent{Name: name, Result: "accepted"}})
 			return true, res
 		}
 	}
 	if s.challengeHandler != nil && s.challengeHandler.Passed(r) {
 		telemetry.VerifierResultTotal.WithLabelValues("challenge", "accepted").Inc()
+		telemetry.DefaultBus.Emit(telemetry.Event{Kind: telemetry.KindVerifier, Verifier: telemetry.VerifierEvent{Name: "challenge", Result: "accepted"}})
 		return true, verifier.Result{Name: "challenge", Reason: "valid challenge token"}
 	}
 	telemetry.VerifierResultTotal.WithLabelValues("none", "rejected").Inc()
+	telemetry.DefaultBus.Emit(telemetry.Event{Kind: telemetry.KindVerifier, Verifier: telemetry.VerifierEvent{Name: "none", Result: "rejected"}})
 	return false, verifier.Result{}
 }
 

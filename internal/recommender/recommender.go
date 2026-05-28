@@ -98,12 +98,14 @@ func (r *Recommender) Run(ctx context.Context, onError func(error)) {
 		}
 		t0 := time.Now()
 		recs, err := r.Analyze(ctx)
-		telemetry.RecommenderAnalysisDuration.Observe(time.Since(t0).Seconds())
+		dur := time.Since(t0).Seconds()
+		telemetry.RecommenderAnalysisDuration.Observe(dur)
 		if err != nil && onError != nil {
 			onError(err)
 			continue
 		}
 		telemetry.RecommenderSuggestionsLast.Set(float64(len(recs)))
+		telemetry.DefaultBus.Emit(telemetry.Event{Kind: telemetry.KindRecommender, Recommender: telemetry.RecommenderEvent{Suggestions: len(recs), DurationSec: dur}})
 		// Primary: persist to DB so the HTTP handler can serve cached results.
 		if err := r.storeSuggestions(recs); err != nil && onError != nil {
 			onError(err)

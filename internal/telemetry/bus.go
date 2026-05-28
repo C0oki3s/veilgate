@@ -2,15 +2,17 @@ package telemetry
 
 import "context"
 
-// EventKind discriminates the five event types dispatched through Bus.
+// EventKind discriminates the seven event types dispatched through Bus.
 type EventKind uint8
 
 const (
-	KindRequest   EventKind = iota // proxy hot path, once per scored request
-	KindTarpit                     // tarpit handler, once per tarpit response
-	KindChallenge                  // challenge lifecycle: issued / solved / failed
-	KindMLFit                      // isolation forest refit lifecycle
-	KindPeriodic                   // 30 s cardinality/gauge snapshot
+	KindRequest     EventKind = iota // proxy hot path, once per scored request
+	KindTarpit                       // tarpit handler, once per tarpit response
+	KindChallenge                    // challenge lifecycle: issued / solved / failed
+	KindMLFit                        // isolation forest refit lifecycle
+	KindPeriodic                     // 30 s cardinality/gauge snapshot
+	KindVerifier                     // verifier chain outcome per upload request
+	KindRecommender                  // one recommender analysis pass
 )
 
 // SignalDetail carries per-signal data from the scoring result.
@@ -74,17 +76,35 @@ type PeriodicEvent struct {
 	PersistQueueDepth   int
 	PersistDroppedDelta int64
 	MLBayesEntries      int
+	// Bridged from package-level atomics so OTelSink gets parity with Prometheus.
+	TarpitActiveSessions int
+	BayesEvictionsDelta  int64
+	MinerCandidatesDelta int64
+}
+
+// VerifierEvent is emitted once per credentialAccepted call in the upload path.
+type VerifierEvent struct {
+	Name   string // verifier name, "challenge", or "none"
+	Result string // "accepted" | "rejected"
+}
+
+// RecommenderEvent is emitted at the end of each Recommender.Run analysis pass.
+type RecommenderEvent struct {
+	Suggestions int
+	DurationSec float64
 }
 
 // Event is the discriminated union dispatched through Bus. Only the field
 // matching Kind is populated; the rest are zero values.
 type Event struct {
-	Kind      EventKind
-	Request   RequestEvent
-	Tarpit    TarpitEvent
-	Challenge ChallengeEvent
-	MLFit     MLFitEvent
-	Periodic  PeriodicEvent
+	Kind        EventKind
+	Request     RequestEvent
+	Tarpit      TarpitEvent
+	Challenge   ChallengeEvent
+	MLFit       MLFitEvent
+	Periodic    PeriodicEvent
+	Verifier    VerifierEvent
+	Recommender RecommenderEvent
 }
 
 // Sink receives every event dispatched by Bus. Implementations switch on
