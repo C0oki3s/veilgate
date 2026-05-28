@@ -1,23 +1,29 @@
 {
   "description": "Monitor VeilGate proxy traffic, threat scoring, detection signals, and structured logs. Import via SigNoz → Dashboards → New Dashboard → Import JSON.",
   "layout": [
-    { "h": 3, "i": "p01", "moved": false, "static": false, "w": 3, "x": 0,  "y": 0  },
-    { "h": 3, "i": "p02", "moved": false, "static": false, "w": 3, "x": 3,  "y": 0  },
-    { "h": 3, "i": "p03", "moved": false, "static": false, "w": 3, "x": 6,  "y": 0  },
-    { "h": 3, "i": "p04", "moved": false, "static": false, "w": 3, "x": 9,  "y": 0  },
-    { "h": 6, "i": "p05", "moved": false, "static": false, "w": 6, "x": 0,  "y": 3  },
-    { "h": 6, "i": "p06", "moved": false, "static": false, "w": 6, "x": 6,  "y": 3  },
-    { "h": 6, "i": "p07", "moved": false, "static": false, "w": 6, "x": 0,  "y": 9  },
-    { "h": 6, "i": "p08", "moved": false, "static": false, "w": 6, "x": 6,  "y": 9  },
-    { "h": 3, "i": "p09", "moved": false, "static": false, "w": 4, "x": 0,  "y": 15 },
-    { "h": 3, "i": "p10", "moved": false, "static": false, "w": 4, "x": 4,  "y": 15 },
-    { "h": 3, "i": "p11", "moved": false, "static": false, "w": 4, "x": 8,  "y": 15 },
-    { "h": 8, "i": "p12", "moved": false, "static": false, "w": 12, "x": 0, "y": 18 },
-    { "h": 6, "i": "p13", "moved": false, "static": false, "w": 6, "x": 0,  "y": 26 },
-    { "h": 6, "i": "p14", "moved": false, "static": false, "w": 6, "x": 6,  "y": 26 },
-    { "h": 8, "i": "p15", "moved": false, "static": false, "w": 12, "x": 0, "y": 32 },
-    { "h": 6, "i": "p16", "moved": false, "static": false, "w": 6, "x": 0,  "y": 40 },
-    { "h": 6, "i": "p17", "moved": false, "static": false, "w": 6, "x": 6,  "y": 40 }
+    { "h": 3, "i": "p01", "moved": false, "static": false, "w": 3,  "x": 0,  "y": 0  },
+    { "h": 3, "i": "p02", "moved": false, "static": false, "w": 3,  "x": 3,  "y": 0  },
+    { "h": 3, "i": "p03", "moved": false, "static": false, "w": 3,  "x": 6,  "y": 0  },
+    { "h": 3, "i": "p04", "moved": false, "static": false, "w": 3,  "x": 9,  "y": 0  },
+    { "h": 6, "i": "p05", "moved": false, "static": false, "w": 6,  "x": 0,  "y": 3  },
+    { "h": 6, "i": "p06", "moved": false, "static": false, "w": 6,  "x": 6,  "y": 3  },
+    { "h": 6, "i": "p07", "moved": false, "static": false, "w": 6,  "x": 0,  "y": 9  },
+    { "h": 6, "i": "p08", "moved": false, "static": false, "w": 6,  "x": 6,  "y": 9  },
+    { "h": 6, "i": "p18", "moved": false, "static": false, "w": 4,  "x": 0,  "y": 15 },
+    { "h": 6, "i": "p19", "moved": false, "static": false, "w": 4,  "x": 4,  "y": 15 },
+    { "h": 6, "i": "p21", "moved": false, "static": false, "w": 4,  "x": 8,  "y": 15 },
+    { "h": 3, "i": "p09", "moved": false, "static": false, "w": 4,  "x": 0,  "y": 21 },
+    { "h": 3, "i": "p10", "moved": false, "static": false, "w": 4,  "x": 4,  "y": 21 },
+    { "h": 3, "i": "p11", "moved": false, "static": false, "w": 4,  "x": 8,  "y": 21 },
+    { "h": 8, "i": "p12", "moved": false, "static": false, "w": 12, "x": 0,  "y": 24 },
+    { "h": 6, "i": "p13", "moved": false, "static": false, "w": 6,  "x": 0,  "y": 32 },
+    { "h": 6, "i": "p14", "moved": false, "static": false, "w": 6,  "x": 6,  "y": 32 },
+    { "h": 8, "i": "p15", "moved": false, "static": false, "w": 12, "x": 0,  "y": 38 },
+    { "h": 6, "i": "p16", "moved": false, "static": false, "w": 6,  "x": 0,  "y": 46 },
+    { "h": 6, "i": "p17", "moved": false, "static": false, "w": 6,  "x": 6,  "y": 46 },
+    { "h": 6, "i": "p20", "moved": false, "static": false, "w": 6,  "x": 0,  "y": 52 },
+    { "h": 6, "i": "p23", "moved": false, "static": false, "w": 6,  "x": 6,  "y": 52 },
+    { "h": 8, "i": "p22", "moved": false, "static": false, "w": 12, "x": 0,  "y": 58 }
   ],
   "panelMap": {},
   "tags": ["veilgate", "security", "proxy", "logs", "threat-detection"],
@@ -32,65 +38,39 @@
       "title": "Total Requests",
       "description": "Total proxy requests passing through VeilGate in the last 5 minutes.",
       "panelTypes": "value",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p01",
-        "promql": [
-          { "name": "A", "query": "sum(increase(veilgate_requests_total[5m]))", "legend": "requests", "disabled": false }
-        ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "queryType": "promql", "id": "q-p01",
+        "promql": [{"name":"A","query":"sum(increase(veilgate_requests_total[5m]))","legend":"requests","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p02",
       "title": "Tarpitted",
-      "description": "Requests diverted to the tarpit (slowloris + fake-response) in the last 5 minutes.",
+      "description": "Requests diverted to the tarpit in the last 5 minutes.",
       "panelTypes": "value",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0,
       "thresholds": [
-        { "index": 0, "type": "absolute", "value": null, "color": "green" },
-        { "index": 1, "type": "absolute", "value": 1,    "color": "red"   }
+        {"index":0,"type":"absolute","value":null,"color":"green"},
+        {"index":1,"type":"absolute","value":1,"color":"red"}
       ],
       "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p02",
-        "promql": [
-          { "name": "A", "query": "sum(increase(veilgate_requests_total{decision=\"tarpit\"}[5m]))", "legend": "tarpitted", "disabled": false }
-        ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "queryType": "promql", "id": "q-p02",
+        "promql": [{"name":"A","query":"sum(increase(veilgate_requests_total{decision=\"tarpit\"}[5m]))","legend":"tarpitted","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
@@ -99,253 +79,214 @@
       "title": "Challenged",
       "description": "Requests served a PoW challenge page in the last 5 minutes.",
       "panelTypes": "value",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0,
       "thresholds": [
-        { "index": 0, "type": "absolute", "value": null,  "color": "green"  },
-        { "index": 1, "type": "absolute", "value": 1,     "color": "yellow" }
+        {"index":0,"type":"absolute","value":null,"color":"green"},
+        {"index":1,"type":"absolute","value":1,"color":"yellow"}
       ],
       "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p03",
-        "promql": [
-          { "name": "A", "query": "sum(increase(veilgate_requests_total{decision=\"challenge\"}[5m]))", "legend": "challenged", "disabled": false }
-        ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "queryType": "promql", "id": "q-p03",
+        "promql": [{"name":"A","query":"sum(increase(veilgate_requests_total{decision=\"challenge\"}[5m]))","legend":"challenged","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p04",
       "title": "Block Rate",
-      "description": "Percentage of requests that were tarpitted or challenged over the last 5 minutes.",
+      "description": "Percentage of requests gated (tarpitted or challenged) over the last 5 minutes.",
       "panelTypes": "value",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0,
       "thresholds": [
-        { "index": 0, "type": "absolute", "value": null, "color": "green"  },
-        { "index": 1, "type": "absolute", "value": 5,    "color": "yellow" },
-        { "index": 2, "type": "absolute", "value": 20,   "color": "red"    }
+        {"index":0,"type":"absolute","value":null,"color":"green"},
+        {"index":1,"type":"absolute","value":5,"color":"yellow"},
+        {"index":2,"type":"absolute","value":20,"color":"red"}
       ],
       "yAxisUnit": "percent",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p04",
+        "queryType": "promql", "id": "q-p04",
         "promql": [
           {
             "name": "A",
             "query": "100 * sum(increase(veilgate_requests_total{decision=~\"tarpit|challenge\"}[5m])) / sum(increase(veilgate_requests_total[5m]))",
-            "legend": "block %",
-            "disabled": false
+            "legend": "block %", "disabled": false
           }
         ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p05",
       "title": "Request Rate by Decision",
-      "description": "Requests/s split by routing decision: real (forwarded), tarpit, challenge, observe (scored but forwarded).",
+      "description": "Requests/s split by routing decision: real (forwarded), tarpit, challenge, observe.",
       "panelTypes": "graph",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "reqps",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "reqps",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p05",
-        "promql": [
-          { "name": "A", "query": "sum by (decision) (rate(veilgate_requests_total[5m]))", "legend": "{{decision}}", "disabled": false }
-        ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "queryType": "promql", "id": "q-p05",
+        "promql": [{"name":"A","query":"sum by (decision) (rate(veilgate_requests_total[5m]))","legend":"{{decision}}","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p06",
-      "title": "Score Distribution (p50 / p90 / p99)",
-      "description": "Threat score percentiles over time. Scores 0–100; tarpit threshold default 60, challenge threshold default 30.",
+      "title": "Score Distribution — p50 / p90 / p99",
+      "description": "Threat score percentiles over time. Tarpit threshold defaults to 60, challenge to 30.",
       "panelTypes": "graph",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0,
       "thresholds": [
-        { "index": 0, "type": "absolute", "value": 30, "color": "yellow" },
-        { "index": 1, "type": "absolute", "value": 60, "color": "red"    }
+        {"index":0,"type":"absolute","value":30,"color":"yellow"},
+        {"index":1,"type":"absolute","value":60,"color":"red"}
       ],
       "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p06",
+        "queryType": "promql", "id": "q-p06",
         "promql": [
-          { "name": "A", "query": "histogram_quantile(0.50, sum by (le) (rate(veilgate_score_bucket[5m])))", "legend": "p50", "disabled": false },
-          { "name": "B", "query": "histogram_quantile(0.90, sum by (le) (rate(veilgate_score_bucket[5m])))", "legend": "p90", "disabled": false },
-          { "name": "C", "query": "histogram_quantile(0.99, sum by (le) (rate(veilgate_score_bucket[5m])))", "legend": "p99", "disabled": false }
+          {"name":"A","query":"histogram_quantile(0.50, sum by (le) (rate(veilgate_score_bucket[5m])))","legend":"p50","disabled":false},
+          {"name":"B","query":"histogram_quantile(0.90, sum by (le) (rate(veilgate_score_bucket[5m])))","legend":"p90","disabled":false},
+          {"name":"C","query":"histogram_quantile(0.99, sum by (le) (rate(veilgate_score_bucket[5m])))","legend":"p99","disabled":false}
         ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p07",
-      "title": "Top Signal Hits",
-      "description": "Top 10 most frequently firing detection signals (rate per second). Each signal maps to a detector rule.",
+      "title": "Top Signal Hits (rate/s)",
+      "description": "Top 10 most frequently firing detection signals. Each signal maps to a specific detector rule.",
       "panelTypes": "graph",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p07",
-        "promql": [
-          {
-            "name": "A",
-            "query": "topk(10, sum by (signal) (rate(veilgate_signal_hits_total[5m])))",
-            "legend": "{{signal}}",
-            "disabled": false
-          }
-        ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "queryType": "promql", "id": "q-p07",
+        "promql": [{"name":"A","query":"topk(10, sum by (signal) (rate(veilgate_signal_hits_total[5m])))","legend":"{{signal}}","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p08",
-      "title": "Attack Families",
-      "description": "Rate of signals grouped by attack family: recon, auth, injection, evasion, fingerprint, behavioral, fleet, toolchain, ml.",
+      "title": "Attack Families — Stacked Rate",
+      "description": "Detection signals grouped by attack family: recon, auth, injection, evasion, fingerprint, behavioral, fleet, toolchain, ml.",
       "panelTypes": "graph",
-      "isStacked": true,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "isStacked": true, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p08",
+        "queryType": "promql", "id": "q-p08",
+        "promql": [{"name":"A","query":"sum by (family) (rate(veilgate_endpoint_attack_family_total[5m]))","legend":"{{family}}","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
+      }
+    },
+
+    {
+      "id": "p18",
+      "title": "Decision Breakdown",
+      "description": "Share of each routing decision over the last hour — shows the proportion of real vs tarpitted vs challenged vs observed traffic.",
+      "panelTypes": "pie",
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "promql", "id": "q-p18",
+        "promql": [{"name":"A","query":"sum by (decision) (increase(veilgate_requests_total[1h]))","legend":"{{decision}}","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
+      }
+    },
+
+    {
+      "id": "p19",
+      "title": "Score Tier Distribution (last 1h)",
+      "description": "Requests bucketed by score severity tier: critical (≥80), high (≥60), medium (≥30), low (<30). Shows the threat heat of incoming traffic.",
+      "panelTypes": "bar",
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "promql", "id": "q-p19",
+        "promql": [{"name":"A","query":"sum by (tier) (increase(veilgate_endpoint_score_tier_total[1h]))","legend":"{{tier}}","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
+      }
+    },
+
+    {
+      "id": "p21",
+      "title": "Challenge — Issued vs Solved",
+      "description": "PoW challenges issued per second vs successfully solved. Low solve rate = legit bots or scraper farms that can't execute JS.",
+      "panelTypes": "graph",
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "reqps",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "promql", "id": "q-p21",
         "promql": [
-          {
-            "name": "A",
-            "query": "sum by (family) (rate(veilgate_endpoint_attack_family_total[5m]))",
-            "legend": "{{family}}",
-            "disabled": false
-          }
+          {"name":"A","query":"rate(veilgate_challenge_issued_total[5m])","legend":"issued/s","disabled":false},
+          {"name":"B","query":"rate(veilgate_challenge_solved_total[5m])","legend":"solved/s","disabled":false},
+          {"name":"C","query":"rate(veilgate_challenge_failed_total[5m])","legend":"failed/s","disabled":false}
         ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p09",
       "title": "Active Tarpit Sessions",
-      "description": "In-flight tarpit connections currently holding attacker clients with artificial latency.",
+      "description": "In-flight tarpit connections currently holding attacker clients.",
       "panelTypes": "value",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0,
       "thresholds": [
-        { "index": 0, "type": "absolute", "value": null, "color": "green"  },
-        { "index": 1, "type": "absolute", "value": 50,   "color": "yellow" },
-        { "index": 2, "type": "absolute", "value": 200,  "color": "red"    }
+        {"index":0,"type":"absolute","value":null,"color":"green"},
+        {"index":1,"type":"absolute","value":50,"color":"yellow"},
+        {"index":2,"type":"absolute","value":200,"color":"red"}
       ],
       "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p09",
-        "promql": [
-          { "name": "A", "query": "veilgate_tarpit_active_sessions", "legend": "sessions", "disabled": false }
-        ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "queryType": "promql", "id": "q-p09",
+        "promql": [{"name":"A","query":"veilgate_tarpit_active_sessions","legend":"sessions","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
@@ -354,94 +295,59 @@
       "title": "Tracked Clients",
       "description": "Distinct client IPs currently tracked in the scoring window.",
       "panelTypes": "value",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p10",
-        "promql": [
-          { "name": "A", "query": "veilgate_tracked_clients", "legend": "clients", "disabled": false }
-        ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "queryType": "promql", "id": "q-p10",
+        "promql": [{"name":"A","query":"veilgate_tracked_clients","legend":"clients","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p11",
       "title": "Persist Queue Depth",
-      "description": "SQLite event write-queue backlog. High values (>1000) indicate the store cannot keep up — rows may be dropped.",
+      "description": "SQLite event write-queue backlog. Values above 2048 mean rows are being dropped.",
       "panelTypes": "value",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0,
       "thresholds": [
-        { "index": 0, "type": "absolute", "value": null, "color": "green"  },
-        { "index": 1, "type": "absolute", "value": 512,  "color": "yellow" },
-        { "index": 2, "type": "absolute", "value": 2048, "color": "red"    }
+        {"index":0,"type":"absolute","value":null,"color":"green"},
+        {"index":1,"type":"absolute","value":512,"color":"yellow"},
+        {"index":2,"type":"absolute","value":2048,"color":"red"}
       ],
       "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p11",
-        "promql": [
-          { "name": "A", "query": "veilgate_persist_queue_depth", "legend": "depth", "disabled": false }
-        ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "queryType": "promql", "id": "q-p11",
+        "promql": [{"name":"A","query":"veilgate_persist_queue_depth","legend":"depth","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p12",
-      "title": "Request Log Stream — Tarpitted & Challenged",
-      "description": "Structured log lines for requests routed to tarpit or challenge. Fields: score, decision, path, method, client, signals fired.",
+      "title": "Log Stream — Tarpitted & Challenged Requests",
+      "description": "Structured log lines where decision=tarpit or challenge. Fields available: score, path, method, client, signals fired.",
       "panelTypes": "list",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "",
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "",
       "selectedLogFields": [
-        { "dataType": "string", "name": "timestamp",     "type": "" },
-        { "dataType": "string", "name": "severity_text", "type": "" },
-        { "dataType": "string", "name": "body",          "type": "" }
+        {"dataType":"string","name":"timestamp","type":""},
+        {"dataType":"string","name":"severity_text","type":""},
+        {"dataType":"string","name":"body","type":""}
       ],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "builder",
-        "id": "q-p12",
+        "queryType": "builder", "id": "q-p12",
         "builder": {
           "queryData": [
             {
@@ -455,8 +361,21 @@
                   {
                     "id": "p12-f1",
                     "key": {
-                      "id": "body--string--tag--true",
-                      "key": "body",
+                      "id": "service.name--string--resource--true",
+                      "key": "service.name",
+                      "dataType": "string",
+                      "type": "resource",
+                      "isColumn": true,
+                      "isJSON": false
+                    },
+                    "op": "=",
+                    "value": "veilgate-demo-api"
+                  },
+                  {
+                    "id": "p12-f2",
+                    "key": {
+                      "id": "body.message--string--tag--true",
+                      "key": "body.message",
                       "dataType": "string",
                       "type": "tag",
                       "isColumn": true,
@@ -466,7 +385,7 @@
                     "value": "request"
                   },
                   {
-                    "id": "p12-f2",
+                    "id": "p12-f3",
                     "key": {
                       "id": "decision--string--tag--false",
                       "key": "decision",
@@ -487,7 +406,7 @@
               "having": [],
               "limit": null,
               "stepInterval": null,
-              "orderBy": [ { "columnName": "timestamp", "order": "desc" } ],
+              "orderBy": [{"columnName":"timestamp","order":"desc"}],
               "legend": "",
               "pageSize": 100,
               "offset": 0
@@ -495,122 +414,69 @@
           ],
           "queryFormulas": []
         },
-        "promql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ],
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "promql": [{"name":"A","query":"","legend":"","disabled":false}],
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p13",
-      "title": "Request Latency (p50 / p95 by Decision)",
-      "description": "End-to-end proxy latency percentiles split by decision. Tarpit latency is intentionally inflated (500–3000 ms).",
+      "title": "Request Latency — p50 / p95 by Decision",
+      "description": "End-to-end proxy latency percentiles. Tarpit latency is intentionally inflated (500–3000 ms by design).",
       "panelTypes": "graph",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "s",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "s",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p13",
+        "queryType": "promql", "id": "q-p13",
         "promql": [
-          {
-            "name": "A",
-            "query": "histogram_quantile(0.50, sum by (le, decision) (rate(veilgate_request_duration_seconds_bucket[5m])))",
-            "legend": "p50 {{decision}}",
-            "disabled": false
-          },
-          {
-            "name": "B",
-            "query": "histogram_quantile(0.95, sum by (le, decision) (rate(veilgate_request_duration_seconds_bucket[5m])))",
-            "legend": "p95 {{decision}}",
-            "disabled": false
-          }
+          {"name":"A","query":"histogram_quantile(0.50, sum by (le, decision) (rate(veilgate_request_duration_seconds_bucket[5m])))","legend":"p50 {{decision}}","disabled":false},
+          {"name":"B","query":"histogram_quantile(0.95, sum by (le, decision) (rate(veilgate_request_duration_seconds_bucket[5m])))","legend":"p95 {{decision}}","disabled":false}
         ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p14",
-      "title": "ML Classifier — Score Contribution & Bayes Evictions",
-      "description": "Points contributed by the ml_agent_score signal (p90 histogram) and the rate of Bayes histogram cap evictions.",
+      "title": "ML Classifier — Score Points p90 & Bayes Evictions",
+      "description": "p90 of points added by the ml_agent_score signal and the Bayes histogram eviction rate (cap pressure indicator).",
       "panelTypes": "graph",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p14",
+        "queryType": "promql", "id": "q-p14",
         "promql": [
-          {
-            "name": "A",
-            "query": "histogram_quantile(0.90, sum by (le) (rate(veilgate_ml_score_points_bucket[5m])))",
-            "legend": "ml points p90",
-            "disabled": false
-          },
-          {
-            "name": "B",
-            "query": "sum(rate(veilgate_ml_bayes_evictions_total[5m]))",
-            "legend": "Bayes evictions/s",
-            "disabled": false
-          }
+          {"name":"A","query":"histogram_quantile(0.90, sum by (le) (rate(veilgate_ml_score_points_bucket[5m])))","legend":"ml points p90","disabled":false},
+          {"name":"B","query":"sum(rate(veilgate_ml_bayes_evictions_total[5m]))","legend":"Bayes evictions/s","disabled":false}
         ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p15",
-      "title": "Error & Warning Log Stream",
-      "description": "All error and warning log lines from VeilGate: store failures, panics, config warnings, rules reload errors, ML refit issues.",
+      "title": "Log Stream — Errors & Warnings",
+      "description": "Error and warning log lines from the veilgate-demo-api service: store failures, panics, config warnings, rules reload errors.",
       "panelTypes": "list",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "",
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "",
       "selectedLogFields": [
-        { "dataType": "string", "name": "timestamp",     "type": "" },
-        { "dataType": "string", "name": "severity_text", "type": "" },
-        { "dataType": "string", "name": "body",          "type": "" }
+        {"dataType":"string","name":"timestamp","type":""},
+        {"dataType":"string","name":"severity_text","type":""},
+        {"dataType":"string","name":"body","type":""}
       ],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "builder",
-        "id": "q-p15",
+        "queryType": "builder", "id": "q-p15",
         "builder": {
           "queryData": [
             {
@@ -623,6 +489,19 @@
                 "items": [
                   {
                     "id": "p15-f1",
+                    "key": {
+                      "id": "service.name--string--resource--true",
+                      "key": "service.name",
+                      "dataType": "string",
+                      "type": "resource",
+                      "isColumn": true,
+                      "isJSON": false
+                    },
+                    "op": "=",
+                    "value": "veilgate-demo-api"
+                  },
+                  {
+                    "id": "p15-f2",
                     "key": {
                       "id": "severity_text--string--tag--true",
                       "key": "severity_text",
@@ -643,7 +522,7 @@
               "having": [],
               "limit": null,
               "stepInterval": null,
-              "orderBy": [ { "columnName": "timestamp", "order": "desc" } ],
+              "orderBy": [{"columnName":"timestamp","order":"desc"}],
               "legend": "",
               "pageSize": 100,
               "offset": 0
@@ -651,82 +530,168 @@
           ],
           "queryFormulas": []
         },
-        "promql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ],
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "promql": [{"name":"A","query":"","legend":"","disabled":false}],
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p16",
       "title": "Suspicious Tool Families (last 1h)",
-      "description": "Requests matching known attack/scanner user-agent patterns, bucketed by tool family.",
+      "description": "Requests matching known scanner/attack user-agent patterns, bucketed by tool family (sqlmap, nuclei, ffuf, etc.).",
       "panelTypes": "bar",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p16",
-        "promql": [
-          {
-            "name": "A",
-            "query": "topk(15, sum by (family) (increase(veilgate_tool_family_hits_total[1h])))",
-            "legend": "{{family}}",
-            "disabled": false
-          }
-        ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "queryType": "promql", "id": "q-p16",
+        "promql": [{"name":"A","query":"topk(15, sum by (family) (increase(veilgate_tool_family_hits_total[1h])))","legend":"{{family}}","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     },
 
     {
       "id": "p17",
-      "title": "IP Reputation Hits (last 1h)",
-      "description": "Hits from IPs flagged by the reputation database, broken down by category: tor_exit, cloud, anonymizer, rfc1918_leak.",
+      "title": "IP Reputation Hits by Category (last 1h)",
+      "description": "Requests from flagged IPs broken down by reputation category: tor_exit, cloud, anonymizer, rfc1918_leak.",
       "panelTypes": "bar",
-      "isStacked": false,
-      "fillSpans": false,
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "columnUnits": {},
-      "mergeAllActiveQueries": false,
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "thresholds": [],
-      "yAxisUnit": "short",
-      "selectedLogFields": [
-        { "dataType": "string", "name": "body",      "type": "" },
-        { "dataType": "string", "name": "timestamp", "type": "" }
-      ],
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
       "selectedTracesFields": [],
       "query": {
-        "queryType": "promql",
-        "id": "q-p17",
+        "queryType": "promql", "id": "q-p17",
+        "promql": [{"name":"A","query":"sum by (category) (increase(veilgate_ip_reputation_hits_total[1h]))","legend":"{{category}}","disabled":false}],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
+      }
+    },
+
+    {
+      "id": "p20",
+      "title": "Top Attack Endpoints — Signals per Path (last 1h)",
+      "description": "Most targeted API paths ranked by signal count. path_bucket normalises UUIDs and numeric segments to {id}.",
+      "panelTypes": "table",
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "promql", "id": "q-p20",
         "promql": [
           {
             "name": "A",
-            "query": "sum by (category) (increase(veilgate_ip_reputation_hits_total[1h]))",
-            "legend": "{{category}}",
+            "query": "sort_desc(topk(20, sum by (path_bucket, method) (increase(veilgate_endpoint_signal_total[1h]))))",
+            "legend": "{{path_bucket}} {{method}}",
             "disabled": false
           }
         ],
-        "builder": { "queryData": [], "queryFormulas": [] },
-        "clickhouse_sql": [ { "name": "A", "query": "", "legend": "", "disabled": false } ]
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
+      }
+    },
+
+    {
+      "id": "p23",
+      "title": "Score Tier by Decision — Stacked (last 1h)",
+      "description": "Requests at each score tier (critical/high/medium/low) split by routing decision. Shows whether high-score requests are being acted on.",
+      "panelTypes": "bar",
+      "isStacked": true, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "short",
+      "selectedLogFields": [{"dataType":"string","name":"body","type":""},{"dataType":"string","name":"timestamp","type":""}],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "promql", "id": "q-p23",
+        "promql": [
+          {
+            "name": "A",
+            "query": "sum by (tier, decision) (increase(veilgate_endpoint_score_tier_total[1h]))",
+            "legend": "{{tier}} / {{decision}}",
+            "disabled": false
+          }
+        ],
+        "builder": {"queryData":[],"queryFormulas":[]},
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
+      }
+    },
+
+    {
+      "id": "p22",
+      "title": "Log Stream — All Requests (veilgate-demo-api)",
+      "description": "Full request log stream for the veilgate-demo-api service across all routing decisions. Use body.<key> filters to drill into specific fields (e.g. body.decision, body.path, body.score).",
+      "panelTypes": "list",
+      "isStacked": false, "fillSpans": false, "bucketCount": 30, "bucketWidth": 0,
+      "columnUnits": {}, "mergeAllActiveQueries": false, "nullZeroValues": "zero",
+      "opacity": "1", "softMin": 0, "thresholds": [], "yAxisUnit": "",
+      "selectedLogFields": [
+        {"dataType":"string","name":"timestamp","type":""},
+        {"dataType":"string","name":"severity_text","type":""},
+        {"dataType":"string","name":"body","type":""}
+      ],
+      "selectedTracesFields": [],
+      "query": {
+        "queryType": "builder", "id": "q-p22",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "dataSource": "logs",
+              "aggregateOperator": "noop",
+              "aggregateAttribute": {},
+              "functions": [],
+              "filters": {
+                "items": [
+                  {
+                    "id": "p22-f1",
+                    "key": {
+                      "id": "service.name--string--resource--true",
+                      "key": "service.name",
+                      "dataType": "string",
+                      "type": "resource",
+                      "isColumn": true,
+                      "isJSON": false
+                    },
+                    "op": "=",
+                    "value": "veilgate-demo-api"
+                  },
+                  {
+                    "id": "p22-f2",
+                    "key": {
+                      "id": "body.message--string--tag--true",
+                      "key": "body.message",
+                      "dataType": "string",
+                      "type": "tag",
+                      "isColumn": true,
+                      "isJSON": false
+                    },
+                    "op": "=",
+                    "value": "request"
+                  }
+                ],
+                "op": "AND"
+              },
+              "groupBy": [],
+              "expression": "A",
+              "disabled": false,
+              "having": [],
+              "limit": null,
+              "stepInterval": null,
+              "orderBy": [{"columnName":"timestamp","order":"desc"}],
+              "legend": "",
+              "pageSize": 100,
+              "offset": 0
+            }
+          ],
+          "queryFormulas": []
+        },
+        "promql": [{"name":"A","query":"","legend":"","disabled":false}],
+        "clickhouse_sql": [{"name":"A","query":"","legend":"","disabled":false}]
       }
     }
 
