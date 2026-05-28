@@ -632,7 +632,7 @@ func TestSchemaFirstScoreHelper(t *testing.T) {
 		events := []ClientEvent{
 			{Timestamp: now, Path: "/swagger/v2", UserAgent: "curl/7.84"},
 		}
-		if got := schemaFirstScore(events, paths); got != 1.0 {
+		if got := schemaFirstScore(events, paths, 3); got != 1.0 {
 			t.Fatalf("expected 1.0, got %v", got)
 		}
 	})
@@ -641,13 +641,13 @@ func TestSchemaFirstScoreHelper(t *testing.T) {
 		events := []ClientEvent{
 			{Timestamp: now, Path: "/openapi.json", UserAgent: "Mozilla/5.0 Chrome/124"},
 		}
-		if got := schemaFirstScore(events, paths); got != 0.0 {
+		if got := schemaFirstScore(events, paths, 3); got != 0.0 {
 			t.Fatalf("browser UA should return 0.0, got %v", got)
 		}
 	})
 
 	t.Run("returns 0.0 for empty events", func(t *testing.T) {
-		if got := schemaFirstScore(nil, paths); got != 0.0 {
+		if got := schemaFirstScore(nil, paths, 3); got != 0.0 {
 			t.Fatalf("empty events should return 0.0, got %v", got)
 		}
 	})

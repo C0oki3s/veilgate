@@ -224,6 +224,7 @@ type TarpitConfig struct {
 
 type MetricsConfig struct {
 	Listen string `yaml:"listen"`
+	APIKey string `yaml:"api_key"` // bearer token required on /api/* endpoints; empty = no auth
 }
 
 func Load(path string) (*Config, error) {

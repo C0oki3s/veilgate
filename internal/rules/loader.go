@@ -90,19 +90,57 @@ type Detector struct {
 	// BehavioralSignals configures the session-level signals (schema_first,
 	// cache_miss_anomaly, auth_probe_sequence). Lists are merged from community
 	// YAML files so operators can extend without touching core rules.
+	// All numeric thresholds default to sensible values when zero — operators
+	// only need to set the fields they want to override.
 	BehavioralSignals struct {
 		// SchemaPaths holds path substrings that identify API schema endpoints.
-		// When a non-browser client's first requests match one of these, the
-		// schema_first signal fires. Community files can add app-specific schema
-		// paths (e.g. /api/v2/spec, /internal/openapi).
 		SchemaPaths []string `yaml:"schema_paths"`
-		// AuthPathPatterns maps path substrings to category labels. Paths that
-		// share a label count as one auth function for auth_probe_sequence.
-		// Order matters: more specific patterns must appear before more general
-		// ones (e.g. /auth/token before /auth/).
-		// Exclude suppresses the match when the path also contains that substring
-		// (e.g. /logout suppresses /auth/ from matching logout endpoints).
+		// AuthPathPatterns maps path substrings to category labels. Order matters.
 		AuthPathPatterns []AuthPathPattern `yaml:"auth_path_patterns"`
+
+		SchemaFirst struct {
+			CheckLimit int `yaml:"check_limit"` // how many early events to inspect; default 3
+			Points     int `yaml:"points"`      // default 20
+		} `yaml:"schema_first"`
+
+		CacheMissAnomaly struct {
+			WindowMinutes int `yaml:"window_minutes"` // rolling window; default 3
+			MinEvents     int `yaml:"min_events"`     // minimum events before signal fires; default 5
+			LowThreshold  int `yaml:"low_threshold"`  // default 5
+			LowPoints     int `yaml:"low_points"`     // default 10
+			HighThreshold int `yaml:"high_threshold"` // default 9
+			HighPoints    int `yaml:"high_points"`    // default 20
+		} `yaml:"cache_miss_anomaly"`
+
+		HeaderMutation struct {
+			MinRequests   int `yaml:"min_requests"`   // request count before signal is eligible; default 6
+			LowThreshold  int `yaml:"low_threshold"`  // default 5
+			LowPoints     int `yaml:"low_points"`     // default 8
+			MidThreshold  int `yaml:"mid_threshold"`  // default 10
+			MidPoints     int `yaml:"mid_points"`     // default 15
+			HighThreshold int `yaml:"high_threshold"` // default 15
+			HighPoints    int `yaml:"high_points"`    // default 25
+		} `yaml:"header_mutation"`
+
+		AuthProbeSequence struct {
+			MinEvents     int `yaml:"min_events"`     // default 10
+			WindowMinutes int `yaml:"window_minutes"` // default 5
+			LowThreshold  int `yaml:"low_threshold"`  // default 4
+			LowPoints     int `yaml:"low_points"`     // default 15
+			HighThreshold int `yaml:"high_threshold"` // default 6
+			HighPoints    int `yaml:"high_points"`    // default 25
+		} `yaml:"auth_probe_sequence"`
+
+		NoCookieReturn struct {
+			MinRequests int `yaml:"min_requests"` // default 8
+			Points      int `yaml:"points"`       // default 10
+		} `yaml:"no_cookie_return"`
+
+		EncodingChain struct {
+			SinglePoints int `yaml:"single_points"` // one double-enc occurrence; default 8
+			MultiPoints  int `yaml:"multi_points"`  // two+ occurrences; default 15
+			TriplePoints int `yaml:"triple_points"` // triple-encoding; default 20
+		} `yaml:"encoding_chain"`
 	} `yaml:"behavioral_signals"`
 }
 
