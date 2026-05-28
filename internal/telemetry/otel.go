@@ -1,14 +1,13 @@
-// Package telemetry — OpenTelemetry tracer setup.
+// Package telemetry — OpenTelemetry setup for traces, metrics, and logs.
 //
-// InitTracer reads OTEL_EXPORTER_OTLP_ENDPOINT from the environment.
-// When the variable is empty (the default in non-observability deployments)
-// it installs a no-op tracer so all instrumented code compiles and runs
-// without emitting a single byte. When the variable is set to an OTLP/HTTP
-// endpoint (e.g. "http://otel-collector:4318") the SDK ships spans there.
+// Call InitTelemetry once from main with the operator config. When no OTLP
+// endpoint is configured (config or env) the function is a pure no-op —
+// zero overhead, no collector dependency for operators that don't need it.
 //
-// Call InitTracer once from main; the returned shutdown func must be deferred.
-// All packages that instrument code call otel.Tracer("veilgate") to obtain
-// the global tracer — they do not need to import this file.
+// All three signals share the same transport block (endpoint + headers +
+// TLS flag) so a single config section covers any OTel-compatible backend:
+// SigNoz, Grafana Cloud, Honeycomb, Jaeger, Datadog OTLP, a local
+// OpenTelemetry Collector, etc.
 package telemetry
 
 import (
@@ -17,70 +16,171 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	otellog "go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/trace"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
+	"github.com/C0oki3s/veilgate/internal/config"
 )
 
 const tracerName = "veilgate"
 
 // Tracer is the global VeilGate tracer. Packages that add spans call
-// Tracer.Start instead of importing the otel SDK directly, so the
-// import graph stays clean and the tracer name stays consistent.
+// Tracer.Start without importing the OTel SDK directly.
 var Tracer = otel.Tracer(tracerName)
 
-// InitTracer sets up the global TracerProvider. Returns a shutdown func that
-// flushes and closes the exporter — call it via defer in main.
+// Logger is the global VeilGate OTel logger used by the zerolog bridge.
+var Logger otellog.Logger
+
+// TelemetryShutdown flushes and closes all active OTel providers.
+type TelemetryShutdown func(context.Context) error
+
+// InitTelemetry wires the OTel TracerProvider, MeterProvider, and
+// LoggerProvider from the operator config.
 //
-// If OTEL_EXPORTER_OTLP_ENDPOINT is empty the function is a no-op and
-// returns a no-op shutdown. This keeps the default deployment free of any
-// collector dependency.
-func InitTracer(ctx context.Context) (shutdown func(context.Context) error, err error) {
-	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+// Endpoint resolution order:
+//  1. config.telemetry.otlp.endpoint
+//  2. OTEL_EXPORTER_OTLP_ENDPOINT environment variable (backward compat)
+//
+// Traces: on by default when an endpoint is configured; set
+// telemetry.traces.disabled: true to suppress.
+//
+// Logs push: opt-in via telemetry.logs.enabled: true.
+//
+// Metrics push: opt-in via telemetry.metrics_push.enabled: true.
+// The existing Prometheus pull endpoint (/metrics) is unaffected.
+func InitTelemetry(ctx context.Context, cfg config.TelemetryConfig) (TelemetryShutdown, error) {
+	endpoint := cfg.OTLP.Endpoint
 	if endpoint == "" {
-		// No collector configured — leave the global noop provider in place.
-		return func(context.Context) error { return nil }, nil
+		endpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	}
+	if endpoint == "" {
+		return noopShutdown, nil
 	}
 
-	exp, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpoint(endpoint),
-		otlptracehttp.WithInsecure(),
-	)
-	if err != nil {
-		return nil, err
+	headers := cfg.OTLP.Headers
+	var shutdowns []func(context.Context) error
+
+	// ── Traces ───────────────────────────────────────────────────────────────
+	// On by default; operator must set traces.disabled: true to opt out.
+	if !cfg.Traces.Disabled {
+		opts := []otlptracehttp.Option{otlptracehttp.WithEndpoint(endpoint)}
+		if cfg.OTLP.Insecure {
+			opts = append(opts, otlptracehttp.WithInsecure())
+		}
+		if len(headers) > 0 {
+			opts = append(opts, otlptracehttp.WithHeaders(headers))
+		}
+		exp, err := otlptracehttp.New(ctx, opts...)
+		if err != nil {
+			return noopShutdown, err
+		}
+		tp := sdktrace.NewTracerProvider(
+			sdktrace.WithBatcher(exp,
+				sdktrace.WithMaxExportBatchSize(512),
+				sdktrace.WithBatchTimeout(5*time.Second),
+			),
+			sdktrace.WithSampler(buildSampler(cfg.Traces.SampleRate)),
+		)
+		otel.SetTracerProvider(tp)
+		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		))
+		Tracer = otel.Tracer(tracerName)
+		shutdowns = append(shutdowns, tp.Shutdown)
 	}
 
-	tp := trace.NewTracerProvider(
-		trace.WithBatcher(exp,
-			trace.WithMaxExportBatchSize(512),
-			trace.WithBatchTimeout(5*time.Second),
-		),
-		trace.WithSampler(sampler()),
-	)
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	))
+	// ── Metrics push ─────────────────────────────────────────────────────────
+	// Opt-in: runs alongside the existing Prometheus pull endpoint.
+	if cfg.MetricsPush.Enabled {
+		opts := []otlpmetrichttp.Option{otlpmetrichttp.WithEndpoint(endpoint)}
+		if cfg.OTLP.Insecure {
+			opts = append(opts, otlpmetrichttp.WithInsecure())
+		}
+		if len(headers) > 0 {
+			opts = append(opts, otlpmetrichttp.WithHeaders(headers))
+		}
+		exp, err := otlpmetrichttp.New(ctx, opts...)
+		if err != nil {
+			return noopShutdown, err
+		}
+		interval := parseDuration(cfg.MetricsPush.Interval, 30*time.Second)
+		mp := sdkmetric.NewMeterProvider(
+			sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp,
+				sdkmetric.WithInterval(interval),
+			)),
+		)
+		otel.SetMeterProvider(mp)
+		shutdowns = append(shutdowns, mp.Shutdown)
+	}
 
-	// Refresh the global Tracer var now that the provider is wired.
-	Tracer = otel.Tracer(tracerName)
+	// ── Logs ─────────────────────────────────────────────────────────────────
+	// Opt-in: zerolog bridge forwards each line as an OTLP LogRecord.
+	if cfg.Logs.Enabled {
+		opts := []otlploghttp.Option{otlploghttp.WithEndpoint(endpoint)}
+		if cfg.OTLP.Insecure {
+			opts = append(opts, otlploghttp.WithInsecure())
+		}
+		if len(headers) > 0 {
+			opts = append(opts, otlploghttp.WithHeaders(headers))
+		}
+		exp, err := otlploghttp.New(ctx, opts...)
+		if err != nil {
+			return noopShutdown, err
+		}
+		lp := sdklog.NewLoggerProvider(
+			sdklog.WithProcessor(sdklog.NewBatchProcessor(exp)),
+		)
+		global.SetLoggerProvider(lp)
+		Logger = global.Logger(tracerName)
+		shutdowns = append(shutdowns, lp.Shutdown)
+	}
 
-	return tp.Shutdown, nil
+	return func(ctx context.Context) error {
+		for _, fn := range shutdowns {
+			_ = fn(ctx)
+		}
+		return nil
+	}, nil
 }
 
-// sampler returns the configured sampler. Reads OTEL_TRACES_SAMPLER /
-// OTEL_TRACES_SAMPLER_ARG following the OTel spec; defaults to 1% sampling
-// so a stock deployment does not drown a collector on high-throughput traffic.
-func sampler() trace.Sampler {
-	switch os.Getenv("OTEL_TRACES_SAMPLER") {
-	case "always_on":
-		return trace.AlwaysSample()
-	case "always_off":
-		return trace.NeverSample()
-	default:
-		// parentbased_traceidratio at 1 % — upstream spans are honoured,
-		// local spans start at 1 %.
-		return trace.ParentBased(trace.TraceIDRatioBased(0.01))
+func noopShutdown(_ context.Context) error { return nil }
+
+// parseDuration parses a Go duration string ("30s", "5m", "1h", etc.).
+// Returns fallback when the string is empty or cannot be parsed.
+func parseDuration(s string, fallback time.Duration) time.Duration {
+	if s == "" {
+		return fallback
 	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d <= 0 {
+		return fallback
+	}
+	return d
+}
+
+// buildSampler converts the 0.0–1.0 sample_rate to an OTel sampler.
+// 0 (unset) falls back to OTEL_TRACES_SAMPLER env var for backward compat,
+// then to 1 % parentbased_traceidratio.
+func buildSampler(rate float64) sdktrace.Sampler {
+	if rate == 0 {
+		switch os.Getenv("OTEL_TRACES_SAMPLER") {
+		case "always_on":
+			return sdktrace.AlwaysSample()
+		case "always_off":
+			return sdktrace.NeverSample()
+		}
+		return sdktrace.ParentBased(sdktrace.TraceIDRatioBased(0.01))
+	}
+	if rate >= 1.0 {
+		return sdktrace.AlwaysSample()
+	}
+	return sdktrace.ParentBased(sdktrace.TraceIDRatioBased(rate))
 }

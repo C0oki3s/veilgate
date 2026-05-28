@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -291,6 +292,17 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("load config")
 	}
+
+	// Rebuild the logger with the OTel log bridge as a second destination so
+	// every line is forwarded to the remote collector when logs are enabled.
+	// The ConsoleWriter still writes to stderr — no log lines are lost.
+	if cfg.Telemetry.Logs.Enabled && cfg.Telemetry.OTLP.Endpoint != "" {
+		w := io.MultiWriter(
+			zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339},
+			telemetry.NewOTelLogWriter(),
+		)
+		log = zerolog.New(w).With().Timestamp().Logger()
+	}
 	if envSecret := strings.TrimSpace(os.Getenv("VEILGATE_SECRET")); envSecret != "" {
 		cfg.Challenge.Secret = envSecret
 	}
@@ -317,10 +329,10 @@ func main() {
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	defer rootCancel()
 
-	// OpenTelemetry — no-op when OTEL_EXPORTER_OTLP_ENDPOINT is unset.
-	otelShutdown, err := telemetry.InitTracer(rootCtx)
+	// OpenTelemetry — no-op when no endpoint is configured.
+	otelShutdown, err := telemetry.InitTelemetry(rootCtx, cfg.Telemetry)
 	if err != nil {
-		log.Warn().Err(err).Msg("otel tracer init failed; continuing without tracing")
+		log.Warn().Err(err).Msg("otel init failed; continuing without remote telemetry")
 	} else {
 		defer func() { _ = otelShutdown(context.Background()) }()
 	}

@@ -29,7 +29,8 @@ type Config struct {
 	// runs ahead of the score system. Used for server-to-server
 	// (HMAC, JWT), service-mesh (mTLS header), and other
 	// non-browser-token paths.
-	Verifiers VerifiersConfig `yaml:"verifiers"`
+	Verifiers  VerifiersConfig  `yaml:"verifiers"`
+	Telemetry  TelemetryConfig  `yaml:"telemetry"`
 }
 
 // VerifiersConfig collects all the alternate authenticators. Each
@@ -225,6 +226,62 @@ type TarpitConfig struct {
 type MetricsConfig struct {
 	Listen string `yaml:"listen"`
 	APIKey string `yaml:"api_key"` // bearer token required on /api/* endpoints; empty = no auth
+}
+
+// TelemetryConfig controls where VeilGate ships traces, logs, and metrics.
+// All three signals share the same OTLP transport block so a single endpoint
+// entry covers any OTel-compatible backend (SigNoz, Grafana Cloud, Honeycomb,
+// Jaeger, Datadog OTLP, a local collector, …).
+type TelemetryConfig struct {
+	OTLP        OTLPConfig        `yaml:"otlp"`
+	Traces      TracesConfig      `yaml:"traces"`
+	Logs        LogsConfig        `yaml:"logs"`
+	MetricsPush MetricsPushConfig `yaml:"metrics_push"`
+}
+
+// OTLPConfig is the shared transport block for all three OTLP signals.
+type OTLPConfig struct {
+	// Endpoint is the base URL of the OTLP/HTTP receiver, e.g.
+	// "https://ingest.us2.signoz.cloud:443" or "http://otel-collector:4318".
+	// Overrides the OTEL_EXPORTER_OTLP_ENDPOINT environment variable when set.
+	Endpoint string `yaml:"endpoint"`
+
+	// Headers are sent on every OTLP request — use for API keys, auth tokens,
+	// or any vendor-specific header your backend requires.
+	// Example (SigNoz):   signoz-access-token: "your-key"
+	// Example (Honeycomb): x-honeycomb-team: "your-key"
+	// Example (Grafana):  authorization: "Bearer glc_..."
+	Headers map[string]string `yaml:"headers"`
+
+	// Insecure disables TLS certificate verification. Set true for plain
+	// http:// endpoints (local collectors, dev environments).
+	Insecure bool `yaml:"insecure"`
+}
+
+// TracesConfig controls the distributed trace exporter.
+// Traces are enabled automatically when otlp.endpoint is set.
+// Set disabled: true to opt out even when an endpoint is configured.
+type TracesConfig struct {
+	Disabled   bool    `yaml:"disabled"`    // set true to suppress traces
+	SampleRate float64 `yaml:"sample_rate"` // 0.0–1.0; 0 → 0.01 (1 %)
+}
+
+// LogsConfig controls the log exporter. Opt-in: set enabled: true to
+// forward zerolog lines to the OTLP endpoint as structured LogRecords.
+// Log lines always appear on stderr regardless of this setting.
+type LogsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// MetricsPushConfig controls the OTLP metrics push exporter, which runs
+// alongside the existing Prometheus pull endpoint. Both can be active at
+// once: Prometheus scrapes /metrics, and the push exporter sends the same
+// counters/histograms to the OTLP backend on a fixed interval.
+type MetricsPushConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	// Interval is how often metrics are pushed. Accepts Go duration strings:
+	// "30s", "1m", "5m", "1h". Default: "30s".
+	Interval string `yaml:"interval"` // e.g. "30s", "1m", "5m", "1h"
 }
 
 func Load(path string) (*Config, error) {

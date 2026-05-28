@@ -89,3 +89,48 @@ tarpit:
 
 metrics:
   listen: ":9090"
+  # api_key: "change-me"   # protect /api/* endpoints with a bearer token
+
+# Telemetry: remote observability export via OTLP/HTTP.
+# Works with any OTel-compatible backend out of the box:
+#   SigNoz, Grafana Cloud, Honeycomb, Datadog, Jaeger, a local
+#   OpenTelemetry Collector, or any Prometheus + OTel bridge.
+#
+# Traces are on by default when an endpoint is set.
+# Logs and metrics push are opt-in (see below).
+#
+# telemetry:
+#   otlp:
+#     # Base URL of the OTLP/HTTP receiver (no path suffix needed).
+#     endpoint: "https://ingest.us2.signoz.cloud:443"
+#
+#     # Headers sent on every request — use for API keys or auth tokens.
+#     # Examples:
+#     #   SigNoz:     signoz-access-token: "your-key"
+#     #   Honeycomb:  x-honeycomb-team: "your-key"
+#     #   Grafana:    authorization: "Bearer glc_..."
+#     #   Datadog:    dd-api-key: "your-key"
+#     headers:
+#       signoz-access-token: "your-key"
+#
+#     # Set true for plain http:// endpoints (local dev, docker-compose).
+#     insecure: false
+#
+#   traces:
+#     # Set disabled: true to suppress traces even when endpoint is set.
+#     disabled: false
+#     # Fraction of requests to sample (0.0–1.0). Default: 0.01 (1 %).
+#     # Use 1.0 in dev; keep <= 0.05 on high-traffic production instances.
+#     sample_rate: 0.01
+#
+#   logs:
+#     # Forward every zerolog line to the OTLP endpoint as a structured
+#     # LogRecord. Stderr output is unaffected — no lines are lost.
+#     enabled: false
+#
+#   metrics_push:
+#     # Push OTel metrics to the endpoint on a fixed interval.
+#     # The existing Prometheus pull endpoint (/metrics) keeps working.
+#     enabled: false
+#     # Accepts Go duration strings: "30s", "1m", "5m", "1h". Default: "30s".
+#     interval: "30s"
