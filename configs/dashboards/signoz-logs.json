@@ -1,0 +1,1194 @@
+{
+  "description": "All-logs view covering all 35+ structured log message types plus metric-correlated bar charts and ML history graphs.",
+  "layout": [
+    { "h": 3, "i": "l01", "w": 3,  "x": 0, "y": 0  },
+    { "h": 3, "i": "l02", "w": 3,  "x": 3, "y": 0  },
+    { "h": 3, "i": "l03", "w": 3,  "x": 6, "y": 0  },
+    { "h": 3, "i": "l04", "w": 3,  "x": 9, "y": 0  },
+    { "h": 6, "i": "l05", "w": 6,  "x": 0, "y": 3  },
+    { "h": 6, "i": "l06", "w": 6,  "x": 6, "y": 3  },
+    { "h": 6, "i": "l07", "w": 5,  "x": 0, "y": 9  },
+    { "h": 6, "i": "l08", "w": 7,  "x": 5, "y": 9  },
+    { "h": 8, "i": "l09", "w": 12, "x": 0, "y": 15 },
+    { "h": 8, "i": "l10", "w": 12, "x": 0, "y": 23 },
+    { "h": 6, "i": "l11", "w": 6,  "x": 0, "y": 31 },
+    { "h": 6, "i": "l12", "w": 6,  "x": 6, "y": 31 },
+    { "h": 8, "i": "l13", "w": 12, "x": 0, "y": 37 },
+    { "h": 6, "i": "l14", "w": 6,  "x": 0, "y": 45 },
+    { "h": 6, "i": "l15", "w": 6,  "x": 6, "y": 45 },
+    { "h": 6, "i": "l16", "w": 4,  "x": 0, "y": 51 },
+    { "h": 6, "i": "l17", "w": 8,  "x": 4, "y": 51 },
+    { "h": 6, "i": "l18", "w": 6,  "x": 0, "y": 57 },
+    { "h": 6, "i": "l19", "w": 6,  "x": 6, "y": 57 },
+    { "h": 6, "i": "l20", "w": 6,  "x": 0, "y": 63 },
+    { "h": 6, "i": "l21", "w": 6,  "x": 6, "y": 63 },
+    { "h": 6, "i": "l22", "w": 6,  "x": 0, "y": 69 },
+    { "h": 6, "i": "l23", "w": 6,  "x": 6, "y": 69 },
+    { "h": 6, "i": "l24", "w": 6,  "x": 0, "y": 75 },
+    { "h": 6, "i": "l25", "w": 6,  "x": 6, "y": 75 }
+  ],
+  "tags": ["veilgate", "logs", "security", "production"],
+  "title": "VeilGate — Logs (Production)",
+  "variables": {
+    "decision": {
+      "description": "Filter by routing decision (real / tarpit / challenge / observe)",
+      "dynamicVariablesAttribute": "decision",
+      "dynamicVariablesSource": "Logs",
+      "id": "a1000001-dead-4bee-cafe-000000000001",
+      "multiSelect": true,
+      "name": "decision",
+      "order": 0,
+      "showALLOption": true,
+      "sort": "ASC",
+      "type": "DYNAMIC"
+    },
+    "client": {
+      "description": "Partial-match filter on client IP address",
+      "id": "a1000002-dead-4bee-cafe-000000000002",
+      "multiSelect": false,
+      "name": "client",
+      "order": 1,
+      "selectedValue": "",
+      "showALLOption": false,
+      "sort": "DISABLED",
+      "type": "TEXTBOX"
+    },
+    "path": {
+      "description": "Partial-match filter on request path",
+      "id": "a1000003-dead-4bee-cafe-000000000003",
+      "multiSelect": false,
+      "name": "path",
+      "order": 2,
+      "selectedValue": "",
+      "showALLOption": false,
+      "sort": "DISABLED",
+      "type": "TEXTBOX"
+    }
+  },
+  "version": "v5",
+  "widgets": [
+    {
+      "description": "Total log records from veilgate-demo-api across all 35+ message types in the selected window.",
+      "fillSpans": false,
+      "id": "l01",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "value",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [{ "expression": "count() as 'count'" }],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api'" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "total",
+              "limit": 0,
+              "orderBy": [],
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "5ba3a92e-afb6-4515-9e08-b3a66a471b9a",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Total Logs",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Request hot-path log lines — one per scored proxy request.",
+      "fillSpans": false,
+      "id": "l02",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "value",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [{ "expression": "count() as 'count'" }],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message = 'request'" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "requests",
+              "limit": 0,
+              "orderBy": [],
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "a38c8fdd-89f9-43d0-b0ec-984ef4192181",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Request Logs",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Startup, ML fits, persist ops, rules reloads, challenge lifecycle, periodic ticks — everything except request hot-path.",
+      "fillSpans": false,
+      "id": "l03",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "value",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [{ "expression": "count() as 'count'" }],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message != 'request'" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "operational",
+              "limit": 0,
+              "orderBy": [],
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "37868dc8-f226-405e-9118-f1d79ef9cd22",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Operational Logs",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Warn, error, and fatal log lines — goes red at ≥1.",
+      "fillSpans": false,
+      "id": "l04",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "value",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [{ "expression": "count() as 'count'" }],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND severity_text IN ['warn', 'error', 'fatal']" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "errors",
+              "limit": 0,
+              "orderBy": [],
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "faa4427d-5f3d-4ca5-8ef6-e2422dd78550",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "thresholds": [
+        {
+          "index": "0",
+          "selectedGraph": "Total",
+          "thresholdColor": "#e84749",
+          "thresholdLabel": "errors",
+          "thresholdOperator": ">=",
+          "thresholdValue": 1
+        }
+      ],
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Errors & Warnings",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Log throughput split by severity level. Spikes in warn/error/fatal indicate config or runtime issues.",
+      "fillSpans": false,
+      "id": "l05",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [{ "expression": "count() as 'count'" }],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api'" },
+              "functions": [],
+              "groupBy": [{ "dataType": "string", "key": "severity_text", "type": "tag" }],
+              "having": [],
+              "legend": "{{severity_text}}",
+              "limit": 0,
+              "orderBy": [],
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "9c124641-adaf-4d04-b8a7-9830288313de",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Log Rate by Severity",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Request log rate split by routing decision over time. Correlated with veilgate.requests.total metric.",
+      "fillSpans": false,
+      "id": "l06",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [{ "expression": "count() as 'count'" }],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message = 'request'" },
+              "functions": [],
+              "groupBy": [{ "dataType": "string", "key": "decision", "type": "tag" }],
+              "having": [],
+              "legend": "{{decision}}",
+              "limit": 0,
+              "orderBy": [],
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "6e425077-7d10-4e66-8803-9d8cf7b913a9",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Request Rate by Decision",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Share of each routing decision across all request log lines.",
+      "fillSpans": false,
+      "id": "l07",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "pie",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [{ "expression": "count() as 'count'" }],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message = 'request'" },
+              "functions": [],
+              "groupBy": [{ "dataType": "string", "key": "decision", "type": "tag" }],
+              "having": [],
+              "legend": "{{decision}}",
+              "limit": 0,
+              "orderBy": [],
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "629a787e-e932-4209-89c2-a0310a26ac4d",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Decision Breakdown",
+      "yAxisUnit": "short"
+    },
+    {
+      "columnWidths": { "A": 145, "decision": 145, "method": 145, "path": 145 },
+      "description": "Top 20 paths hit by tarpitted or challenged clients, ranked by request count.",
+      "fillSpans": false,
+      "id": "l08",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "table",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [{ "expression": "count() as 'Requests'" }],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message = 'request' AND decision IN ['tarpit', 'challenge']" },
+              "functions": [],
+              "groupBy": [
+                { "dataType": "string", "key": "path",     "type": "tag" },
+                { "dataType": "string", "key": "method",   "type": "tag" },
+                { "dataType": "string", "key": "decision", "type": "tag" }
+              ],
+              "having": [],
+              "legend": "{{path}} {{method}}",
+              "limit": 20,
+              "orderBy": [{ "columnName": "count()", "order": "desc" }],
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "d79f2715-7306-42d7-a885-ebae877d1e1d",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Top Attack Paths — Tarpitted & Challenged",
+      "yAxisUnit": "short"
+    },
+    {
+      "columnWidths": {
+        "body": 350, "client": 100, "decision": 100,
+        "method": 100, "path": 100, "score": 100,
+        "severity_text": 100, "signals": 100, "timestamp": 100
+      },
+      "description": "Full request log stream. Every scored proxy request with decision, score, method, path, client IP, and signals. Use the SigNoz search bar above to filter by decision, client, or path.",
+      "fillSpans": false,
+      "id": "l09",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "list",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message = 'request'" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "",
+              "limit": 0,
+              "offset": 0,
+              "orderBy": [],
+              "pageSize": 100,
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": null
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "9fc0c626-bd72-4db0-81a5-2e36a222e96f",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "timestamp",     "type": "" },
+        { "dataType": "string", "name": "severity_text", "type": "" },
+        { "dataType": "string", "name": "body",          "type": "" },
+        { "dataType": "string", "name": "decision",      "type": "tag" },
+        { "dataType": "string", "name": "score",         "type": "tag" },
+        { "dataType": "string", "name": "method",        "type": "tag" },
+        { "dataType": "string", "name": "path",          "type": "tag" },
+        { "dataType": "string", "name": "client",        "type": "tag" },
+        { "dataType": "string", "name": "signals",       "type": "tag" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Request Log Stream — All"
+    },
+    {
+      "columnWidths": {
+        "body": 350, "client": 100, "decision": 100,
+        "method": 100, "path": 100, "score": 100,
+        "severity_text": 100, "signals": 100, "timestamp": 100
+      },
+      "description": "Log stream scoped to tarpitted and challenged requests only. Decision, score, method, path, client IP, and signals. Correlated with veilgate.requests.total{decision=tarpit|challenge}.",
+      "fillSpans": false,
+      "id": "l10",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "list",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message = 'request' AND decision IN ['tarpit', 'challenge']" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "",
+              "limit": 0,
+              "offset": 0,
+              "orderBy": [],
+              "pageSize": 100,
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": null
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "f08f5571-6b42-45df-bc35-41b9f9a5f865",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "timestamp",     "type": "" },
+        { "dataType": "string", "name": "severity_text", "type": "" },
+        { "dataType": "string", "name": "body",          "type": "" },
+        { "dataType": "string", "name": "decision",      "type": "tag" },
+        { "dataType": "string", "name": "score",         "type": "tag" },
+        { "dataType": "string", "name": "method",        "type": "tag" },
+        { "dataType": "string", "name": "path",          "type": "tag" },
+        { "dataType": "string", "name": "client",        "type": "tag" },
+        { "dataType": "string", "name": "signals",       "type": "tag" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Log Stream — Tarpitted & Challenged"
+    },
+    {
+      "columnWidths": {
+        "addr": 100, "body": 350, "candidates": 100,
+        "path": 100, "routes": 100, "severity_text": 100,
+        "timestamp": 100, "tls": 100
+      },
+      "description": "Startup, proxy/metrics listening (addr, tls), API blueprint load (routes), ML seeding (candidates), persist store open (path), rules watcher, OTel init, graceful shutdown.",
+      "fillSpans": false,
+      "id": "l11",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "list",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message != 'request' AND severity_text = 'info'" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "",
+              "limit": 0,
+              "offset": 0,
+              "orderBy": [],
+              "pageSize": 100,
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": null
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "6ce0e72e-f97e-42a7-9e04-3a18dad6efed",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "timestamp",  "type": "" },
+        { "dataType": "string", "name": "severity_text", "type": "" },
+        { "dataType": "string", "name": "body",       "type": "" },
+        { "dataType": "string", "name": "addr",       "type": "tag" },
+        { "dataType": "string", "name": "tls",        "type": "tag" },
+        { "dataType": "string", "name": "candidates", "type": "tag" },
+        { "dataType": "string", "name": "routes",     "type": "tag" },
+        { "dataType": "string", "name": "path",       "type": "tag" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "System & Lifecycle Logs"
+    },
+    {
+      "columnWidths": {
+        "body": 350, "client": 100, "decision": 100,
+        "path": 100, "reason": 100, "severity_text": 100, "timestamp": 100
+      },
+      "description": "Warn, error, fatal logs — config parse failures, verifier misconfigs, rules reload errors, persist failures, miner tick errors, OTel init failures, WebSocket proxy errors.",
+      "fillSpans": false,
+      "id": "l12",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "list",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND severity_text IN ['warn', 'error', 'fatal']" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "",
+              "limit": 0,
+              "offset": 0,
+              "orderBy": [],
+              "pageSize": 100,
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": null
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "e239c5df-8ee8-452d-acb5-9cd0fb95a60a",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "timestamp",     "type": "" },
+        { "dataType": "string", "name": "severity_text", "type": "" },
+        { "dataType": "string", "name": "body",          "type": "" },
+        { "dataType": "string", "name": "reason",        "type": "tag" },
+        { "dataType": "string", "name": "decision",      "type": "tag" },
+        { "dataType": "string", "name": "client",        "type": "tag" },
+        { "dataType": "string", "name": "path",          "type": "tag" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Errors & Warnings Stream"
+    },
+    {
+      "columnWidths": {
+        "body": 350, "client": 100, "decision": 100,
+        "path": 100, "reason": 100, "score": 100,
+        "severity_text": 100, "timestamp": 100
+      },
+      "description": "Unfiltered raw log stream — all 35+ message types.",
+      "fillSpans": false,
+      "id": "l13",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "list",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api'" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "",
+              "limit": 0,
+              "offset": 0,
+              "orderBy": [],
+              "pageSize": 100,
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": null
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "646ef36e-0d62-40fc-a842-745f27a930af",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "timestamp",     "type": "" },
+        { "dataType": "string", "name": "severity_text", "type": "" },
+        { "dataType": "string", "name": "body",          "type": "" },
+        { "dataType": "string", "name": "decision",      "type": "tag" },
+        { "dataType": "string", "name": "score",         "type": "tag" },
+        { "dataType": "string", "name": "client",        "type": "tag" },
+        { "dataType": "string", "name": "path",          "type": "tag" },
+        { "dataType": "string", "name": "reason",        "type": "tag" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "All Logs — Raw Stream"
+    },
+    {
+      "columnWidths": { "body": 350, "candidates": 100, "severity_text": 100, "timestamp": 100 },
+      "description": "Bayes classifier seeding and reseeding (hourly, candidates column = model size), ML path redaction init, failed rule load, iso-forest refit events. Correlated with veilgate.ml.bayes_entries gauge.",
+      "fillSpans": false,
+      "id": "l14",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "list",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message IN ['seeded Bayes from learned rules', 'reseeded Bayes from learned rules', 'ML path redaction active (UUIDs / IDs / hex / tokens scrubbed)', 'failed to load learned rules at startup', 'iso forest refit skipped — previous fit still running']" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "",
+              "limit": 0,
+              "offset": 0,
+              "orderBy": [],
+              "pageSize": 100,
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": null
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "c547df32-abd6-4e49-940d-6a38a4c2df76",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "timestamp",     "type": "" },
+        { "dataType": "string", "name": "severity_text", "type": "" },
+        { "dataType": "string", "name": "body",          "type": "" },
+        { "dataType": "string", "name": "candidates",    "type": "tag" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "ML & Intelligence Logs"
+    },
+    {
+      "columnWidths": {
+        "body": 350, "client": 100, "reason": 100,
+        "severity_text": 100, "timestamp": 100, "verifier": 100
+      },
+      "description": "Debug-level verifier accepted request events — each time the challenge token verifier passes a request through. Shows verifier name, client IP, and acceptance reason.",
+      "fillSpans": false,
+      "id": "l15",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "list",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message = 'verifier accepted request'" },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "legend": "",
+              "limit": 0,
+              "offset": 0,
+              "orderBy": [],
+              "pageSize": 100,
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": null
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "55596d51-1862-456d-9916-3e543414b8b9",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "timestamp",     "type": "" },
+        { "dataType": "string", "name": "severity_text", "type": "" },
+        { "dataType": "string", "name": "body",          "type": "" },
+        { "dataType": "string", "name": "verifier",      "type": "tag" },
+        { "dataType": "string", "name": "client",        "type": "tag" },
+        { "dataType": "string", "name": "reason",        "type": "tag" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Challenge Verifier Logs"
+    },
+    {
+      "description": "Bar chart of request log volume by HTTP method (GET, POST, PUT, DELETE, etc). Confirms what methods attackers are using. Correlated with veilgate.endpoint.requests.total grouped by method.",
+      "fillSpans": false,
+      "id": "l16",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "bar",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [{ "expression": "count() as 'Requests'" }],
+              "dataSource": "logs",
+              "disabled": false,
+              "expression": "A",
+              "filter": { "expression": "service.name = 'veilgate-demo-api' AND body.message = 'request'" },
+              "functions": [],
+              "groupBy": [{ "dataType": "string", "key": "method", "type": "tag" }],
+              "having": [],
+              "legend": "{{method}}",
+              "limit": 10,
+              "orderBy": [{ "columnName": "count()", "order": "desc" }],
+              "queryName": "A",
+              "selectColumns": [],
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "f0b3a611-d4db-4041-a64e-5c2e3ebca258",
+        "promql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "queryType": "builder"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Requests by HTTP Method",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Top 15 detection signals ranked by hit count over the last hour. Each signal maps to a specific behavioural or attack pattern. Sourced directly from veilgate.signal.hits.total metric.",
+      "fillSpans": false,
+      "id": "l17",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "bar",
+      "query": {
+        "builder": { "queryData": [], "queryFormulas": [] },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "786dded5-79e7-4c8c-8924-a2bf68528095",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "{{signal}}",
+            "name": "A",
+            "query": "topk(15, sum by (signal) (increase(veilgate_signal_hits_total[1h])))"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Top Signal Hits (last 1h)",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "How many tarpit responses were served per content-type (json, html, graphql, text, other). Sourced from veilgate.tarpit.template_type.total. High html/json indicates LLM tool targeting.",
+      "fillSpans": false,
+      "id": "l18",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "bar",
+      "query": {
+        "builder": { "queryData": [], "queryFormulas": [] },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "c5884fe4-4a17-42d3-852c-7fcbf611ae1c",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "{{content_type}}",
+            "name": "A",
+            "query": "sum by (content_type) (increase(veilgate_tarpit_template_type_total[1h]))"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Tarpit Content Type Breakdown",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Top 15 attacker tool families detected by User-Agent patterns. Sourced from veilgate.tool_family.hits.total. Correlated with l10 stream to inspect individual tool requests.",
+      "fillSpans": false,
+      "id": "l19",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "bar",
+      "query": {
+        "builder": { "queryData": [], "queryFormulas": [] },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "1c1e6e15-32e9-43da-b79f-b46aa19bb036",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "{{family}}",
+            "name": "A",
+            "query": "topk(15, sum by (family) (increase(veilgate_tool_family_hits_total[1h])))"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Tool Family Detections (last 1h)",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "veilgate.tracked_clients = unique IPs in the per-IP scoring window. veilgate.fleet_fingerprints = distinct behavioural fingerprints. Spikes indicate new attack campaigns. Sampled every 30s via KindPeriodic bus events.",
+      "fillSpans": false,
+      "id": "l20",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": { "queryData": [], "queryFormulas": [] },
+        "clickhouse_sql": [
+          { "disabled": false, "legend": "", "name": "A", "query": "" },
+          { "disabled": false, "legend": "", "name": "B", "query": "" }
+        ],
+        "id": "10d7cf02-b9fb-4a3f-b1ee-d3cd6d9f5d2c",
+        "promql": [
+          { "disabled": false, "legend": "tracked clients",    "name": "A", "query": "veilgate_tracked_clients" },
+          { "disabled": false, "legend": "fleet fingerprints", "name": "B", "query": "veilgate_fleet_fingerprints" }
+        ],
+        "queryType": "promql"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Tracked Clients & Fleet Fingerprints",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "veilgate.ml.bayes_entries tracks the number of distinct (feature, bucket) pairs in the Bayes histogram. Growth indicates the model is learning new traffic patterns. Correlated with l14 reseeding events.",
+      "fillSpans": false,
+      "id": "l21",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": { "queryData": [], "queryFormulas": [] },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "96d01284-8a97-4068-9889-c08f569d37df",
+        "promql": [
+          { "disabled": false, "legend": "bayes entries", "name": "A", "query": "veilgate_ml_bayes_entries" }
+        ],
+        "queryType": "promql"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Bayes Entries Over Time (ML Model Size)",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Rate of ISO forest refit runs by status: ok (completed), skipped_busy (previous run still active), skipped_cold (not enough training data), skipped_disabled (ML disabled). Sourced from veilgate.ml.fits.total.",
+      "fillSpans": false,
+      "id": "l22",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": { "queryData": [], "queryFormulas": [] },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "c936db85-11bb-459c-b6c2-d4d714176c4e",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "{{status}}",
+            "name": "A",
+            "query": "sum by (status) (rate(veilgate_ml_fits_total[5m]))"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "ML Fits by Status",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Attacker LLM API cost burned by the tarpit (veilgate.tarpit.cost_usd.total) vs bytes served (veilgate.tarpit.bytes_served.total). Both sourced from KindTarpit bus events. Rising cost = effective defence.",
+      "fillSpans": false,
+      "id": "l23",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": { "queryData": [], "queryFormulas": [] },
+        "clickhouse_sql": [
+          { "disabled": false, "legend": "", "name": "A", "query": "" },
+          { "disabled": false, "legend": "", "name": "B", "query": "" }
+        ],
+        "id": "420a7d69-5454-4c73-a42b-fd66090a3bc3",
+        "promql": [
+          { "disabled": false, "legend": "cost USD/5m",  "name": "A", "query": "increase(veilgate_tarpit_cost_usd_total[5m])" },
+          { "disabled": false, "legend": "bytes KB/5m",  "name": "B", "query": "increase(veilgate_tarpit_bytes_served_total[5m]) / 1024" }
+        ],
+        "queryType": "promql"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Tarpit Burn — Cost USD & Bytes Served",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Rate of veilgate.ua_rotation.fires.total — how often the per-IP UA-rotation detector trips. Sustained firing indicates an active bot campaign cycling user agents to evade fingerprinting. Correlated with l10 stream signals column.",
+      "fillSpans": false,
+      "id": "l24",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": { "queryData": [], "queryFormulas": [] },
+        "clickhouse_sql": [{ "disabled": false, "legend": "", "name": "A", "query": "" }],
+        "id": "9f20b8e4-8063-4bc9-890b-022a4f9dc978",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "UA rotation fires/s",
+            "name": "A",
+            "query": "rate(veilgate_ua_rotation_fires_total[5m])"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "UA Rotation Fires",
+      "yAxisUnit": "short"
+    },
+    {
+      "description": "Threat score percentiles split by routing decision from veilgate.score.by_decision histogram. p90 tarpit should be ≥ 80, p90 challenge 30–60. Divergence from these bands indicates threshold misconfiguration.",
+      "fillSpans": false,
+      "id": "l25",
+      "mergeAllActiveQueries": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "panelTypes": "graph",
+      "query": {
+        "builder": { "queryData": [], "queryFormulas": [] },
+        "clickhouse_sql": [
+          { "disabled": false, "legend": "", "name": "A", "query": "" },
+          { "disabled": false, "legend": "", "name": "B", "query": "" }
+        ],
+        "id": "b404b280-5fd8-4465-a8b6-e565477fe246",
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "p50 {{decision}}",
+            "name": "A",
+            "query": "histogram_quantile(0.50, sum by (le, decision) (rate(veilgate_score_by_decision_bucket[5m])))"
+          },
+          {
+            "disabled": false,
+            "legend": "p90 {{decision}}",
+            "name": "B",
+            "query": "histogram_quantile(0.90, sum by (le, decision) (rate(veilgate_score_by_decision_bucket[5m])))"
+          }
+        ],
+        "queryType": "promql"
+      },
+      "selectedLogFields": [
+        { "dataType": "string", "name": "body",      "type": "" },
+        { "dataType": "string", "name": "timestamp", "type": "" }
+      ],
+      "selectedTracesFields": [],
+      "softMax": 0,
+      "softMin": 0,
+      "timePreferance": "GLOBAL_TIME",
+      "title": "Score Distribution by Decision — p50 / p90",
+      "yAxisUnit": "short"
+    }
+  ]
+}
