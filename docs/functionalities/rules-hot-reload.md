@@ -64,11 +64,13 @@ ls -la ~/.veilgate/rules
 | File | Purpose | Code area |
 | --- | --- | --- |
 | `detector.yaml` | Signal weights and matchers. | `internal/rules`, `internal/detector` |
+| `signals.yaml` | Enable/disable signals, points overrides, custom signals. Hot-reloaded ~500 ms. | `internal/rules`, `internal/detector/scorer.go` |
 | `ip_reputation.yaml` | CIDR categories, fleet rotation, UA rotation. | `internal/rules/ip_reputation.go`, `internal/detector/fleet.go` |
 | `tls_fingerprints.yaml` | JA3/JA4 exact and prefix classifications. | `internal/tlsfp`, `internal/detector/tls.go` |
+| `api_blueprint.yaml` / `openapi.yaml` | API route map for `api_blueprint_miss` signal. Accepts simple routes list, OpenAPI 3.x, or Swagger 2.0. | `internal/blueprint` |
 | `templates.yaml` | Tarpit response templates. | `internal/tarpit/renderer.go` |
 | `injection_strategy.yaml` | Tarpit route and payload strategy. | `internal/tarpit/handler.go` |
-| `payloads.yaml` | Decoy and prompt-injection payload library. | `internal/payloads` |
+| `payloads.yaml` | Tarpit deception payload library (termination, rabbit_hole, cost_bomb, confusion, moral_appeal). `prompt_injection` category is present but empty by default since v1.1.5. | `internal/payloads` |
 | `fake_data.yaml` | Fake profile value pools. | `internal/tarpit/profile.go` |
 | `vulnerabilities.yaml` | Fake vulnerability and route lists. | `internal/tarpit/handler.go` |
 | `challenge.yaml` | Challenge template, cookie, token, and verify settings. | `internal/challenge` |
@@ -82,9 +84,9 @@ Syntax:  automatic watcher for supported rule files
 Default: disabled when `rules_dir` is empty  
 Context: runtime
 
-The watcher is registered for detector, IP reputation, tarpit content,
-challenge, ML, dashboard, and TLS fingerprints when applicable. Runtime holders
-swap rule pointers so request-path reads remain cheap.
+The watcher is registered for detector, signals, IP reputation, tarpit content,
+challenge, ML, dashboard, TLS fingerprints, and API blueprint when applicable.
+Runtime holders swap rule pointers so request-path reads remain cheap.
 
 ### Code path
 

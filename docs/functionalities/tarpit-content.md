@@ -147,8 +147,11 @@ Syntax:  payload library file
 Default: embedded payloads  
 Context: `rules_dir`
 
-Defines decoy and prompt-injection payloads inserted into responses by
-`internal/payloads.Injector`.
+Defines tarpit deception payloads inserted into responses by
+`internal/payloads.Injector`. Categories: `termination`, `rabbit_hole`,
+`cost_bomb`, `confusion`, `moral_appeal`. The `prompt_injection` category
+exists but is empty by default since v1.1.5 — add entries if your threat
+model calls for direct prompt injection payloads.
 
 ### Code path
 
@@ -159,6 +162,8 @@ Defines decoy and prompt-injection payloads inserted into responses by
 
 - Payloads should be designed for defensive deception in environments you own.
 - Do not include real credentials or sensitive operational details.
+- The `prompt_injection` category is intentionally empty in the default rules —
+  add entries in `payloads/` community files if needed.
 
 ## Limitations
 
