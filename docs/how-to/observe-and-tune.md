@@ -41,6 +41,29 @@ sudo systemctl reload veilgate     # rule files hot-reload; mode change needs re
 sudo systemctl restart veilgate
 ```
 
+## Step 1B — use threat_level and severity in SigNoz
+
+If you have OTel logs enabled (`telemetry.logs.enabled: true`), VeilGate's
+request lines arrive in SigNoz with structured severity:
+
+| Decision | Log level | SigNoz colour |
+| --- | --- | --- |
+| `tarpit` | `error` | Red |
+| `challenge` | `warn` | Yellow |
+| `real` / `observe` | `info` | Blue |
+
+Every request line also carries `threat_level` (`low` / `medium` / `high` /
+`critical`) derived from the score range. Use it to watch the tail of your
+traffic before picking thresholds:
+
+```
+# In SigNoz Logs — filter while still in observe mode:
+body.threat_level = critical   # score ≥ 80
+body.threat_level = high       # score 60-79
+```
+
+This is often faster than waiting for Prometheus histogram data to accumulate.
+
 ## Step 2 — watch the score histogram
 
 Pull the score histogram from Prometheus:
@@ -159,13 +182,35 @@ If your traffic has a strong monthly pattern (e.g. end-of-month batch
 processing customers), wait at least one cycle of *that* pattern at the
 observe and challenge stages.
 
+## Tuning individual signals
+
+If a specific signal is generating false positives, disable it or reduce its
+weight without touching the threshold. Changes hot-reload in ~500 ms:
+
+```yaml
+# rules/signals.yaml
+signals:
+  ae_browser_no_br:
+    enabled: false     # CDN strips br hint before VeilGate sees the request
+  path_bruteforce:
+    enabled: true
+    points: 10         # reduce from 25 — your SPA walks many paths legitimately
+  ml_agent_score:
+    enabled: false     # suppress while retraining
+```
+
+See [`rules/signals.yaml` reference](../config/rules/signals.md) for all 43
+signals and every override option.
+
 ## Related
 
 - [Use case: Bug-bounty triage](../usecases/bug-bounty-triage.md) — when
   to *not* flip to tarpit
 - [How-to: Promote learned rules](promote-learned-rules.md)
 - [Config: detector thresholds](../config/detector.md)
+- [Config: rules/signals.yaml](../config/rules/signals.md)
 - [Config: rules/ml.yaml](../config/rules/ml.md)
+- [How-to: OpenTelemetry observability](opentelemetry.md) — threat_level and severity in SigNoz
 
 ---
 

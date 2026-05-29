@@ -286,16 +286,22 @@ full bypass against high-confidence attack-tier behavior.
 
 ## Request Logging
 
-Every request is logged at `info` level using structured zerolog JSON:
+Every request is logged using structured zerolog JSON at a level that reflects
+the routing decision — `tarpit → error`, `challenge → warn`,
+`real / observe → info`. In SigNoz and Grafana this maps to red / yellow / blue.
+
+Every log line also carries a `threat_level` field (`low` / `medium` / `high` /
+`critical`) derived from the score range (0–29 / 30–59 / 60–79 / 80–100).
 
 ```json
 {
-  "level": "info",
+  "level": "error",
   "client": "203.0.113.10",
   "method": "GET",
   "path": "/.git/config",
   "score": 85,
   "decision": "tarpit",
+  "threat_level": "critical",
   "signals": [
     {"Name":"honeypot_hit","Points":50,"Reason":"requested path in honeypot list"},
     {"Name":"suspicious_ua","Points":35,"Reason":"UA matched suspicious substring"}
@@ -303,9 +309,13 @@ Every request is logged at `info` level using structured zerolog JSON:
 }
 ```
 
-The `signals` field is a JSON array of all fired signals including name, points,
-and reason. Use this to diagnose false positives and understand score
-composition.
+The `signals` field is a JSON array of all fired signals with name, points, and
+reason. Use it to diagnose false positives and understand score composition.
+
+When `telemetry.logs.enabled: true`, each log line is also forwarded to the
+OTLP backend as a structured `LogRecord` with the same severity mapping. The
+`OTelLogWriter` bridge (`internal/telemetry/otel_logbridge.go`) handles the
+zerolog-JSON → OTel-LogRecord conversion.
 
 ## Status Recorder
 
@@ -359,22 +369,25 @@ curl http://127.0.0.1:9090/metrics | grep veilgate_requests_total
 
 ## Telemetry Emitted by the Proxy
 
-After each request, `serve()` updates the following:
+After each request, `serve()` emits a `KindRequest` event to `DefaultBus`,
+which fans it to all registered sinks (Prometheus, OTelSink, dashboard) without
+blocking the hot path. Both Prometheus and OTel instruments are updated from the
+same event.
 
-| Telemetry | Where |
+| Telemetry | Mechanism |
 | --- | --- |
-| `veilgate_score` histogram | `telemetry.ScoreHistogram.Observe()` |
-| `veilgate_signal_hits_total` | per-signal counter for every fired signal |
-| `veilgate_ip_reputation_hits_total` | when `ip_reputation` signal fires |
-| `veilgate_fleet_rotation_fires_total` | when `ip_rotation_fleet` fires |
-| `veilgate_ua_rotation_fires_total` | when `ua_rotation` fires |
-| `veilgate_ml_score` | when `ml_agent_score` fires |
-| `veilgate_tool_family_hits_total` | when `suspicious_ua` fires |
-| `veilgate_public_ip_requests_total` | for public IP traffic |
-| `veilgate_requests_total{decision=...}` | final decision count |
+| `veilgate_requests_total` / `veilgate.requests.total` | `DefaultBus.Emit(KindRequest)` |
+| `veilgate_score` / `veilgate.score` histogram | same event |
+| `veilgate_signal_hits_total` / `veilgate.signal.hits.total` | per fired signal |
+| `veilgate_request_duration_seconds` / `veilgate.request.duration` | same event |
+| Endpoint correlation counters | same event (4 metrics per request) |
+| Structured log record (OTel) | `OTelLogWriter` bridge — zerolog line → OTLP `LogRecord` |
+| OTel trace span | `telemetry.Tracer` — `veilgate.serve` span |
 | Dashboard event | `telemetry.Dashboard.Record()` |
 | JSONL capture | `telemetry.Capture.Write()` (when enabled) |
 | SQLite persistence | `persist.Store.Record()` (when enabled) |
+
+See [Module veilgate_metrics](veilgate_metrics.md) for the full metric catalogue.
 
 ## Limitations
 

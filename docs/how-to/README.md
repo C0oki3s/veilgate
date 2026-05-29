@@ -21,7 +21,7 @@ operator hits during install or day-2 ops.
 | [Install community rules](install-community-rules.md) | Pull the latest community-maintained detection rules from veilgate-rules |
 | [ShopStorm API: server-to-server](shopstorm-api-server-to-server.md) | Call the ShopStorm demo API from a backend service using HMAC signing |
 | [API blueprinting](api-blueprint.md) | Provide your OpenAPI / route list so VeilGate can detect undocumented-path probing |
-| [OpenTelemetry tracing](opentelemetry.md) | Ship request traces to Jaeger, Tempo, or SigNoz for per-request signal inspection |
+| [OpenTelemetry observability](opentelemetry.md) | Ship traces, structured logs, and metrics to SigNoz, Grafana, Jaeger, or any OTLP backend — includes decision-based severity and threat_level attribute |
 | [Endpoint correlation](endpoint-correlation.md) | Use Prometheus endpoint-correlation metrics to identify attacked routes and attack families |
 
 If you don't see your task here, the [configuration reference](../config/README.md)
