@@ -51,8 +51,10 @@ default.
 | Rule file | Page | Reload |
 | --- | --- | --- |
 | `detector.yaml` | [rules/detector.md](rules/detector.md) | hot reload |
+| `signals.yaml` | [rules/signals.md](rules/signals.md) | hot reload (~500 ms) |
 | `ip_reputation.yaml` | [rules/ip-reputation.md](rules/ip-reputation.md) | hot reload |
 | `tls_fingerprints.yaml` | [rules/tls-fingerprints.md](rules/tls-fingerprints.md) | hot reload when TLS DB exists |
+| `api_blueprint.yaml` / `openapi.yaml` | [how-to/api-blueprint.md](../how-to/api-blueprint.md) | hot reload |
 | `challenge.yaml` | [rules/challenge.md](rules/challenge.md) | hot reload |
 | `ml.yaml` | [rules/ml.md](rules/ml.md) | hot reload |
 | `templates.yaml` | [rules/templates.md](rules/templates.md) | hot reload |
@@ -70,6 +72,8 @@ default.
 | `veilgate.yaml` | restart required, for example `sudo systemctl restart veilgate` |
 | `VEILGATE_SECRET` | restart required; overrides `challenge.secret` at startup |
 | supported `rules_dir` files | `internal/rules.Watcher`, debounced and atomically swapped on successful parse |
+| `signals.yaml` | hot reload ~500 ms; applies `enabled` and `points` overrides atomically |
+| `api_blueprint.yaml` / `openapi.yaml` | hot reload ~500 ms via fsnotify |
 | `payloads.yaml` | restart required; loaded by `payloads.NewLibraryFromDir()` at startup |
 | `learned.yaml` | read and written by the ML miner workflow |
 | `verifiers.hmac.clients_dir/*.secret` | hot reload on file mtime change |
