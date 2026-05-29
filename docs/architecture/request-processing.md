@@ -44,7 +44,7 @@ flowchart TD
     S --> W
 
     W --> X[tracker.RecordStatus\nfailure_recovery signal]
-    X --> Y[Prometheus metrics\ndashboard event\nCapture JSONL\nSQLite persist]
+    X --> Y[DefaultBus.Emit KindRequest\nPrometheus + OTel metrics\nOTelLogWriter: zerolog → OTLP LogRecord\ndashboard event · Capture JSONL · SQLite persist]
 ```
 
 ## Example Configuration
@@ -284,16 +284,41 @@ Code path:
 
 After scoring and after handler execution, VeilGate records:
 
-- Prometheus metrics via `internal/telemetry/metrics.go`.
-- Built-in dashboard events via `internal/telemetry/dashboard.go`.
-- Optional JSONL capture events via `internal/telemetry/capture.go`.
-- Optional SQLite persistence events via `internal/persist/store.go`.
-- Response status back into the tracker via `tracker.RecordStatus()` for the
+- **Prometheus metrics** via `internal/telemetry/metrics.go` (37+ counters, histograms, and gauges).
+- **OpenTelemetry metrics** via `internal/telemetry/bus.go` + `otel_sink.go` — the same
+  instruments as Prometheus, exported to any OTLP backend when
+  `telemetry.metrics_push.enabled: true`.
+- **Structured log records** via `internal/telemetry/otel_logbridge.go` —
+  `OTelLogWriter` intercepts every zerolog JSON line and forwards it to the
+  global OTel `LoggerProvider` as a `LogRecord`. The log level is preserved
+  as an OTel `Severity` so SigNoz, Grafana, and Honeycomb colour-code
+  log lines by severity automatically. Enabled with `telemetry.logs.enabled: true`.
+- **Decision-based log severity**: every request log line uses a level that
+  reflects the routing outcome — `tarpit → error`, `challenge → warn`,
+  `real / observe → info`. The `threat_level` field (`low` / `medium` /
+  `high` / `critical`) is also attached, derived from the numeric score.
+- **OTel traces** via `internal/telemetry/otel.go` — two spans per request
+  (`veilgate.serve` and, when tarpitted, `veilgate.tarpit`). Each fired signal
+  is attached as a span event. Enabled by setting `OTEL_EXPORTER_OTLP_ENDPOINT`
+  or `telemetry.otlp.endpoint`.
+- **Async metrics bus** (`DefaultBus`) — a 512-slot non-blocking event queue
+  that fans `RequestEvent`, `TarpitEvent`, `ChallengeEvent`, `MLFitEvent`,
+  `PeriodicEvent`, `VerifierEvent`, and `RecommenderEvent` to all registered
+  sinks without stalling the proxy. If the queue is full, events are dropped
+  rather than blocking the hot path.
+- **Built-in dashboard events** via `internal/telemetry/dashboard.go`.
+- **Optional JSONL capture events** via `internal/telemetry/capture.go`.
+- **Optional SQLite persistence events** via `internal/persist/store.go`.
+- **Response status** back into the tracker via `tracker.RecordStatus()` for the
   `failure_recovery` signal.
 
 Code path:
 
-- [`internal/telemetry/metrics.go`](../../internal/telemetry/metrics.go)
+- [`internal/telemetry/metrics.go`](../../internal/telemetry/metrics.go) — Prometheus instruments
+- [`internal/telemetry/bus.go`](../../internal/telemetry/bus.go) — event types and Bus dispatcher
+- [`internal/telemetry/otel_sink.go`](../../internal/telemetry/otel_sink.go) — OTel instruments
+- [`internal/telemetry/otel_logbridge.go`](../../internal/telemetry/otel_logbridge.go) — zerolog → OTel log bridge
+- [`internal/telemetry/otel.go`](../../internal/telemetry/otel.go) — trace provider init
 - [`internal/telemetry/dashboard.go`](../../internal/telemetry/dashboard.go)
 - [`internal/telemetry/capture.go`](../../internal/telemetry/capture.go)
 - [`internal/persist/store.go`](../../internal/persist/store.go)
@@ -301,8 +326,12 @@ Code path:
 Validation:
 
 ```bash
+# Prometheus pull
 curl http://127.0.0.1:9090/metrics | grep veilgate_requests_total
 curl http://127.0.0.1:9090/metrics | grep veilgate_signal_hits_total
+
+# Log severity in SigNoz (after enabling telemetry.logs)
+# tarpit requests appear as ERROR, challenge as WARN, real/observe as INFO
 ```
 
 ## Limitations
@@ -515,30 +544,6 @@ Code path:
 - [`internal/proxy/proxy.go#L163`](../../internal/proxy/proxy.go#L163)
 - [`internal/challenge/challenge.go`](../../internal/challenge/challenge.go)
 - [`internal/tarpit/handler.go`](../../internal/tarpit/handler.go)
-
-## Phase 9: Telemetry And Persistence
-
-After scoring and before/after handler execution, VeilGate records:
-
-- Prometheus metrics;
-- built-in dashboard events;
-- optional JSONL capture events;
-- optional SQLite persistence events;
-- response status back into the tracker.
-
-Code path:
-
-- [`internal/telemetry/metrics.go`](../../internal/telemetry/metrics.go)
-- [`internal/telemetry/dashboard.go`](../../internal/telemetry/dashboard.go)
-- [`internal/telemetry/capture.go`](../../internal/telemetry/capture.go)
-- [`internal/persist/store.go`](../../internal/persist/store.go)
-
-Validation:
-
-```bash
-curl http://127.0.0.1:9090/metrics | grep veilgate_requests_total
-curl http://127.0.0.1:9090/metrics | grep veilgate_signal_hits_total
-```
 
 ## Limitations
 

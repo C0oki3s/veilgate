@@ -7,6 +7,106 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.1.5] — 2026-05-29
+
+### Added
+
+- **Async metrics bus** (`internal/telemetry`): `DefaultBus` — a 512-slot
+  non-blocking event dispatcher that fans every scored request, tarpit
+  session, challenge lifecycle, ML fit, 30 s periodic gauge snapshot,
+  verifier outcome, and recommender pass to all registered sinks without
+  stalling the reverse-proxy hot path. Inspired by LiteLLM's async callback
+  pattern. Seven `EventKind` values: `KindRequest`, `KindTarpit`,
+  `KindChallenge`, `KindMLFit`, `KindPeriodic`, `KindVerifier`,
+  `KindRecommender`.
+
+- **Full OTel/Prometheus parity**: 35+ OpenTelemetry instruments now cover
+  every metric that Prometheus exposes, achieved via two mechanisms:
+  - **Atomic bridges** — three package-level `atomic.Int64` vars
+    (`TarpitActiveCount`, `BayesEvictionsCount`, `MinerCandidatesCount`)
+    are read by the 30 s periodic ticker and included in `PeriodicEvent`,
+    so `OTelSink` can update gauge/counter instruments without direct
+    call-site changes.
+  - **Two new EventKinds** — `KindVerifier` (emitted by the upload credential
+    path on every accepted/rejected/none outcome) and `KindRecommender`
+    (emitted at the end of each recommender analysis pass) route previously
+    Prometheus-only events to `OTelSink`.
+  - Six instruments added to `OTelSink` that were previously missing:
+    `veilgate.tarpit.active_sessions` (Int64Gauge),
+    `veilgate.ml.bayes_evictions.total` (Int64Counter),
+    `veilgate.ml.miner_candidates.total` (Int64Counter),
+    `veilgate.verifier.result.total` (Int64Counter),
+    `veilgate.recommender.suggestions_last` (Int64Gauge),
+    `veilgate.recommender.analysis_duration` (Float64Histogram).
+
+- **Decision-based log severity** (`internal/proxy`): request log lines now
+  carry a zerolog level that reflects the routing decision —
+  `tarpit → error` (red in SigNoz), `challenge → warn` (yellow),
+  `real / observe → info` (blue). Previously all request lines were `info`.
+
+- **`threat_level` log attribute**: every request log line now includes a
+  `threat_level` field derived from the raw score:
+  `0–29 → low`, `30–59 → medium`, `60–79 → high`, `80–100 → critical`.
+  Stable string values usable as SigNoz filter values without needing to
+  know the numeric threshold bands.
+
+- **OTel log bridge** (`internal/telemetry/otel_logbridge.go`): `OTelLogWriter`
+  is an `io.Writer` that intercepts each zerolog JSON line, parses the
+  `level` field into an OTel `SeverityNumber`, and emits a structured
+  `LogRecord` to the global `LoggerProvider` via `OTLP/HTTP`. The bridge is
+  a multi-writer alongside `os.Stderr`, so logs always appear on the console
+  AND flow to the remote collector when `telemetry.logs.enabled: true`.
+  Severity mapping: `trace→TRACE`, `debug→DEBUG`, `info→INFO`,
+  `warn→WARN`, `error→ERROR`, `fatal/panic→FATAL`.
+
+- **`signals.yaml` in veilgate-rules**: a complete operator-facing registry of
+  all 43 built-in signals, each with `enabled: true`, a multi-line
+  description, and a comprehensive comment block explaining every custom-signal
+  condition type. Intended as a starter file that operators copy and edit;
+  shipping it in veilgate-rules means `veilgate update-rules` keeps the
+  description set up to date without a binary rebuild.
+
+### Changed
+
+- **Prompt injection payloads removed** from tarpit responses. Both
+  `payloads/prompt-injection.yaml` and the `prompt_injection` section of
+  `payloads/high-risk-exposure-breadcrumbs.yaml` are cleared to empty lists.
+  The injection infrastructure remains in place (ready if any operator
+  has local payloads configured); the default rule set no longer ships active
+  prompt injection content.
+
+### Fixed
+
+- **`TestVeilgateRulesPayloadInjection`** smoke test assertion updated:
+  the test previously checked for `json_field`-style text ("Public Exposure of
+  High-Risk Administrative") in HTML output, which can never appear because
+  `injectHTML` only selects `html_comment`/`html_hidden`/`log_noise` style
+  payloads. Assertion now checks for `"exposure-audit"` which is present in
+  the `html_comment`-style `rabbit_hole` payload.
+
+### Maintenance
+
+- **`configs/dashboards/` untracked from git**: SigNoz dashboard JSON files
+  are managed via the SigNoz UI and are now gitignored.  
+  `git rm --cached` removes them from the index without deleting the local
+  files. Operators manage dashboards through the SigNoz import workflow.
+
+### Documentation
+
+- `CHANGELOG.md` — this entry.
+- `docs/architecture/request-processing.md` — Phase 9 updated to document
+  the metrics bus, OTel log bridge, and decision-based severity.
+- `docs/functionalities/detection-signals.md` — full rewrite: all 43 built-in
+  signals with group, default points, what they detect, and routing impact.
+- `docs/functionalities/detector-score-system.md` — added `threat_level`
+  attribute reference, score tier table (low/medium/high/critical).
+- `docs/how-to/opentelemetry.md` — updated to cover all three OTel signals
+  (traces, structured logs, metrics push) and the v1.1.5 log severity routing.
+- `docs/functionalities/metrics-dashboard.md` — OTel instrument names added
+  alongside Prometheus metric names in the reference table.
+
+---
+
 ## [1.1.4] — 2026-05-28
 
 ### Added
@@ -335,7 +435,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/C0oki3s/veilgate/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/C0oki3s/veilgate/compare/v1.1.5...HEAD
+[1.1.5]: https://github.com/C0oki3s/veilgate/compare/v1.1.4...v1.1.5
+[1.1.4]: https://github.com/C0oki3s/veilgate/compare/v1.1.3...v1.1.4
+[1.1.3]: https://github.com/C0oki3s/veilgate/compare/v1.1.1...v1.1.3
 [1.1.1]: https://github.com/C0oki3s/veilgate/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/C0oki3s/veilgate/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/C0oki3s/veilgate/compare/v0.1.0...v1.0.0
