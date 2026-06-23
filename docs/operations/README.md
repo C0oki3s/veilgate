@@ -70,6 +70,12 @@ http://localhost:9090/
 For now, the supported public dashboard path is the built-in dashboard. Grafana
 examples are intentionally kept out of the supported deployment surface.
 
+The separate admin dashboard is served by `veilgate-admin`, usually on
+`127.0.0.1:8888`. See [Admin Dashboard Operations](admin-dashboard.md) for
+deployment, hardening, backup, and troubleshooting.
+See [Admin Dashboard Security And Private Access](admin-dashboard-security.md)
+for Tailscale, VPN, and NSG/security-group access patterns.
+
 ## Tuning Workflow
 
 1. Run in `observe`.

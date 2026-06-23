@@ -1,0 +1,62 @@
+{{define "page"}}
+<div class="login-shell">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-mascot">
+        {{template "veilo-hooded" .}}
+      </div>
+      <div class="login-brand-name">VeilGate</div>
+      <div class="login-brand-sub">Admin Panel</div>
+    </div>
+
+    {{if .Flash}}
+    <div class="flash flash-{{.Flash.Kind}}" role="alert">
+      <div class="login-flash-icon">
+        {{if eq .Flash.Kind "error"}}{{template "veilo-alert" .}}{{end}}
+      </div>
+      <span>{{.Flash.Message}}</span>
+    </div>
+    {{end}}
+
+    {{if .DefaultCreds}}
+    <div class="login-default-creds">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <div>
+        <div class="login-default-creds-title">Default credentials active</div>
+        <div class="login-default-creds-body">
+          Username: <code>admin</code> &nbsp;·&nbsp; Password: <code>veilgate</code><br>
+          Change these immediately after signing in.
+        </div>
+      </div>
+    </div>
+    {{end}}
+
+    <form class="login-form" method="POST" action="/login">
+      {{$next := ""}}
+      <input type="hidden" name="next" value="{{$next}}">
+      <div class="field-group">
+        <label class="field-label" for="username">Username</label>
+        <input class="field-input" id="username" name="username" type="text"
+          autocomplete="username" autocapitalize="none" autofocus required
+          placeholder="admin"
+          {{if .DefaultCreds}}value="admin"{{end}}>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="password">Password</label>
+        <input class="field-input" id="password" name="password" type="password"
+          autocomplete="current-password" required
+          placeholder="{{if .DefaultCreds}}veilgate{{else}}••••••••{{end}}">
+      </div>
+      <button class="btn btn-primary login-btn" type="submit">Sign in</button>
+    </form>
+
+    <div class="login-footer-row">
+      <a href="/forgot-password" class="login-forgot-link">Forgot password?</a>
+      <span class="login-footer-ver">VeilGate {{.Version}}</span>
+    </div>
+  </div>
+</div>
+{{end}}

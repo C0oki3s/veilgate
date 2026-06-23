@@ -1,0 +1,121 @@
+{{define "page"}}
+{{$d := .Data}}
+
+<div class="row between mb-5" style="align-items:flex-start">
+  <div style="max-width:680px">
+    <p class="dim text-sm">
+      Decoy endpoints turn the admin port into a deception surface. Any scanner or agent that probes a
+      common attack path is served a convincing fake response (posing as <code class="mono">nginx</code>),
+      delayed briefly, and recorded in the <a href="/audit" class="link">audit log</a> as a
+      <code class="mono">decoy_probe</code> event. Changes take effect immediately — no restart needed.
+    </p>
+    <p class="dim text-xs mt-2">Stored in <code class="mono">{{$d.Path}}</code></p>
+  </div>
+  <form method="POST" action="/decoys" onsubmit="return confirm('Restore the default decoy set? This replaces your current list.')">
+    <input type="hidden" name="_action" value="reset">
+    <button type="submit" class="btn btn-sm">Restore defaults</button>
+  </form>
+</div>
+
+{{/* ── Add a decoy ───────────────────────────────────────────────────── */}}
+<div class="card mb-6">
+  <div class="card-header"><span class="card-title">Add a decoy endpoint</span></div>
+  <div class="card-body">
+    <form method="POST" action="/decoys" class="decoy-add-form">
+      <input type="hidden" name="_action" value="add">
+      <div class="field">
+        <label class="field-label">Path</label>
+        <input class="field-input field-input-mono" type="text" name="path"
+          placeholder="/wp-login.php" required pattern="/.*"
+          title="Must start with /">
+        <span class="field-help">Request path to trap. Must start with <code>/</code>.</span>
+      </div>
+      <div class="field">
+        <label class="field-label">Response</label>
+        <select class="field-select" name="kind">
+          {{range decoyKinds}}
+          <option value="{{.}}">{{decoyLabel .}}</option>
+          {{end}}
+        </select>
+        <span class="field-help">What the probe receives.</span>
+      </div>
+      <div class="field">
+        <label class="field-label">Match</label>
+        <label class="row gap-2 align-center" style="cursor:pointer;height:34px">
+          <label class="field-toggle">
+            <input class="toggle-input" type="checkbox" name="prefix">
+            <span class="toggle-track"></span>
+          </label>
+          <span class="text-sm">Prefix (whole subtree)</span>
+        </label>
+        <span class="field-help">Off = exact path. On = path and everything under it.</span>
+      </div>
+      <div class="field decoy-add-submit">
+        <button type="submit" class="btn btn-primary">Add Decoy</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{{/* ── Current decoys ────────────────────────────────────────────────── */}}
+<div class="row between mb-3">
+  <div class="section-heading">Active Decoys <span class="dim text-xs">({{len $d.Decoys}})</span></div>
+</div>
+
+{{if $d.Decoys}}
+<div class="card" style="overflow:hidden">
+  <div class="table-scroll">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Path</th>
+          <th>Match</th>
+          <th>Response</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range $d.Decoys}}
+        <tr>
+          <td class="mono text-sm">{{.Path}}</td>
+          <td>
+            {{if .Prefix}}<span class="pill pill-accent">prefix</span>
+            {{else}}<span class="pill pill-neutral">exact</span>{{end}}
+          </td>
+          <td class="text-xs">{{decoyLabel .Kind}}</td>
+          <td style="text-align:right">
+            <form method="POST" action="/decoys" style="display:inline"
+              onsubmit="return confirm('Remove decoy {{.Path}}?')">
+              <input type="hidden" name="_action" value="delete">
+              <input type="hidden" name="path" value="{{.Path}}">
+              <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{else}}
+<div class="empty-state card">
+  <div class="empty-title">No decoy endpoints</div>
+  <div class="empty-sub">Add one above, or click <strong>Restore defaults</strong> to load the curated set.</div>
+</div>
+{{end}}
+
+<style>
+.decoy-add-form {
+  display: grid;
+  grid-template-columns: 2fr 1.4fr 1.4fr auto;
+  gap: var(--size-5);
+  align-items: start;
+}
+.decoy-add-form .field + .field { margin-top: 0; }
+.decoy-add-submit { align-self: end; }
+.decoy-add-submit .btn { height: 34px; }
+@media (max-width: 860px) {
+  .decoy-add-form { grid-template-columns: 1fr; }
+}
+</style>
+{{end}}

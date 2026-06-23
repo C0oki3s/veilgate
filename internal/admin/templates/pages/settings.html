@@ -1,0 +1,835 @@
+{{define "page"}}
+{{$d := .Data}}
+{{$c := $.Config}}
+
+<div id="settings-root" data-tab="{{or $d.Tab "proxy"}}" class="settings-root">
+
+  {{/* ── Tab nav ─────────────────────────────────────────────────────── */}}
+  <div class="settings-tabs" id="settings-tabs">
+    <button class="settings-tab" id="tab-btn-proxy"          data-tab="proxy"          onclick="switchSettingsTab('proxy')">Proxy</button>
+    <button class="settings-tab" id="tab-btn-detector"       data-tab="detector"       onclick="switchSettingsTab('detector')">Detector</button>
+    <button class="settings-tab" id="tab-btn-challenge"      data-tab="challenge"      onclick="switchSettingsTab('challenge')">Challenge</button>
+    <button class="settings-tab" id="tab-btn-tarpit"         data-tab="tarpit"         onclick="switchSettingsTab('tarpit')">Tarpit</button>
+    <button class="settings-tab" id="tab-btn-tls"            data-tab="tls"            onclick="switchSettingsTab('tls')">TLS</button>
+    <button class="settings-tab" id="tab-btn-persistence"    data-tab="persistence"    onclick="switchSettingsTab('persistence')">Persistence</button>
+    <button class="settings-tab" id="tab-btn-observability"  data-tab="observability"  onclick="switchSettingsTab('observability')">Observability</button>
+    <button class="settings-tab" id="tab-btn-verifiers"      data-tab="verifiers"      onclick="switchSettingsTab('verifiers')">Verifiers</button>
+    <button class="settings-tab settings-tab-raw" id="tab-btn-raw" data-tab="raw"      onclick="switchSettingsTab('raw')">Raw YAML</button>
+  </div>
+
+  {{/* ══ Main form (all tabs except raw) ═══════════════════════════════ */}}
+  <form method="POST" action="/settings" id="settings-form">
+    <input type="hidden" name="_mode" value="form">
+    <input type="hidden" name="_tab" id="settings-tab-input" value="{{or $d.Tab "proxy"}}">
+
+    {{/* ── PROXY ────────────────────────────────────────────────────── */}}
+    <div class="settings-pane" id="pane-proxy">
+      <div class="settings-section-head">
+        <div>
+          <div class="settings-section-title">Proxy</div>
+          <div class="settings-section-sub">Core routing: listen address, upstream origin, operating mode.</div>
+        </div>
+        <span class="restart-badge">Requires restart</span>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="field-row mb-5">
+            <div class="field">
+              <label class="field-label">Listen Address</label>
+              <input class="field-input" type="text" name="listen"
+                value="{{if $c}}{{$c.Listen}}{{else}}:8080{{end}}"
+                placeholder=":8080">
+              <span class="field-help">TCP address VeilGate listens on. <code>:8080</code> binds all interfaces; <code>127.0.0.1:8080</code> loopback only.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Upstream URL</label>
+              <input class="field-input" type="text" name="upstream"
+                value="{{if $c}}{{$c.Upstream}}{{end}}"
+                placeholder="http://127.0.0.1:3000">
+              <span class="field-help">Real application origin. Must include scheme (<code>http://</code> or <code>https://</code>).</span>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label">Mode</label>
+              <select class="field-select" name="mode">
+                <option value="observe"   {{if and $c (eq $c.Mode "observe")}}selected{{end}}>observe — score only, never divert</option>
+                <option value="challenge" {{if and $c (eq $c.Mode "challenge")}}selected{{end}}>challenge — JS/PoW for medium scores</option>
+                <option value="tarpit"    {{if and $c (eq $c.Mode "tarpit")}}selected{{end}}>tarpit — shadow app for high scores</option>
+                <option value="auto"      {{if and $c (eq $c.Mode "auto")}}selected{{end}}>auto — challenge + tarpit by threshold</option>
+              </select>
+              <span class="field-help">Start with <code>observe</code> for at least one traffic cycle before enabling deception. See <a href="#" class="link">observe-and-tune guide</a>.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Rules Directory</label>
+              <input class="field-input" type="text" name="rules_dir"
+                value="{{if $c}}{{$c.RulesDir}}{{end}}"
+                placeholder="~/.veilgate/rules">
+              <span class="field-help">Directory of YAML rule files. Empty = use embedded defaults. Hot-reloads without restart.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {{/* ── DETECTOR ─────────────────────────────────────────────────── */}}
+    <div class="settings-pane" id="pane-detector">
+      <div class="settings-section-head">
+        <div>
+          <div class="settings-section-title">Detector</div>
+          <div class="settings-section-sub">Score thresholds, detection window, honeypot paths, and IP trust lists.</div>
+        </div>
+        <span class="restart-badge">Requires restart</span>
+      </div>
+      <div class="card mb-4">
+        <div class="card-header"><span class="card-title">Score Thresholds</span></div>
+        <div class="card-body">
+          <div class="field-row-3 mb-4">
+            <div class="field">
+              <label class="field-label">Challenge Threshold <span class="field-unit">pts</span></label>
+              <input class="field-input" type="number" name="score_challenge_threshold"
+                value="{{if $c}}{{$c.Detector.ScoreChallengeThreshold}}{{else}}40{{end}}"
+                min="0" max="200">
+              <span class="field-help">Score ≥ this → serve JS/PoW challenge. Default: 40.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Tarpit Threshold <span class="field-unit">pts</span></label>
+              <input class="field-input" type="number" name="score_tarpit_threshold"
+                value="{{if $c}}{{$c.Detector.ScoreTarpitThreshold}}{{else}}70{{end}}"
+                min="0" max="200">
+              <span class="field-help">Score ≥ this → serve shadow app. Must be ≥ challenge threshold. Default: 70.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Window <span class="field-unit">seconds</span></label>
+              <input class="field-input" type="number" name="window_seconds"
+                value="{{if $c}}{{$c.Detector.WindowSeconds}}{{else}}90{{end}}"
+                min="10" max="3600">
+              <span class="field-help">Rolling window for per-client score accumulation. 60–90 s for busy sites; 120–300 s for low-volume APIs.</span>
+            </div>
+          </div>
+          <div class="score-tier-legend">
+            <span class="tier-legend-item tier-low">0–29 low</span>
+            <span class="tier-legend-sep">→</span>
+            <span class="tier-legend-item tier-medium">30–59 medium</span>
+            <span class="tier-legend-sep">→</span>
+            <span class="tier-legend-item tier-high">60–79 high</span>
+            <span class="tier-legend-sep">→</span>
+            <span class="tier-legend-item tier-critical">80–100 critical</span>
+          </div>
+        </div>
+      </div>
+      <div class="card mb-4">
+        <div class="card-header"><span class="card-title">Honeypot Paths</span></div>
+        <div class="card-body">
+          <div class="field">
+            <label class="field-label">Probe Paths</label>
+            <textarea class="field-textarea" name="probe_paths" rows="8"
+              placeholder="/admin-panel-v2&#10;/.git/config&#10;/api/internal/debug">{{if $c}}{{joinLines $c.Detector.ProbePaths}}{{end}}</textarea>
+            <span class="field-help">One path per line. Requests to these paths add +50 pts (first hit) or +80 pts (repeat). Never list paths your real app serves. Leave empty to use built-in defaults.</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Trust Lists</span></div>
+        <div class="card-body">
+          <div class="field mb-4">
+            <label class="field-label">Trusted IPs</label>
+            <textarea class="field-textarea" name="trusted_ips" rows="4"
+              placeholder="198.51.100.5&#10;203.0.113.10">{{if $c}}{{joinLines $c.Detector.TrustedIPs}}{{end}}</textarea>
+            <span class="field-help">One IP per line. These clients bypass scoring entirely. Use for CI runners, monitoring, internal services.</span>
+          </div>
+          <div class="field">
+            <label class="field-label">Trusted Proxies</label>
+            <textarea class="field-textarea" name="trusted_proxies" rows="4"
+              placeholder="10.0.0.0/8&#10;172.16.0.0/12">{{if $c}}{{joinLines $c.Detector.TrustedProxies}}{{end}}</textarea>
+            <span class="field-help">CIDRs whose <code>X-Forwarded-For</code> header is respected. Empty = always use direct RemoteAddr (stops XFF injection). Required when a reverse proxy sits in front of VeilGate.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {{/* ── CHALLENGE ────────────────────────────────────────────────── */}}
+    <div class="settings-pane" id="pane-challenge">
+      <div class="settings-section-head">
+        <div>
+          <div class="settings-section-title">Challenge</div>
+          <div class="settings-section-sub">JavaScript proof-of-work parameters. Secret must be set before using challenge or tarpit mode.</div>
+        </div>
+        <span class="restart-badge">Requires restart</span>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="field mb-5">
+            <label class="field-label">Secret <span class="field-required">*</span></label>
+            <input class="field-input field-input-mono" type="text" name="challenge_secret"
+              value="{{if $c}}{{$c.Challenge.Secret}}{{end}}"
+              placeholder="change-me-in-production-or-set-VEILGATE_SECRET"
+              autocomplete="off">
+            <span class="field-help">HMAC secret used to sign challenge tokens. Generate with <code>openssl rand -hex 32</code>. Use <code>${VEILGATE_SECRET}</code> to read from environment. <strong>The default is a placeholder anyone can forge.</strong></span>
+            {{if and $c (eq $c.Challenge.Secret "change-me-in-production-or-set-VEILGATE_SECRET")}}
+            <div class="field-warn mt-2">Secret is still set to the insecure default. Set a real secret before enabling challenge or tarpit mode.</div>
+            {{end}}
+          </div>
+          <div class="field-row-3 mb-5">
+            <div class="field">
+              <label class="field-label">Difficulty</label>
+              <select class="field-select" name="challenge_difficulty">
+                <option value="1" {{if and $c (eq $c.Challenge.Difficulty 1)}}selected{{end}}>1 — dev only (~16 hashes)</option>
+                <option value="2" {{if and $c (eq $c.Challenge.Difficulty 2)}}selected{{end}}>2 — dev only (~256 hashes)</option>
+                <option value="3" {{if or (not $c) (and $c (or (eq $c.Challenge.Difficulty 3) (eq $c.Challenge.Difficulty 0)))}}selected{{end}}>3 — recommended (5–50 ms)</option>
+                <option value="4" {{if and $c (eq $c.Challenge.Difficulty 4)}}selected{{end}}>4 — high-security (50–500 ms)</option>
+              </select>
+              <span class="field-help">Number of leading hex zeros required. Clamped to 1–4 at runtime.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Token TTL <span class="field-unit">minutes</span></label>
+              <input class="field-input" type="number" name="challenge_ttl_minutes"
+                value="{{if $c}}{{$c.Challenge.TTLMinutes}}{{else}}30{{end}}"
+                min="1" max="10080">
+              <span class="field-help">How long an issued challenge token is valid. SDK renews 60 s before expiry. Default: 30 min.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Max Token TTL <span class="field-unit">minutes</span></label>
+              <input class="field-input" type="number" name="challenge_max_ttl_minutes"
+                value="{{if $c}}{{$c.Challenge.MaxTTLMinutes}}{{else}}60{{end}}"
+                min="1" max="10080">
+              <span class="field-help">Hard ceiling on issued TTL. Requested TTL is silently clamped to this value. Default: 60 min.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {{/* ── TARPIT ───────────────────────────────────────────────────── */}}
+    <div class="settings-pane" id="pane-tarpit">
+      <div class="settings-section-head">
+        <div>
+          <div class="settings-section-title">Tarpit</div>
+          <div class="settings-section-sub">Latency, body size, and response-cache caps for the shadow-app deception layer.</div>
+        </div>
+        <span class="restart-badge">Requires restart</span>
+      </div>
+      <div class="card mb-4">
+        <div class="card-header"><span class="card-title">Response Timing</span></div>
+        <div class="card-body">
+          <div class="field-row-3">
+            <div class="field">
+              <label class="field-label">Min Latency <span class="field-unit">ms</span></label>
+              <input class="field-input" type="number" name="min_latency_ms"
+                value="{{if $c}}{{$c.Tarpit.MinLatencyMs}}{{else}}500{{end}}"
+                min="0">
+              <span class="field-help">Lower bound for artificial delay per tarpit response. Default: 500 ms.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Max Latency <span class="field-unit">ms</span></label>
+              <input class="field-input" type="number" name="max_latency_ms"
+                value="{{if $c}}{{$c.Tarpit.MaxLatencyMs}}{{else}}3000{{end}}"
+                min="0">
+              <span class="field-help">Upper bound. LLM-agent defense: use 8000–30000 ms to burn tokens. Default: 3000 ms.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Max Body <span class="field-unit">bytes</span></label>
+              <input class="field-input" type="number" name="max_body_bytes"
+                value="{{if $c}}{{$c.Tarpit.MaxBodyBytes}}{{else}}102400{{end}}"
+                min="0">
+              <span class="field-help">Hard cap on rendered tarpit response body. Protects VeilGate's outbound bandwidth. Default: 102400 (100 KiB).</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Response Cache</span></div>
+        <div class="card-body">
+          <div class="field-row mb-4">
+            <div class="field">
+              <label class="field-label">Cache TTL <span class="field-unit">minutes</span></label>
+              <input class="field-input" type="number" name="tarpit_cache_ttl"
+                value="{{if $c}}{{$c.Tarpit.ResponseCacheTTLMinutes}}{{else}}30{{end}}"
+                min="0">
+              <span class="field-help">Per-client (IP, path) response cache lifetime. Agents re-fetching the same path within this window get byte-identical responses. Default: 30 min.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Cache Max Entries</label>
+              <input class="field-input" type="number" name="tarpit_cache_size"
+                value="{{if $c}}{{$c.Tarpit.ResponseCacheMaxSize}}{{else}}50000{{end}}"
+                min="0">
+              <span class="field-help">Maximum cached (clientID, path) entries. New entries are dropped once the cap is reached. Default: 50000.</span>
+            </div>
+          </div>
+          <div class="field-help dim text-xs">Tarpit content (templates, fake data, injection payloads) is configured in <a href="/rules" class="link">rule files</a>: <code>templates.yaml</code>, <code>payloads.yaml</code>, <code>injection_strategy.yaml</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    {{/* ── TLS ──────────────────────────────────────────────────────── */}}
+    <div class="settings-pane" id="pane-tls">
+      <div class="settings-section-head">
+        <div>
+          <div class="settings-section-title">TLS</div>
+          <div class="settings-section-sub">Enable to get JA3/JA4 TLS fingerprinting as an additional detection signal.</div>
+        </div>
+        <span class="restart-badge">Requires restart</span>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="field mb-5">
+            <label class="row gap-3 align-center" style="cursor:pointer">
+              <label class="field-toggle">
+                <input class="toggle-input" type="checkbox" name="tls_enabled"
+                  {{if and $c $c.TLS.Enabled}}checked{{end}}
+                  onchange="document.getElementById('tls-cert-row').style.display=this.checked?'':'none'">
+                <span class="toggle-track"></span>
+              </label>
+              <span class="field-label" style="margin:0">Enable TLS termination</span>
+            </label>
+            <span class="field-help">When enabled, VeilGate terminates TLS itself so it can read the ClientHello for JA3/JA4 fingerprinting. Requires a certificate and key file.</span>
+
+            <div class="field-row mt-4" id="tls-cert-row" {{if not (and $c $c.TLS.Enabled)}}style="display:none"{{end}}>
+              <div class="field">
+                <label class="field-label">Certificate File</label>
+                <input class="field-input field-input-mono" type="text" name="tls_cert_file"
+                  value="{{if $c}}{{$c.TLS.CertFile}}{{end}}"
+                  placeholder="cert.pem">
+                <span class="field-help">Path to PEM-encoded TLS certificate. Generate self-signed: <code>openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes</code></span>
+              </div>
+              <div class="field">
+                <label class="field-label">Key File</label>
+                <input class="field-input field-input-mono" type="text" name="tls_key_file"
+                  value="{{if $c}}{{$c.TLS.KeyFile}}{{end}}"
+                  placeholder="key.pem">
+                <span class="field-help">Path to PEM-encoded private key.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {{/* ── PERSISTENCE ──────────────────────────────────────────────── */}}
+    <div class="settings-pane" id="pane-persistence">
+      <div class="settings-section-head">
+        <div>
+          <div class="settings-section-title">Persistence</div>
+          <div class="settings-section-sub">SQLite event store (feeds ML classifier) and JSONL capture firehose (for offline research).</div>
+        </div>
+        <span class="restart-badge">Requires restart</span>
+      </div>
+
+      {{/* Persist subsection */}}
+      <div class="settings-subsection-head">SQLite Event Store <code class="mono text-xs">persist:</code></div>
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="field mb-5">
+            <label class="row gap-3 align-center" style="cursor:pointer">
+              <label class="field-toggle">
+                <input class="toggle-input" type="checkbox" name="persist_enabled"
+                  {{if and $c $c.Persist.Enabled}}checked{{end}}>
+                <span class="toggle-track"></span>
+              </label>
+              <span class="field-label" style="margin:0">Enable SQLite event store</span>
+            </label>
+            <span class="field-help">Required for online ML classifier and <code>veilgate forget --ip</code>. Production deployments should enable this.</span>
+          </div>
+          <div class="field-row mb-4">
+            <div class="field">
+              <label class="field-label">Database Path</label>
+              <input class="field-input field-input-mono" type="text" name="persist_path"
+                value="{{if $c}}{{$c.Persist.Path}}{{end}}"
+                placeholder="./data/events.db">
+              <span class="field-help">Path to the SQLite file. Recommended: <code>/var/lib/veilgate/events.db</code>.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Dump Path</label>
+              <input class="field-input field-input-mono" type="text" name="persist_dump_path"
+                value="{{if $c}}{{$c.Persist.DumpPath}}{{end}}"
+                placeholder="./data/dumps">
+              <span class="field-help">Directory for rotated <code>events-*.csv.gz</code> archives. Empty = trim without archiving.</span>
+            </div>
+          </div>
+          <div class="field-row-3 mb-4">
+            <div class="field">
+              <label class="field-label">Retention <span class="field-unit">days</span></label>
+              <input class="field-input" type="number" name="persist_retention_days"
+                value="{{if $c}}{{$c.Persist.RetentionDays}}{{else}}30{{end}}"
+                min="0">
+              <span class="field-help">Trim goroutine runs every 6 h. 0 disables trimming. Default: 30.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Flush Interval <span class="field-unit">ms</span></label>
+              <input class="field-input" type="number" name="persist_flush_every_ms"
+                value="{{if $c}}{{$c.Persist.FlushEvery}}{{else}}1000{{end}}"
+                min="100">
+              <span class="field-help">Batch-commit interval. Raise to 2000–5000 ms for very high RPS. Default: 1000.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Queue Size</label>
+              <input class="field-input" type="number" name="persist_queue_size"
+                value="{{if $c}}{{$c.Persist.QueueSize}}{{else}}4096{{end}}"
+                min="64">
+              <span class="field-help">Event-write channel buffer. When full, events are dropped rather than blocking the proxy. Default: 4096.</span>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label">SQLite Cache <span class="field-unit">KiB</span></label>
+            <input class="field-input" type="number" name="persist_cache_size_kb"
+              style="max-width:200px"
+              value="{{if $c}}{{$c.Persist.CacheSizeKB}}{{else}}65536{{end}}"
+              min="0">
+            <span class="field-help">SQLite page cache size. Default: 65536 (64 MiB). Raise to 262144–524288 for read-heavy dashboards.</span>
+          </div>
+        </div>
+      </div>
+
+      {{/* Capture subsection */}}
+      <div class="settings-subsection-head">JSONL Capture Firehose <code class="mono text-xs">capture:</code></div>
+      <div class="card">
+        <div class="card-body">
+          <div class="field mb-5">
+            <label class="row gap-3 align-center" style="cursor:pointer">
+              <label class="field-toggle">
+                <input class="toggle-input" type="checkbox" name="capture_enabled"
+                  {{if and $c $c.Capture.Enabled}}checked{{end}}>
+                <span class="toggle-track"></span>
+              </label>
+              <span class="field-label" style="margin:0">Enable JSONL capture</span>
+            </label>
+            <span class="field-help">Writes one JSONL line per request (score, decision, signals). Use for ML research. Default: off. Consider privacy implications before enabling in production.</span>
+          </div>
+          <div class="field-row mb-4">
+            <div class="field">
+              <label class="field-label">Capture Path</label>
+              <input class="field-input field-input-mono" type="text" name="capture_path"
+                value="{{if $c}}{{$c.Capture.Path}}{{end}}"
+                placeholder="./data/requests.jsonl">
+              <span class="field-help">JSONL file path. Recommended: <code>/var/lib/veilgate/requests.jsonl</code>.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Janitor Every</label>
+              <input class="field-input" type="text" name="capture_janitor_every"
+                value="{{if $c}}{{$c.Capture.JanitorEvery}}{{end}}"
+                placeholder="1h">
+              <span class="field-help">How often the janitor sweeps rotated files. Go duration: <code>30m</code>, <code>1h</code>, <code>6h</code>. Default: 1h when retention is set.</span>
+            </div>
+          </div>
+          <div class="field-row-3 mb-4">
+            <div class="field">
+              <label class="field-label">Max Size <span class="field-unit">MB</span></label>
+              <input class="field-input" type="number" name="capture_max_mb"
+                value="{{if $c}}{{$c.Capture.MaxMB}}{{else}}100{{end}}"
+                min="1">
+              <span class="field-help">Rotate file at this size. Default: 100 MB.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Retention <span class="field-unit">hours</span></label>
+              <input class="field-input" type="number" name="capture_retention_hours"
+                value="{{if $c}}{{$c.Capture.RetentionHours}}{{end}}"
+                min="0" placeholder="0">
+              <span class="field-help">Delete rotated files older than this. 0 = never delete. Common: 168 (7 days).</span>
+            </div>
+            <div class="field">
+              <label class="field-label">File Mode</label>
+              <input class="field-input field-input-mono" type="text" name="capture_file_mode"
+                value="{{if $c}}{{octal $c.Capture.FileMode}}{{else}}0o600{{end}}"
+                placeholder="0o600">
+              <span class="field-help">POSIX octal permissions. <code>0o600</code> = owner read/write only. Use <code>0o644</code> only if a log-shipping agent needs read access.</span>
+            </div>
+          </div>
+          <div class="field-help dim text-xs">Scrub rules (<code>capture.scrub</code>) for PII redaction are only editable in the <button type="button" class="link-btn" onclick="switchSettingsTab('raw')">Raw YAML</button> tab — they use regex patterns not suited to a form field.</div>
+        </div>
+      </div>
+    </div>
+
+    {{/* ── OBSERVABILITY ────────────────────────────────────────────── */}}
+    <div class="settings-pane" id="pane-observability">
+      <div class="settings-section-head">
+        <div>
+          <div class="settings-section-title">Observability</div>
+          <div class="settings-section-sub">Prometheus pull endpoint and OpenTelemetry push (traces, logs, metrics).</div>
+        </div>
+        <span class="restart-badge">Requires restart</span>
+      </div>
+
+      {{/* Metrics subsection */}}
+      <div class="settings-subsection-head">Prometheus Endpoint <code class="mono text-xs">metrics:</code></div>
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="field mb-4">
+            <label class="row gap-3 align-center" style="cursor:pointer">
+              <label class="field-toggle">
+                {{/* Note: metrics.disabled=true means endpoint is OFF */}}
+                <input class="toggle-input" type="checkbox" name="metrics_disabled"
+                  {{if and $c $c.Metrics.Disabled}}checked{{end}}>
+                <span class="toggle-track"></span>
+              </label>
+              <span class="field-label" style="margin:0">Disable Prometheus endpoint</span>
+            </label>
+            <span class="field-help">When checked, the <code>/metrics</code> pull endpoint is turned off entirely. OTLP push (below) is unaffected.</span>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label">Listen Address</label>
+              <input class="field-input" type="text" name="metrics_listen"
+                value="{{if $c}}{{$c.Metrics.Listen}}{{else}}127.0.0.1:9090{{end}}"
+                placeholder="127.0.0.1:9090">
+              <span class="field-help">Bind to loopback in production. Use <code>:9090</code> only if Prometheus scrapes from a different host.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">API Key</label>
+              <input class="field-input" type="password" name="metrics_api_key"
+                value="{{if $c}}{{$c.Metrics.APIKey}}{{end}}"
+                placeholder="empty = no auth"
+                autocomplete="off">
+              <span class="field-help">Bearer token required on <code>/api/*</code> endpoints. Leave empty to disable auth on the metrics port.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {{/* OTLP subsection */}}
+      <div class="settings-subsection-head">OTLP Transport <code class="mono text-xs">telemetry.otlp:</code></div>
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="field-row mb-4">
+            <div class="field">
+              <label class="field-label">Endpoint</label>
+              <input class="field-input" type="text" name="otlp_endpoint"
+                value="{{if $c}}{{$c.Telemetry.OTLP.Endpoint}}{{end}}"
+                placeholder="https://ingest.us2.signoz.cloud:443">
+              <span class="field-help">Base URL of OTLP/HTTP receiver. Do not add a path suffix — VeilGate appends <code>/v1/traces</code>, <code>/v1/logs</code>, <code>/v1/metrics</code> automatically. Empty = disable OTLP.</span>
+            </div>
+            <div class="field">
+              <label class="field-label" style="margin-bottom:var(--size-2)">
+                <label class="field-toggle" style="display:inline-flex; vertical-align:middle; margin-right:6px">
+                  <input class="toggle-input" type="checkbox" name="otlp_insecure"
+                    {{if and $c $c.Telemetry.OTLP.Insecure}}checked{{end}}>
+                  <span class="toggle-track"></span>
+                </label>
+                Insecure (skip TLS verify)
+              </label>
+              <span class="field-help">Enable only for <code>http://</code> endpoints (local collector, Docker Compose, dev). Never use in production.</span>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label">Auth Headers</label>
+            <textarea class="field-textarea field-textarea-mono" name="otlp_headers" rows="4"
+              placeholder="signoz-access-token: your-api-key&#10;x-honeycomb-team: your-api-key">{{if $c}}{{kvmap2lines $c.Telemetry.OTLP.Headers}}{{end}}</textarea>
+            <span class="field-help">One <code>header-name: value</code> per line. Common keys: <code>signoz-access-token</code>, <code>x-honeycomb-team</code>, <code>authorization</code>, <code>dd-api-key</code>.</span>
+          </div>
+        </div>
+      </div>
+
+      {{/* Traces subsection */}}
+      <div class="settings-subsection-head">Traces <code class="mono text-xs">telemetry.traces:</code></div>
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="field-row">
+            <div class="field">
+              <label class="row gap-3 align-center mb-2" style="cursor:pointer">
+                <label class="field-toggle">
+                  <input class="toggle-input" type="checkbox" name="traces_disabled"
+                    {{if and $c $c.Telemetry.Traces.Disabled}}checked{{end}}>
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="field-label" style="margin:0">Disable traces</span>
+              </label>
+              <span class="field-help">Suppress trace export even when an OTLP endpoint is configured.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Sample Rate <span class="field-unit">0.0–1.0</span></label>
+              <input class="field-input" type="number" name="traces_sample_rate"
+                value="{{if $c}}{{$c.Telemetry.Traces.SampleRate}}{{else}}0.01{{end}}"
+                min="0" max="1" step="0.01">
+              <span class="field-help"><code>0.01</code> = 1 % (default). Use <code>1.0</code> in dev. Keep ≤ 0.05 on high-traffic prod to avoid overwhelming the collector.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {{/* Logs + Metrics Push */}}
+      <div class="settings-subsection-head">Logs &amp; Metrics Push <code class="mono text-xs">telemetry.logs: / telemetry.metrics_push:</code></div>
+      <div class="card">
+        <div class="card-body">
+          <div class="field-row mb-4">
+            <div class="field">
+              <label class="row gap-3 align-center mb-2" style="cursor:pointer">
+                <label class="field-toggle">
+                  <input class="toggle-input" type="checkbox" name="logs_enabled"
+                    {{if and $c $c.Telemetry.Logs.Enabled}}checked{{end}}>
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="field-label" style="margin:0">Forward logs via OTLP</span>
+              </label>
+              <span class="field-help">Every zerolog line is forwarded as a structured OTLP LogRecord. Stderr output is always written regardless.</span>
+            </div>
+            <div class="field">
+              <label class="row gap-3 align-center mb-2" style="cursor:pointer">
+                <label class="field-toggle">
+                  <input class="toggle-input" type="checkbox" name="metrics_push_enabled"
+                    {{if and $c $c.Telemetry.MetricsPush.Enabled}}checked{{end}}>
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="field-label" style="margin:0">Push metrics via OTLP</span>
+              </label>
+              <span class="field-help">Runs alongside the Prometheus pull endpoint — both can be active. Same counters and histograms, pushed on an interval.</span>
+            </div>
+          </div>
+          <div class="field" style="max-width:200px">
+            <label class="field-label">Push Interval</label>
+            <input class="field-input" type="text" name="metrics_push_interval"
+              value="{{if $c}}{{$c.Telemetry.MetricsPush.Interval}}{{end}}"
+              placeholder="30s">
+            <span class="field-help">Go duration: <code>30s</code>, <code>1m</code>, <code>5m</code>, <code>1h</code>. Default: <code>30s</code>.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {{/* ── VERIFIERS ────────────────────────────────────────────────── */}}
+    <div class="settings-pane" id="pane-verifiers">
+      <div class="settings-section-head">
+        <div>
+          <div class="settings-section-title">Verifiers</div>
+          <div class="settings-section-sub">Alternate authenticator chain for non-browser clients (server-to-server, mobile, partner integrations). Accepted requests skip challenge but not tarpit.</div>
+        </div>
+        <span class="restart-badge">Requires restart</span>
+      </div>
+
+      {{/* HMAC */}}
+      <div class="settings-subsection-head">HMAC Request Signatures <code class="mono text-xs">verifiers.hmac:</code></div>
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="field mb-4">
+            <label class="row gap-3 align-center" style="cursor:pointer">
+              <label class="field-toggle">
+                <input class="toggle-input" type="checkbox" name="hmac_enabled"
+                  {{if and $c $c.Verifiers.HMAC.Enabled}}checked{{end}}>
+                <span class="toggle-track"></span>
+              </label>
+              <span class="field-label" style="margin:0">Enable HMAC verifier</span>
+            </label>
+            <span class="field-help">Stripe-style HMAC-SHA256 request signatures. Covers timestamp + method + path + body hash — prevents replay and tampering.</span>
+          </div>
+          <div class="field-row mb-4">
+            <div class="field">
+              <label class="field-label">Signature Header</label>
+              <input class="field-input field-input-mono" type="text" name="hmac_header_signature"
+                value="{{if $c}}{{$c.Verifiers.HMAC.HeaderSignature}}{{end}}"
+                placeholder="X-Veilgate-Signature">
+              <span class="field-help">Header carrying <code>t=&lt;unix-ts&gt;,v1=&lt;hex-sha256&gt;</code>. Default: <code>X-Veilgate-Signature</code>.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Client ID Header</label>
+              <input class="field-input field-input-mono" type="text" name="hmac_header_client"
+                value="{{if $c}}{{$c.Verifiers.HMAC.HeaderClient}}{{end}}"
+                placeholder="X-Veilgate-Client">
+              <span class="field-help">Header naming which client secret to look up. Default: <code>X-Veilgate-Client</code>.</span>
+            </div>
+          </div>
+          <div class="field-row mb-4">
+            <div class="field">
+              <label class="field-label">Clock Skew <span class="field-unit">seconds</span></label>
+              <input class="field-input" type="number" name="hmac_clock_skew_sec"
+                value="{{if $c}}{{$c.Verifiers.HMAC.ClockSkewSec}}{{else}}300{{end}}"
+                min="0">
+              <span class="field-help">±window around now within which the timestamp must fall. Default: 300 (5 min).</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Max Body <span class="field-unit">bytes</span></label>
+              <input class="field-input" type="number" name="hmac_max_body_bytes"
+                value="{{if $c}}{{$c.Verifiers.HMAC.MaxBodyBytes}}{{else}}1048576{{end}}"
+                min="0">
+              <span class="field-help">Body bytes hashed for the signature. Cap against memory exhaustion. Default: 1048576 (1 MiB).</span>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label">Clients Directory</label>
+            <input class="field-input field-input-mono" type="text" name="hmac_clients_dir"
+              value="{{if $c}}{{$c.Verifiers.HMAC.ClientsDir}}{{end}}"
+              placeholder="/etc/veilgate/clients">
+            <span class="field-help">Directory of <code>&lt;client-name&gt;.secret</code> files. Hot-reloaded on mtime change — rotate secrets without restarting.</span>
+          </div>
+        </div>
+      </div>
+
+      {{/* Bearer */}}
+      <div class="settings-subsection-head">Bearer Token <code class="mono text-xs">verifiers.bearer:</code></div>
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="field mb-4">
+            <label class="row gap-3 align-center" style="cursor:pointer">
+              <label class="field-toggle">
+                <input class="toggle-input" type="checkbox" name="bearer_enabled"
+                  {{if and $c $c.Verifiers.Bearer.Enabled}}checked{{end}}>
+                <span class="toggle-track"></span>
+              </label>
+              <span class="field-label" style="margin:0">Enable Bearer token verifier</span>
+            </label>
+            <span class="field-help">Opaque static tokens (GitHub PAT / Stripe API key model). Compared via SHA-256. No per-request replay protection — rely on TLS and rotate on compromise.</span>
+          </div>
+          <div class="field-row mb-4">
+            <div class="field">
+              <label class="field-label">Header</label>
+              <input class="field-input field-input-mono" type="text" name="bearer_header"
+                value="{{if $c}}{{$c.Verifiers.Bearer.Header}}{{end}}"
+                placeholder="Authorization">
+              <span class="field-help">Request header carrying the credential. Default: <code>Authorization</code>.</span>
+            </div>
+            <div class="field">
+              <label class="field-label">Scheme</label>
+              <input class="field-input field-input-mono" type="text" name="bearer_scheme"
+                value="{{if $c}}{{$c.Verifiers.Bearer.Scheme}}{{end}}"
+                placeholder="Bearer">
+              <span class="field-help">Prefix stripped before token lookup. Auto-set to <code>Bearer</code> when header is <code>Authorization</code>. Set to <code>""</code> for raw-token headers.</span>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label">Tokens Directory</label>
+            <input class="field-input field-input-mono" type="text" name="bearer_tokens_dir"
+              value="{{if $c}}{{$c.Verifiers.Bearer.TokensDir}}{{end}}"
+              placeholder="/etc/veilgate/tokens">
+            <span class="field-help">One <code>.token</code> file per client. Hot-reloaded on directory mtime change.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="settings-complex-note">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0; margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div>
+              <strong>Cookie and Header verifiers</strong> (<code>verifiers.cookies:</code>, <code>verifiers.headers:</code>) support JWT and callout validation. These are lists of structured objects and are only editable in the
+              <button type="button" class="link-btn" onclick="switchSettingsTab('raw')">Raw YAML tab</button>.
+              Changes made here to HMAC and Bearer do not affect existing cookie/header verifier entries.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {{/* ── Save bar (always visible except raw tab) ─────────────────── */}}
+    <div class="settings-save-bar">
+      <span class="dim text-xs">All changes require a <strong>VeilGate proxy restart</strong> to take effect. Rule files (signals, detector rules) hot-reload without restart.</span>
+      <button type="submit" class="btn btn-primary">Save Settings</button>
+    </div>
+  </form>
+
+  {{/* ══ Raw YAML editor ═════════════════════════════════════════════ */}}
+  <div class="settings-pane" id="pane-raw">
+    <div class="settings-section-head">
+      <div>
+        <div class="settings-section-title">Raw YAML</div>
+        <div class="settings-section-sub">Edit <code>{{$.ConfigPath}}</code> directly. Comments, key order, and all fields preserved on save.</div>
+      </div>
+      <span class="restart-badge">Requires restart</span>
+    </div>
+    <form method="POST" action="/settings">
+      <input type="hidden" name="_mode" value="raw">
+      <input type="hidden" name="_tab" value="raw">
+      <div class="editor-shell">
+        <div class="editor-toolbar">
+          <span class="editor-file-name">{{$.ConfigPath}}</span>
+          <div class="row gap-2">
+            <span class="text-xs dim">All fields — full fidelity</span>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          </div>
+        </div>
+        <div class="editor-wrap" id="settingsEditorWrap">
+          <div class="line-numbers" id="settingsLineNumbers" aria-hidden="true"></div>
+          <textarea
+            class="editor-textarea"
+            id="settingsTextarea"
+            name="content"
+            spellcheck="false"
+            autocomplete="off"
+            autocorrect="off">{{$d.Raw}}</textarea>
+        </div>
+        <div class="editor-status">
+          <span>Preserves comments and key order. Restart VeilGate proxy after saving.</span>
+          <span class="dim">|</span>
+          <span class="dim">Tab = 2 spaces</span>
+          <span class="dim">|</span>
+          <span id="settingsLineCol" class="dim">Ln 1, Col 1</span>
+        </div>
+      </div>
+    </form>
+  </div>
+
+</div>{{/* end settings-root */}}
+
+<script>
+(function() {
+  function switchSettingsTab(tab) {
+    // Update the hidden form field so the tab survives POST
+    var inp = document.getElementById('settings-tab-input');
+    if (inp) inp.value = tab;
+
+    // Show/hide the main form vs the raw editor
+    var form = document.getElementById('settings-form');
+    if (form) form.style.display = (tab === 'raw') ? 'none' : '';
+
+    // Activate the right pane
+    document.querySelectorAll('#settings-root .settings-pane').forEach(function(p) {
+      p.classList.toggle('settings-pane-active', p.id === 'pane-' + tab);
+    });
+
+    // Mark the active tab button
+    document.querySelectorAll('#settings-tabs .settings-tab').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.tab === tab);
+    });
+
+    // Init the YAML editor the first time the raw tab is shown
+    if (tab === 'raw') {
+      initSettingsEditor();
+    }
+  }
+
+  // Expose globally so onclick= attributes can call it
+  window.switchSettingsTab = switchSettingsTab;
+
+  // ── YAML editor (raw tab) ────────────────────────────────────────
+  var editorInitialised = false;
+  function initSettingsEditor() {
+    if (editorInitialised) return;
+    editorInitialised = true;
+    var ta = document.getElementById('settingsTextarea');
+    var ln = document.getElementById('settingsLineNumbers');
+    var lc = document.getElementById('settingsLineCol');
+    if (!ta || !ln) return;
+
+    function updateLN() {
+      var lines = ta.value === '' ? 1 : (ta.value.match(/\n/g) || []).length + 1;
+      var html = '';
+      for (var i = 1; i <= lines; i++) html += '<div>' + i + '</div>';
+      ln.innerHTML = html;
+      ln.scrollTop = ta.scrollTop;
+    }
+    function updateCursor() {
+      if (!lc) return;
+      var before = ta.value.substring(0, ta.selectionStart);
+      var rows = before.split('\n');
+      lc.textContent = 'Ln ' + rows.length + ', Col ' + (rows[rows.length - 1].length + 1);
+    }
+    ta.addEventListener('input', updateLN);
+    ta.addEventListener('scroll', function() { ln.scrollTop = ta.scrollTop; });
+    ta.addEventListener('click', updateCursor);
+    ta.addEventListener('keyup', updateCursor);
+    ta.addEventListener('keydown', function(e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        var s = ta.selectionStart, end = ta.selectionEnd;
+        ta.value = ta.value.substring(0, s) + '  ' + ta.value.substring(end);
+        ta.selectionStart = ta.selectionEnd = s + 2;
+        updateLN(); updateCursor();
+      }
+    });
+    updateLN();
+    updateCursor();
+  }
+
+  // ── Boot: set initial tab from server-rendered data-tab attribute ──
+  var root = document.getElementById('settings-root');
+  var initialTab = (root && root.dataset.tab) ? root.dataset.tab : 'proxy';
+  switchSettingsTab(initialTab);
+})();
+</script>
+{{end}}

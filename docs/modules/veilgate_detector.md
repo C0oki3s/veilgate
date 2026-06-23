@@ -144,6 +144,21 @@ curl http://localhost:8080/.git/config
 curl http://127.0.0.1:9090/metrics | grep honeypot
 ```
 
+## Score Tiers and threat_level
+
+The raw score maps to a stable `threat_level` label attached to every request
+log line. This label is independent of threshold configuration.
+
+| Score | `threat_level` | Default routing |
+| --- | --- | --- |
+| 0–29 | `low` | `real` |
+| 30–59 | `medium` | `real` or `challenge` |
+| 60–79 | `high` | `challenge` or `tarpit` |
+| 80–100 | `critical` | `tarpit` |
+
+Log lines use zerolog level matching the routing decision: `tarpit → error`,
+`challenge → warn`, `real/observe → info`. In SigNoz/Grafana: red/yellow/blue.
+
 ## Signal Groups
 
 All signals are evaluated by `detector.Scorer.Score()` in
@@ -152,14 +167,25 @@ additive. The total is capped at `100` after summation.
 
 | Group | Signals | Stateful |
 | --- | --- | --- |
-| Request shape | `sparse_headers`, `suspicious_ua` | no |
-| Browser consistency | `ae_browser_empty`, `ae_browser_no_br`, `sec_fetch_absent`, `sec_fetch_incoherent`, `h3_mismatch` | no |
-| Path and payload | `honeypot_hit`, `wordlist_path`, `injection_marker`, `oob_interaction` | `honeypot_hit` only |
-| Network identity | `ip_reputation`, `ip_rotation_fleet`, `ua_rotation` | `ip_rotation_fleet`, `ua_rotation` |
-| Stateful behavior | `regular_timing`, `path_bruteforce`, `fanout_high`, `cookie_stateless`, `request_graph_topology`, `failure_recovery`, `toolchain_sequence`, `toolchain_hmm` | yes (all) |
-| Protocol fingerprint | `tls_agent`, `tls_bot`, `h2_agent`, `h2_bot`, `h2_non_browser` | no |
+| Header shape | `empty_ua`, `suspicious_ua`, `sparse_headers` | no |
+| Browser consistency | `sec_fetch_absent`, `sec_fetch_partial`, `ae_browser_empty`, `ae_browser_no_br`, `h3_mismatch` | no |
+| Timing | `regular_timing` | yes |
+| Toolchain / pentest | `toolchain_full`, `toolchain_partial`, `toolchain_hmm`, `toolchain_hmm_partial` | yes |
+| Path and payload | `honeypot_hit`, `path_bruteforce`, `wordlist_path`, `injection_marker`, `oob_interaction`, `encoding_chain` | `honeypot_hit`, `path_bruteforce` |
+| IP / rotation | `ip_reputation`, `ip_rotation_fleet`, `ua_rotation` | `ip_rotation_fleet`, `ua_rotation` |
+| TLS / HTTP/2 | `tls_agent`, `tls_bot`, `tls_non_browser`, `h2_agent`, `h2_bot`, `h2_non_browser` | no |
+| Session / behavioral | `graph_flat`, `graph_doc_heavy`, `cookie_stateless`, `fanout_high`, `fanout_extreme`, `recovery_pivot`, `bundle_mining`, `header_mutation`, `schema_first`, `cache_miss_anomaly`, `no_cookie_return`, `auth_probe_sequence` | yes (all) |
 | Deception feedback | `canary_replay` | yes |
+| API blueprint | `api_blueprint_miss` | no |
+| Custom signals | operator-defined in `rules/signals.yaml` | configurable |
 | ML | `ml_agent_score` | yes (weak-label training) |
+
+For the full per-signal reference including default points and what each signal
+detects, see [Detection Signals](../functionalities/detection-signals.md).
+
+To enable/disable signals or override their points weight at runtime (no
+restart), edit `rules/signals.yaml`. See
+[`rules/signals.yaml` reference](../config/rules/signals.md).
 
 ### Request shape signals
 
@@ -394,6 +420,9 @@ distinguish false-positive-generating signals from legitimate bot signals.
 
 ## Related
 
+- [Detection Signals](../functionalities/detection-signals.md) — full per-signal reference (all 43 signals)
+- [Detector Score System](../functionalities/detector-score-system.md) — score tiers, threat_level, decision routing
+- [`rules/signals.yaml`](../config/rules/signals.md) — enable/disable, points overrides, custom signals
 - [Detector Signal Flow](../internals/detector_signal_flow.md)
 - [Module veilgate_http2_fingerprinting](veilgate_http2_fingerprinting.md)
 - [Module veilgate_rules](veilgate_rules.md)

@@ -149,8 +149,10 @@ Syntax:  payload library file
 Default: embedded payloads  
 Context: `rules_dir`
 
-Defines decoy and prompt-injection payloads inserted into responses by
-`internal/payloads.Injector`.
+Defines tarpit deception payloads inserted into responses by
+`internal/payloads.Injector`. Categories: `termination`, `rabbit_hole`,
+`cost_bomb`, `confusion`, `moral_appeal`. The `prompt_injection` category
+exists but is empty by default since v1.1.5.
 
 ### Code path
 

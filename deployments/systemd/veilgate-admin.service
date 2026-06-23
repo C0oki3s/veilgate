@@ -1,0 +1,64 @@
+[Unit]
+Description=VeilGate Admin UI — configuration dashboard for the VeilGate proxy
+Documentation=https://veilgate.dev/docs
+After=network-online.target veilgate.service
+Wants=network-online.target
+# Start after the proxy but do not fail if the proxy is absent
+# (admin can run standalone for config management).
+PartOf=veilgate.service
+
+[Service]
+Type=simple
+User=veilgate
+Group=veilgate
+
+ExecStart=/usr/local/bin/veilgate-admin \
+  --config /etc/veilgate/veilgate.yaml \
+  --addr ADMIN_LISTEN_PLACEHOLDER
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+KillSignal=SIGTERM
+
+# Sandboxing — slightly relaxed vs the proxy because the admin reads and
+# writes /etc/veilgate (config + admin.db + audit.log + decoys.yaml) and
+# reads /var/lib/veilgate (events.db + SQLite WAL files).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+
+ReadWritePaths=/etc/veilgate /var/lib/veilgate /var/log/veilgate
+
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @mount @reboot
+SystemCallArchitectures=native
+
+LimitNOFILE=4096
+LimitNPROC=256
+TasksMax=128
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=veilgate-admin
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,133 @@
+{{define "shell"}}<!DOCTYPE html>
+<html lang="en" data-theme="{{.Theme}}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/htmx.min.js" defer></script>
+  <script src="/static/js/alpine.min.js" defer></script>
+</head>
+<body>
+
+{{if eq .ActivePage "login"}}
+{{/* Login page: full-screen centered card, no sidebar */}}
+{{template "page" .}}
+
+{{else}}
+{{/* Normal pages: sidebar + main content */}}
+<div class="app-shell">
+
+  {{template "sidebar" .}}
+
+  <div class="main-content">
+    <header class="page-header">
+      {{/* Sidebar toggle — left edge of header */}}
+      <button id="sidebar-toggle" class="icon-btn sidebar-toggle-btn" title="Toggle sidebar" aria-label="Toggle sidebar">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="3" y1="6"  x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+
+      <div class="page-header-left">
+        <h1 class="page-title">{{.Title}}</h1>
+        {{if and .Config (or .Config.Listen .Config.Upstream)}}
+        <div class="page-subtitle">
+          {{if .Config.Listen}}<span class="mono">{{.Config.Listen}}</span>{{end}}
+          {{if and .Config.Listen .Config.Upstream}}<span class="sep">→</span>{{end}}
+          {{if .Config.Upstream}}<span class="mono">{{.Config.Upstream}}</span>{{end}}
+        </div>
+        {{end}}
+      </div>
+
+      <div class="page-header-right">
+        {{if .Config}}
+        <span class="mode-pill mode-{{.Config.Mode}}" title="VeilGate is running in {{.Config.Mode}} mode">{{.Config.Mode}}</span>
+        {{end}}
+        <div class="header-divider"></div>
+        <button class="icon-btn" title="Toggle light / dark theme"
+          onclick="(function(){
+            var h=document.documentElement;
+            var t=h.getAttribute('data-theme')==='dark'?'light':'dark';
+            h.setAttribute('data-theme',t);
+            document.cookie='theme='+t+';path=/;max-age=31536000';
+          })()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </button>
+        {{if .AuthEnabled}}
+        <div class="header-divider"></div>
+        <a href="/logout" class="icon-btn icon-btn-danger" title="Sign out">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </a>
+        {{end}}
+      </div>
+    </header>
+
+    {{if .ConfigPending}}
+    <div class="restart-banner">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span><strong>Proxy restart required</strong> — veilgate.yaml was updated. Restart the VeilGate proxy process for changes to take effect.</span>
+    </div>
+    {{end}}
+
+    {{if .Flash}}
+    <div style="padding: 12px 32px 0">
+      <div class="flash flash-{{.Flash.Kind}}">{{.Flash.Message}}</div>
+    </div>
+    {{end}}
+
+    <div class="page-body">
+      {{template "page" .}}
+    </div>
+  </div>
+
+</div>
+{{end}}
+
+<script>
+(function() {
+  /* ── Editor: Tab key → 2 spaces ── */
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.editor-textarea').forEach(function(ta) {
+      ta.addEventListener('keydown', function(e) {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          var s = ta.selectionStart, end = ta.selectionEnd;
+          ta.value = ta.value.substring(0, s) + '  ' + ta.value.substring(end);
+          ta.selectionStart = ta.selectionEnd = s + 2;
+        }
+      });
+    });
+  });
+
+  /* ── Sidebar toggle ── */
+  var shell  = document.querySelector('.app-shell');
+  var toggle = document.getElementById('sidebar-toggle');
+  if (shell && toggle) {
+    // Restore saved state immediately (before paint) to avoid flicker
+    if (localStorage.getItem('vg-sidebar') === 'collapsed') {
+      shell.classList.add('sidebar-collapsed');
+    }
+    toggle.addEventListener('click', function() {
+      var collapsed = shell.classList.toggle('sidebar-collapsed');
+      localStorage.setItem('vg-sidebar', collapsed ? 'collapsed' : 'open');
+    });
+  }
+})();
+</script>
+
+</body>
+</html>{{end}}

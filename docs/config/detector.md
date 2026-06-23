@@ -153,6 +153,38 @@ CIDRs, VeilGate walks the XFF chain right-to-left and picks the first
 hop that is **not** itself a trusted proxy. That's the standards-compliant
 RFC 7239 behavior.
 
+## Score tiers and threat_level
+
+The raw score maps to a `threat_level` string that is attached to every request
+log line. It also controls the log severity used for the request line, which
+determines the colour in SigNoz and Grafana:
+
+| Score | `threat_level` | Log level | SigNoz colour |
+| --- | --- | --- | --- |
+| 0–29 | `low` | `info` | Blue |
+| 30–59 | `medium` | `info` or `warn` | Blue / Yellow |
+| 40+ (challenge threshold) | — | `warn` if challenged | Yellow |
+| 60–79 | `high` | `warn` or `error` | Yellow / Red |
+| 70+ (tarpit threshold) | — | `error` if tarpitted | Red |
+| 80–100 | `critical` | `error` | Red |
+
+Log severity is driven by the **routing decision**, not the score band:
+`tarpit → error`, `challenge → warn`, `real / observe → info`. The `threat_level`
+field is the stable label for the score band and does not change with threshold
+adjustments.
+
+Use `threat_level` as a SigNoz filter to find all critical-tier requests
+regardless of what decision was made (e.g. while still in observe mode).
+
+## Turning signals on and off
+
+All scoring behaviour — which signals fire, how many points they carry, and
+what custom detection rules are active — is controlled by `rules/signals.yaml`,
+not by `detector:` thresholds. Changes take effect within ~500 ms with no
+restart.
+
+See [`rules/signals.yaml`](rules/signals.md) for the full reference.
+
 ## Example
 
 ```yaml
@@ -172,9 +204,12 @@ detector:
 
 ## Related
 
-- [`rules/detector.yaml`](rules/detector.md) - actual signal definitions
-- [`rules/ip_reputation.yaml`](rules/ip-reputation.md) - CIDR categories
-- [`rules/ml.yaml`](rules/ml.md) - ML signal that contributes to the score
+- [`rules/detector.yaml`](rules/detector.md) — signal scoring weights and detection rule substrings
+- [`rules/signals.yaml`](rules/signals.md) — enable/disable signals, point overrides, custom signals
+- [`rules/ip_reputation.yaml`](rules/ip-reputation.md) — CIDR categories
+- [`rules/ml.yaml`](rules/ml.md) — ML signal that contributes to the score
+- [Detection Signals](../functionalities/detection-signals.md) — full signal reference (all 43 signals)
+- [Detector Score System](../functionalities/detector-score-system.md) — score tiers, threat_level, decision routing
 - [How-to: Observe-mode rollout](../how-to/observe-and-tune.md)
 
 ---

@@ -1,0 +1,140 @@
+/* ─── Open Props spacing scale (minimal subset) ─────────────────────────── */
+:root {
+  --size-1: 0.25rem;
+  --size-2: 0.5rem;
+  --size-3: 0.75rem;
+  --size-4: 1rem;
+  --size-5: 1.25rem;
+  --size-6: 1.5rem;
+  --size-7: 1.75rem;
+  --size-8: 2rem;
+  --size-10: 2.5rem;
+  --size-12: 3rem;
+
+  --ease-in-out: cubic-bezier(.45,0,.55,1);
+  --ease-out: cubic-bezier(0,0,.3,1);
+}
+
+/* ─── Color primitives ───────────────────────────────────────────────────── */
+:root {
+  --gray-50:  oklch(98% 0 0);
+  --gray-100: oklch(95% 0 0);
+  --gray-200: oklch(90% 0 0);
+  --gray-300: oklch(80% 0 0);
+  --gray-400: oklch(65% 0 0);
+  --gray-500: oklch(55% 0 0);
+  --gray-600: oklch(45% 0 0);
+  --gray-700: oklch(35% 0 0);
+  --gray-800: oklch(25% 0 0);
+  --gray-900: oklch(15% 0 0);
+  --gray-950: oklch(10% 0 0);
+  --gray-975: oklch(7%  0 0);
+}
+
+/* ─── Design tokens (dark default) ──────────────────────────────────────── */
+:root {
+  /* Accent — deep cyan: "operator intel" feel */
+  --accent-base:    oklch(70% 0.15 220);
+  --accent-dim:     oklch(55% 0.12 220);
+  --accent-bright:  oklch(80% 0.16 220);
+  --accent-glow:    oklch(70% 0.15 220 / 0.15);
+  --accent-bg:      oklch(70% 0.15 220 / 0.08);
+
+  /* Semantic status */
+  --color-success:       oklch(72% 0.17 145);
+  --color-success-bg:    oklch(72% 0.17 145 / 0.10);
+  --color-warn:          oklch(78% 0.16 75);
+  --color-warn-bg:       oklch(78% 0.16 75 / 0.10);
+  --color-danger:        oklch(65% 0.21 25);
+  --color-danger-bg:     oklch(65% 0.21 25 / 0.10);
+  --color-neutral:       oklch(60% 0 0);
+  --color-neutral-bg:    oklch(60% 0 0 / 0.10);
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+
+  --text-xs:   12px;
+  --text-sm:   13px;
+  --text-base: 14px;
+  --text-md:   16px;
+  --text-lg:   20px;
+  --text-xl:   24px;
+  --text-2xl:  32px;
+
+  --weight-normal:   400;
+  --weight-semibold: 600;
+
+  --leading-tight:  1.25;
+  --leading-normal: 1.5;
+  --leading-loose:  1.75;
+
+  /* Radius */
+  --radius-1: 4px;
+  --radius-2: 6px;
+  --radius-3: 8px;
+  --radius-4: 12px;
+
+  /* Borders */
+  --border-subtle:  1px solid oklch(100% 0 0 / 0.06);
+  --border-default: 1px solid oklch(100% 0 0 / 0.10);
+  --border-strong:  1px solid oklch(100% 0 0 / 0.18);
+  --border-accent:  1px solid var(--accent-dim);
+
+  /* Surfaces (dark) */
+  --surface-0:     var(--gray-975);
+  --surface-1:     var(--gray-950);
+  --surface-2:     var(--gray-900);
+  --surface-3:     var(--gray-800);
+  --surface-hover: oklch(100% 0 0 / 0.04);
+  --surface-active:oklch(100% 0 0 / 0.07);
+
+  /* Text */
+  --text-primary:   oklch(98% 0 0);
+  --text-secondary: oklch(70% 0 0);
+  --text-tertiary:  oklch(50% 0 0);
+  --text-accent:    var(--accent-base);
+  --text-danger:    var(--color-danger);
+  --text-success:   var(--color-success);
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --header-height: 52px;
+  --content-max:   1200px;
+
+  /* Transitions */
+  --transition-fast: 100ms var(--ease-out);
+  --transition-base: 160ms var(--ease-out);
+  --transition-slow: 240ms var(--ease-in-out);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px oklch(0% 0 0 / 0.3);
+  --shadow-md: 0 4px 12px oklch(0% 0 0 / 0.4);
+  --shadow-lg: 0 8px 24px oklch(0% 0 0 / 0.5);
+
+  color-scheme: dark;
+}
+
+/* ─── Light mode override ────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --surface-0:      var(--gray-50);
+  --surface-1:      oklch(100% 0 0);
+  --surface-2:      var(--gray-100);
+  --surface-3:      var(--gray-200);
+  --surface-hover:  oklch(0% 0 0 / 0.03);
+  --surface-active: oklch(0% 0 0 / 0.06);
+
+  --text-primary:   var(--gray-950);
+  --text-secondary: oklch(40% 0 0);
+  --text-tertiary:  oklch(55% 0 0);
+
+  --border-subtle:  1px solid oklch(0% 0 0 / 0.06);
+  --border-default: 1px solid oklch(0% 0 0 / 0.10);
+  --border-strong:  1px solid oklch(0% 0 0 / 0.18);
+
+  --shadow-sm: 0 1px 3px oklch(0% 0 0 / 0.08);
+  --shadow-md: 0 4px 12px oklch(0% 0 0 / 0.12);
+  --shadow-lg: 0 8px 24px oklch(0% 0 0 / 0.16);
+
+  color-scheme: light;
+}

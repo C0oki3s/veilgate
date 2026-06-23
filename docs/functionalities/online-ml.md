@@ -60,6 +60,20 @@ rules gate determines whether ML contributes points.
 - Treat ML as a supporting signal.
 - Watch `veilgate_ml_score_points` and `veilgate_ml_fits_total`.
 
+Key metrics for ML health:
+
+| Prometheus | OTel | What to watch |
+| --- | --- | --- |
+| `veilgate_ml_fits_total{status="ok"}` | `veilgate.ml.fits.total` | Refit cadence — should increment regularly under traffic. |
+| `veilgate_ml_fit_duration_seconds` | `veilgate.ml.fit_duration` | Watch for sudden spikes. |
+| `veilgate_ml_bayes_observed` | `veilgate.ml.bayes_observed` | Burn-in gauge — increases during initial traffic. |
+| `veilgate_ml_bayes_entries` | `veilgate.ml.bayes_entries` | Should stay well below the 100 k cap. |
+| `veilgate_ml_bayes_evictions_total` | `veilgate.ml.bayes_evictions.total` | Non-zero = cap pressure; consider raising max_entries. |
+| `veilgate_miner_candidates_total` | `veilgate.ml.miner_candidates.total` | Candidates written to `learned.yaml` per miner tick. |
+
+OTel instruments for bayes_evictions and miner_candidates were added in
+v1.1.5 via atomic bridges — they now achieve full parity with Prometheus.
+
 ### Validation
 
 ```bash

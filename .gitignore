@@ -11,12 +11,10 @@ coverage.out
 *.crt
 *.cer
 
-# Local runtime data
+# Local runtime data — admin writes to <config-dir>/ (e.g. ~/.veilgate/), not data/
 /tmp/
 *.log
-data/*.db
-data/*.db-*
-data/dumps/
+data/
 
 # Local caches and editor/tool state
 .gocache/
@@ -58,3 +56,5 @@ e2e/
 # Local test/dev scripts
 scripts/test_veilgate.py
 scripts/__pycache__/
+docs/marketing/
+DESIGN.md

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # VeilGate installer — https://veilgate.dev/install
 # Usage: curl -sSL https://veilgate.dev/install | bash
-#        curl -sSL https://veilgate.dev/install | bash -s -- --upstream http://localhost:3000
+#        curl -sSL https://veilgate.dev/install | sudo bash -s -- --upstream http://localhost:3000
 
 set -euo pipefail
 
 REPO="C0oki3s/veilgate"
 BINARY="veilgate"
+ADMIN_BINARY="veilgate-admin"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/veilgate"
 DATA_DIR="/var/lib/veilgate"
@@ -16,12 +17,13 @@ SERVICE_GROUP="veilgate"
 # service user's home directory is DATA_DIR.
 RULES_DIR="${DATA_DIR}/.veilgate/rules"
 SERVICE_FILE="/etc/systemd/system/veilgate.service"
+ADMIN_SERVICE_FILE="/etc/systemd/system/veilgate-admin.service"
 
 # ── colours ──────────────────────────────────────────────────────────────────
 if [ -t 1 ]; then
-  BOLD="\033[1m"; GREEN="\033[32m"; YELLOW="\033[33m"; RED="\033[31m"; RESET="\033[0m"
+  BOLD="\033[1m"; GREEN="\033[32m"; YELLOW="\033[33m"; RED="\033[31m"; CYAN="\033[36m"; RESET="\033[0m"
 else
-  BOLD=""; GREEN=""; YELLOW=""; RED=""; RESET=""
+  BOLD=""; GREEN=""; YELLOW=""; RED=""; CYAN=""; RESET=""
 fi
 
 info()  { echo -e "${GREEN}[veilgate]${RESET} $*"; }
@@ -37,37 +39,54 @@ Usage: curl -sSL https://veilgate.dev/install | sudo bash -s -- [FLAGS]
 Flags:
   --upstream URL          Upstream application address  (default: http://127.0.0.1:3000)
   --listen ADDR           Proxy listen address          (default: :8080)
+  --admin-listen ADDR     Admin UI listen address       (default: 127.0.0.1:8888)
   --metrics-listen ADDR   Metrics listener address      (default: 127.0.0.1:9090)
   --secret SECRET         Challenge signing secret      (default: prompt or generate)
   --user USER             Service user                  (default: veilgate)
   --no-service            Skip systemd service install
   --no-rules              Skip community rules install
+  --no-admin              Skip admin UI install
   -h, --help              Show this help
 
 Examples:
   sudo bash install.sh --upstream http://localhost:3000
   sudo bash install.sh --upstream http://localhost:3000 --listen :443 --no-rules
+  sudo bash install.sh --upstream http://localhost:3000 --admin-listen 0.0.0.0:8888
 EOF
 }
 
 # ── argument defaults ─────────────────────────────────────────────────────────
 UPSTREAM=""
 LISTEN=":8080"
+ADMIN_LISTEN="127.0.0.1:8888"
 METRICS_LISTEN="127.0.0.1:9090"
 SECRET=""
 SECRET_PROVIDED=false
 NO_SERVICE=false
 NO_RULES=false
+NO_ADMIN=false
+
+require_value() {
+  local flag="$1"
+  if [[ $# -lt 2 || -z "${2:-}" || "${2:0:1}" == "-" ]]; then
+    echo -e "${RED}[veilgate]${RESET} Missing value for ${flag}" >&2
+    echo "" >&2
+    usage >&2
+    exit 1
+  fi
+}
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --upstream)       UPSTREAM="$2";        shift 2 ;;
-    --listen)         LISTEN="$2";          shift 2 ;;
-    --metrics-listen) METRICS_LISTEN="$2";  shift 2 ;;
-    --secret)         SECRET="$2"; SECRET_PROVIDED=true; shift 2 ;;
-    --user)           SERVICE_USER="$2"; SERVICE_GROUP="$2"; shift 2 ;;
+    --upstream)       require_value "$1" "${2:-}"; UPSTREAM="$2";        shift 2 ;;
+    --listen)         require_value "$1" "${2:-}"; LISTEN="$2";          shift 2 ;;
+    --admin-listen)   require_value "$1" "${2:-}"; ADMIN_LISTEN="$2";    shift 2 ;;
+    --metrics-listen) require_value "$1" "${2:-}"; METRICS_LISTEN="$2";  shift 2 ;;
+    --secret)         require_value "$1" "${2:-}"; SECRET="$2"; SECRET_PROVIDED=true; shift 2 ;;
+    --user)           require_value "$1" "${2:-}"; SERVICE_USER="$2"; SERVICE_GROUP="$2"; shift 2 ;;
     --no-service)     NO_SERVICE=true;      shift ;;
     --no-rules)       NO_RULES=true;        shift ;;
+    --no-admin)       NO_ADMIN=true;        shift ;;
     -h|--help)        usage; exit 0 ;;
     *) echo -e "${RED}[veilgate]${RESET} Unknown flag: $1" >&2; echo "" >&2; usage >&2; exit 1 ;;
   esac
@@ -103,52 +122,67 @@ latest_version() {
     || true
 }
 
-# BIN_PATH is set by download_binary or build_from_source (avoids the
-# bash set -e / command-substitution interaction where var=$(func) swallows
-# failures and the EXIT trap deletes tmpdir before the caller installs).
+# BIN_PATH / ADMIN_BIN_PATH are set by download_binary or build_from_source.
 BIN_PATH=""
+ADMIN_BIN_PATH=""
 BIN_TMPDIR=""
 
 # ── download pre-built release binary ────────────────────────────────────────
-# Sets BIN_PATH on success; returns 1 if the binary asset does not exist.
+# Downloads both veilgate and veilgate-admin from the same release.
+# Sets BIN_PATH on success (and ADMIN_BIN_PATH when the admin asset exists);
+# returns 1 if the main binary asset does not exist.
 download_binary() {
   local version="$1" platform="$2"
-  # GoReleaser strips the leading "v" from version in asset filenames,
-  # but the tag (with "v") is still used in the download URL path.
   local ver_clean="${version#v}"
   local asset="${BINARY}_${ver_clean}_${platform}.tar.gz"
-  local url="https://github.com/${REPO}/releases/download/${version}/${asset}"
-  local checksum_url="https://github.com/${REPO}/releases/download/${version}/checksums.txt"
+  local admin_asset="${ADMIN_BINARY}_${ver_clean}_${platform}.tar.gz"
+  local base_url="https://github.com/${REPO}/releases/download/${version}"
+  local checksum_url="${base_url}/checksums.txt"
   local tmpdir
   tmpdir="$(mktemp -d)"
 
   info "Downloading ${asset}…"
-  if ! curl -sSfL "$url" -o "${tmpdir}/${asset}" 2>/dev/null; then
+  if ! curl -sSfL "${base_url}/${asset}" -o "${tmpdir}/${asset}" 2>/dev/null; then
     rm -rf "$tmpdir"
     return 1
   fi
 
-  if curl -sSfL "$checksum_url" -o "${tmpdir}/checksums.txt" 2>/dev/null; then
-    info "Verifying checksum…"
-    local expected
-    expected="$(grep "${asset}" "${tmpdir}/checksums.txt" || true)"
-    if [[ -z "$expected" ]]; then
-      warn "Asset not listed in checksums.txt — skipping verification."
-    else
-      echo "$expected" | (cd "$tmpdir" && sha256sum -c --quiet) \
-        || { rm -rf "$tmpdir"; error "Checksum mismatch — download may be corrupted."; }
+  if [[ "$NO_ADMIN" == false ]]; then
+    info "Downloading ${admin_asset}…"
+    if ! curl -sSfL "${base_url}/${admin_asset}" -o "${tmpdir}/${admin_asset}" 2>/dev/null; then
+      warn "Admin binary asset not found in this release — will build from source."
     fi
+  fi
+
+  if curl -sSfL "$checksum_url" -o "${tmpdir}/checksums.txt" 2>/dev/null; then
+    info "Verifying checksums…"
+    for a in "$asset" "$admin_asset"; do
+      [[ -f "${tmpdir}/${a}" ]] || continue
+      local expected
+      expected="$(grep "${a}" "${tmpdir}/checksums.txt" || true)"
+      if [[ -z "$expected" ]]; then
+        warn "${a} not listed in checksums.txt — skipping verification."
+      else
+        echo "$expected" | (cd "$tmpdir" && sha256sum -c --quiet) \
+          || { rm -rf "$tmpdir"; error "Checksum mismatch for ${a} — download may be corrupted."; }
+      fi
+    done
   else
     warn "No checksums.txt in this release — skipping verification."
   fi
 
   tar -xzf "${tmpdir}/${asset}" -C "$tmpdir"
   BIN_PATH="${tmpdir}/${BINARY}"
+
+  if [[ -f "${tmpdir}/${admin_asset}" ]]; then
+    tar -xzf "${tmpdir}/${admin_asset}" -C "$tmpdir"
+    ADMIN_BIN_PATH="${tmpdir}/${ADMIN_BINARY}"
+  fi
+
   BIN_TMPDIR="$tmpdir"
 }
 
 # ── build from source (fallback when no release binary exists) ───────────────
-# Sets BIN_PATH on success; calls error() and exits if Go is unavailable.
 build_from_source() {
   command -v go &>/dev/null \
     || error "No prebuilt binary available and 'go' is not installed.\nInstall Go from https://go.dev/dl/ or use Docker:\n  docker run -d --network host -e VEILGATE_SECRET=\$(openssl rand -hex 32) ghcr.io/c0oki3s/veilgate:latest"
@@ -163,6 +197,13 @@ build_from_source() {
   git clone --depth 1 "https://github.com/${REPO}.git" "${tmpdir}/src" -q
   (cd "${tmpdir}/src" && CGO_ENABLED=0 go build -ldflags="-s -w" -o "${tmpdir}/${BINARY}" ./cmd/veilgate)
   BIN_PATH="${tmpdir}/${BINARY}"
+
+  if [[ "$NO_ADMIN" == false ]]; then
+    info "Building admin binary from source…"
+    (cd "${tmpdir}/src" && CGO_ENABLED=0 go build -ldflags="-s -w" -o "${tmpdir}/${ADMIN_BINARY}" ./cmd/admin)
+    ADMIN_BIN_PATH="${tmpdir}/${ADMIN_BINARY}"
+  fi
+
   BIN_TMPDIR="$tmpdir"
 }
 
@@ -329,7 +370,7 @@ persist:
 EOF
 }
 
-# ── systemd service ───────────────────────────────────────────────────────────
+# ── proxy systemd service ─────────────────────────────────────────────────────
 write_service() {
   cat > "$SERVICE_FILE" <<UNIT
 [Unit]
@@ -396,6 +437,73 @@ UNIT
   chmod 0644 "$SERVICE_FILE"
 }
 
+# ── admin UI systemd service ──────────────────────────────────────────────────
+write_admin_service() {
+  cat > "$ADMIN_SERVICE_FILE" <<UNIT
+[Unit]
+Description=VeilGate Admin UI — configuration dashboard for the VeilGate proxy
+Documentation=https://veilgate.dev/docs
+After=network-online.target veilgate.service
+Wants=network-online.target
+PartOf=veilgate.service
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_GROUP}
+
+ExecStart=/usr/local/bin/veilgate-admin \
+  --config /etc/veilgate/veilgate.yaml \
+  --addr ${ADMIN_LISTEN}
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+KillSignal=SIGTERM
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+
+ReadWritePaths=/etc/veilgate /var/lib/veilgate /var/log/veilgate
+
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @mount @reboot
+SystemCallArchitectures=native
+
+LimitNOFILE=4096
+LimitNPROC=256
+TasksMax=128
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=veilgate-admin
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  chown root:root "$ADMIN_SERVICE_FILE"
+  chmod 0644 "$ADMIN_SERVICE_FILE"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
@@ -419,11 +527,11 @@ if [[ $EUID -ne 0 ]]; then
   error "Run as root or with sudo: curl -sSL https://veilgate.dev/install | sudo bash"
 fi
 
-step "1/6  Detecting platform…"
+step "1/7  Detecting platform…"
 PLATFORM="$(detect_platform)"
 info "Platform: ${PLATFORM}"
 
-step "2/6  Fetching latest release…"
+step "2/7  Fetching latest release…"
 VERSION="$(latest_version)"
 if [[ -z "$VERSION" ]]; then
   warn "No published release found — will build from source."
@@ -431,7 +539,7 @@ if [[ -z "$VERSION" ]]; then
 fi
 info "Version: ${VERSION}"
 
-step "3/6  Downloading binary…"
+step "3/7  Downloading binaries…"
 if [[ "$VERSION" == "dev" ]]; then
   build_from_source
 elif ! download_binary "$VERSION" "$PLATFORM"; then
@@ -439,12 +547,38 @@ elif ! download_binary "$VERSION" "$PLATFORM"; then
   build_from_source
 fi
 
-step "4/6  Installing binary…"
-install -m 0755 "$BIN_PATH" "${INSTALL_DIR}/${BINARY}"
-rm -rf "$BIN_TMPDIR"
-info "Installed to ${INSTALL_DIR}/${BINARY}"
+# If the main binary downloaded but admin wasn't in the release, build it now.
+if [[ "$NO_ADMIN" == false && -z "$ADMIN_BIN_PATH" && -n "$BIN_TMPDIR" ]]; then
+  warn "Admin binary not in release assets — building from source."
+  command -v go &>/dev/null || { warn "Go not found — skipping admin binary. Install Go and re-run to enable the admin UI."; NO_ADMIN=true; }
+  if [[ "$NO_ADMIN" == false ]]; then
+    if [[ ! -d "${BIN_TMPDIR}/src" ]]; then
+      command -v git &>/dev/null || { warn "Git not found — skipping admin binary. Install Git and Go, then re-run to enable the admin UI."; NO_ADMIN=true; }
+    fi
+    if [[ "$NO_ADMIN" == false && ! -d "${BIN_TMPDIR}/src" ]]; then
+      git clone --depth 1 "https://github.com/${REPO}.git" "${BIN_TMPDIR}/src" -q
+    fi
+  fi
+  if [[ "$NO_ADMIN" == false ]]; then
+    (cd "${BIN_TMPDIR}/src" && CGO_ENABLED=0 go build -ldflags="-s -w" -o "${BIN_TMPDIR}/${ADMIN_BINARY}" ./cmd/admin)
+    ADMIN_BIN_PATH="${BIN_TMPDIR}/${ADMIN_BINARY}"
+  fi
+fi
 
-step "5/6  Setting up config and data directories…"
+step "4/7  Installing binaries…"
+install -m 0755 "$BIN_PATH" "${INSTALL_DIR}/${BINARY}"
+info "Installed ${BINARY} → ${INSTALL_DIR}/${BINARY}"
+
+if [[ "$NO_ADMIN" == false && -n "$ADMIN_BIN_PATH" ]]; then
+  install -m 0755 "$ADMIN_BIN_PATH" "${INSTALL_DIR}/${ADMIN_BINARY}"
+  info "Installed ${ADMIN_BINARY} → ${INSTALL_DIR}/${ADMIN_BINARY}"
+elif [[ "$NO_ADMIN" == false ]]; then
+  warn "Could not obtain ${ADMIN_BINARY} — skipping admin UI. Run with --no-admin to suppress this warning."
+  NO_ADMIN=true
+fi
+rm -rf "$BIN_TMPDIR"
+
+step "5/7  Setting up config and data directories…"
 ensure_service_user
 
 install -d -o root -g "$SERVICE_GROUP" -m 0750 "$CONFIG_DIR"
@@ -458,11 +592,9 @@ if [[ "$NO_RULES" == false ]]; then
   chown -R "$SERVICE_USER:$SERVICE_GROUP" "${DATA_DIR}/.veilgate"
   find "${RULES_DIR}" -type d -exec chmod 0750 {} +
   find "${RULES_DIR}" -type f -exec chmod 0640 {} +
-  # Rules dir must be writable by the veilgate user so the ML miner can
-  # write learned.yaml on every tick.
+  # Rules dir must be writable so the ML miner can write learned.yaml on every tick.
   chmod u+w "${RULES_DIR}"
 else
-  # --no-rules: create an empty dir so VeilGate has a valid rules_dir to watch.
   chown -R "$SERVICE_USER:$SERVICE_GROUP" "${DATA_DIR}/.veilgate"
   chmod 0750 "${RULES_DIR}"
 fi
@@ -488,29 +620,58 @@ chown root:"$SERVICE_GROUP" "${CONFIG_DIR}/veilgate.yaml"
 chmod 0640 "${CONFIG_DIR}/veilgate.yaml"
 restore_selinux_contexts
 
-step "6/6  Installing systemd service…"
+step "6/7  Installing proxy systemd service…"
 if [[ "$NO_SERVICE" == false ]] && command -v systemctl &>/dev/null; then
   write_service
   systemctl daemon-reload
   systemctl enable --now veilgate
-  info "Service enabled and started."
-  echo ""
-  info "Status:  systemctl status veilgate"
-  info "Logs:    journalctl -u veilgate -f"
+  info "veilgate.service enabled and started."
 else
-  warn "Skipping systemd service setup (--no-service or systemctl not found)."
+  warn "Skipping proxy systemd service (--no-service or systemctl not found)."
   info "Start manually: ${INSTALL_DIR}/${BINARY} -config ${CONFIG_DIR}/veilgate.yaml"
+fi
+
+step "7/7  Installing admin UI systemd service…"
+if [[ "$NO_ADMIN" == false ]] && [[ "$NO_SERVICE" == false ]] && command -v systemctl &>/dev/null; then
+  write_admin_service
+  systemctl daemon-reload
+  systemctl enable --now veilgate-admin
+  info "veilgate-admin.service enabled and started."
+elif [[ "$NO_ADMIN" == false ]]; then
+  warn "Skipping admin systemd service (--no-service or systemctl not found)."
+  info "Start manually: ${INSTALL_DIR}/${ADMIN_BINARY} --config ${CONFIG_DIR}/veilgate.yaml --addr ${ADMIN_LISTEN}"
 fi
 
 INSTALLED_VERSION="$("${INSTALL_DIR}/${BINARY}" -version 2>/dev/null || echo "$VERSION")"
 echo ""
-echo -e "${GREEN}${BOLD}VeilGate ${INSTALLED_VERSION} installed successfully.${RESET}"
+echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo -e "${GREEN}${BOLD} VeilGate ${INSTALLED_VERSION} installed successfully${RESET}"
+echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo -e "  Config:   ${CONFIG_DIR}/veilgate.yaml"
-echo -e "  Logs:     journalctl -u veilgate -f"
-echo -e "  Metrics:  http://${METRICS_LISTEN}/metrics"
-echo -e "  Docs:     https://veilgate.dev"
+echo -e "  ${BOLD}Proxy${RESET}"
+echo -e "    Config:   ${CONFIG_DIR}/veilgate.yaml"
+echo -e "    Logs:     journalctl -u veilgate -f"
+echo -e "    Metrics:  http://${METRICS_LISTEN}/metrics"
 echo ""
-echo -e "${YELLOW}Start in observe mode, review metrics, then switch mode: challenge → tarpit${RESET}"
-echo -e "  Edit ${CONFIG_DIR}/veilgate.yaml and set: mode: \"challenge\""
+if [[ "$NO_ADMIN" == false ]]; then
+  echo -e "  ${BOLD}Admin Dashboard${RESET}   ${CYAN}http://${ADMIN_LISTEN}${RESET}"
+  echo -e "    Username: ${BOLD}admin${RESET}"
+  echo -e "    Password: ${BOLD}veilgate${RESET}  ${YELLOW}← you will be prompted to change on first login${RESET}"
+  echo -e "    Logs:     journalctl -u veilgate-admin -f"
+  echo ""
+  if [[ "$ADMIN_LISTEN" == "127.0.0.1:"* ]]; then
+    echo -e "  ${YELLOW}The admin UI is bound to localhost only.${RESET}"
+    echo -e "  To access from your machine, SSH-tunnel to the port:"
+    echo -e "    ${CYAN}ssh -L 8888:127.0.0.1:8888 <your-server>${RESET}"
+    echo -e "  Then open: ${CYAN}http://localhost:8888${RESET}"
+    echo ""
+  fi
+fi
+echo -e "  ${BOLD}Docs:${RESET}     https://veilgate.dev"
+echo -e "  ${BOLD}Issues:${RESET}   https://github.com/${REPO}/issues"
+echo ""
+echo -e "${YELLOW}VeilGate starts in observe mode — it logs but does not block.${RESET}"
+echo -e "${YELLOW}Once you've reviewed traffic in the dashboard, switch mode:${RESET}"
+echo -e "  Edit ${CONFIG_DIR}/veilgate.yaml →  mode: \"challenge\"  or  mode: \"tarpit\""
+echo -e "  Then: systemctl restart veilgate"
 echo ""

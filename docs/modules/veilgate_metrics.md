@@ -71,63 +71,112 @@ score thresholds, and visible panels.
 
 ## Metrics Reference
 
-All VeilGate Prometheus metrics are defined in
-[`internal/telemetry/metrics.go`](../../internal/telemetry/metrics.go) using
-`promauto` — they self-register on import with no manual registration call.
+All VeilGate metrics are defined in
+[`internal/telemetry/metrics.go`](../../internal/telemetry/metrics.go) and
+exposed via two parallel paths:
 
-### Traffic and decision metrics
+- **Prometheus pull** — `http://127.0.0.1:9090/metrics` (always on)
+- **OTel push** — OTLP/HTTP when `telemetry.metrics_push.enabled: true`
 
-| Metric | Type | Labels | Description |
+Both paths carry the same data. OTel instrument names use dots; Prometheus
+names use underscores. The mapping is 1:1.
+
+### Traffic and decisions
+
+| Prometheus | OTel | Type | Labels |
 | --- | --- | --- | --- |
-| `veilgate_requests_total` | Counter | `decision` | Total requests by final decision (`real`, `observe`, `challenge`, `tarpit`). |
-| `veilgate_score` | Histogram | — | Score value distribution (0–100) for all requests. |
-| `veilgate_score_by_decision` | Histogram | `decision` | Score distribution split by final decision. |
+| `veilgate_requests_total` | `veilgate.requests.total` | Counter | `decision` |
+| `veilgate_request_duration_seconds` | `veilgate.request.duration` | Histogram | `decision` |
+| `veilgate_score` | `veilgate.score` | Histogram | — |
+| `veilgate_score_by_decision` | `veilgate.score.by_decision` | Histogram | `decision` |
 
-### Signal and detector metrics
+### Detector signals
 
-| Metric | Type | Labels | Description |
+| Prometheus | OTel | Type | Labels |
 | --- | --- | --- | --- |
-| `veilgate_signal_hits_total` | Counter | `signal` | Fires per detector signal name. |
-| `veilgate_ip_reputation_hits_total` | Counter | `category` | IP reputation hits by CIDR category label. |
-| `veilgate_fleet_rotation_fires_total` | Counter | `tier` | Fleet rotation signal fires by tier label. |
-| `veilgate_ua_rotation_fires_total` | Counter | — | UA rotation signal fires. |
-| `veilgate_tool_family_hits_total` | Counter | `family` | Suspicious user-agent hits grouped by tool family (curl, python-requests, sqlmap, etc.). |
-| `veilgate_public_ip_requests_total` | Counter | — | Requests from public IP space (not RFC1918). |
+| `veilgate_signal_hits_total` | `veilgate.signal.hits.total` | Counter | `signal` |
+| `veilgate_ip_reputation_hits_total` | `veilgate.ip_reputation.hits.total` | Counter | `category` |
+| `veilgate_fleet_rotation_fires_total` | `veilgate.fleet_rotation.fires.total` | Counter | `tier` |
+| `veilgate_ua_rotation_fires_total` | `veilgate.ua_rotation.fires.total` | Counter | — |
+| `veilgate_tool_family_hits_total` | `veilgate.tool_family.hits.total` | Counter | `family` |
+| `veilgate_ml_score_points` | `veilgate.ml.score_points` | Histogram | — |
+| `veilgate_public_ip_requests_total` | `veilgate.public_ip.requests.total` | Counter | `rotating` |
+| `veilgate_public_ip_rotation_events_total` | `veilgate.public_ip.rotation_events.total` | Counter | `tier`, `ip_category` |
+| `veilgate_public_ip_rotation_distinct` | `veilgate.public_ip.rotation_distinct_ips` | Histogram | — |
 
-### Tarpit metrics
+### Endpoint correlation
 
-| Metric | Type | Labels | Description |
-| --- | --- | --- | --- |
-| `veilgate_tarpit_bytes_served_total` | Counter | — | Total bytes written to tarpit clients. |
-| `veilgate_tarpit_latency_ms_total` | Counter | — | Total injected artificial delay in milliseconds. |
-| `veilgate_attacker_cost_usd_total` | Counter | — | Estimated cost imposed on attacker (compute-time basis). |
+| Prometheus | OTel | Labels |
+| --- | --- | --- |
+| `veilgate_endpoint_request_total` | `veilgate.endpoint.requests.total` | `path_bucket`, `method`, `decision` |
+| `veilgate_endpoint_signal_total` | `veilgate.endpoint.signal.total` | `path_bucket`, `signal`, `method`, `decision` |
+| `veilgate_endpoint_attack_family_total` | `veilgate.endpoint.attack_family.total` | `path_bucket`, `family`, `method`, `decision` |
+| `veilgate_endpoint_score_tier_total` | `veilgate.endpoint.score_tier.total` | `path_bucket`, `tier`, `decision` |
 
-### ML metrics
+`path_bucket` normalises UUID/numeric segments to `{id}`, depth capped at 4.
 
-| Metric | Type | Labels | Description |
-| --- | --- | --- | --- |
-| `veilgate_ml_fits_total` | Counter | `result` | Isolation Forest refit attempts (`ok`, `error`, `skipped`). |
-| `veilgate_ml_score_points` | Histogram | — | Points contributed by the ML signal when it fires. |
-| `veilgate_ml_observations_total` | Counter | — | Training observations submitted. |
+### Challenge
 
-### Persistence and infrastructure metrics
+| Prometheus | OTel | Labels |
+| --- | --- | --- |
+| `veilgate_challenge_issued_total` | `veilgate.challenge.issued.total` | `form` |
+| `veilgate_challenge_solved_total` | `veilgate.challenge.solved.total` | — |
+| `veilgate_challenge_failed_total` | `veilgate.challenge.failed.total` | `reason` |
 
-| Metric | Type | Labels | Description |
-| --- | --- | --- | --- |
-| `veilgate_persist_queue_depth` | Gauge | — | Current buffered-channel depth for async writes. |
-| `veilgate_persist_drops_total` | Counter | — | Dropped events due to full queue. |
-| `veilgate_tracked_clients` | Gauge | — | Active `ClientState` entries in the tracker. |
-| `veilgate_fleet_fingerprints` | Gauge | — | Tracked behavior fingerprint count (fleet rotation). |
-| `veilgate_fleet_fingerprint_ips` | Gauge | — | IP count in the behavior fingerprint index. |
+### Tarpit
+
+| Prometheus | OTel | Type |
+| --- | --- | --- |
+| `veilgate_tarpit_bytes_served_total` | `veilgate.tarpit.bytes_served.total` | Counter |
+| `veilgate_tarpit_latency_ms_total` | `veilgate.tarpit.latency_ms.total` | Counter |
+| `veilgate_tarpit_active_sessions` | `veilgate.tarpit.active_sessions` | Gauge |
+| `veilgate_tarpit_template_type_total` | `veilgate.tarpit.template_type.total` | Counter (`type`) |
+| `veilgate_attacker_cost_usd_total` | `veilgate.tarpit.cost_usd.total` | Counter |
+
+### ML
+
+| Prometheus | OTel | Type |
+| --- | --- | --- |
+| `veilgate_ml_fits_total` | `veilgate.ml.fits.total` | Counter (`status`) |
+| `veilgate_ml_fit_duration_seconds` | `veilgate.ml.fit_duration` | Histogram |
+| `veilgate_ml_fit_rows` | `veilgate.ml.fit_rows` | Histogram |
+| `veilgate_ml_bayes_observed` | `veilgate.ml.bayes_observed` | Gauge |
+| `veilgate_ml_bayes_entries` | `veilgate.ml.bayes_entries` | Gauge |
+| `veilgate_ml_bayes_evictions_total` | `veilgate.ml.bayes_evictions.total` | Counter |
+| `veilgate_miner_candidates_total` | `veilgate.ml.miner_candidates.total` | Counter |
+
+### Recommender
+
+| Prometheus | OTel | Type |
+| --- | --- | --- |
+| `veilgate_recommender_suggestions_last` | `veilgate.recommender.suggestions_last` | Gauge |
+| `veilgate_recommender_analysis_duration_seconds` | `veilgate.recommender.analysis_duration` | Histogram |
+
+### Verifier
+
+| Prometheus | OTel | Labels |
+| --- | --- | --- |
+| `veilgate_verifier_result_total` | `veilgate.verifier.result.total` | `verifier_type`, `result` |
+
+### Infrastructure
+
+| Prometheus | OTel | Type |
+| --- | --- | --- |
+| `veilgate_tracked_clients` | `veilgate.tracked_clients` | Gauge |
+| `veilgate_fleet_fingerprints` | `veilgate.fleet_fingerprints` | Gauge |
+| `veilgate_fleet_fingerprint_ips` | `veilgate.fleet_fingerprint_ips` | Histogram |
+| `veilgate_persist_queue_depth` | `veilgate.persist.queue_depth` | Gauge |
+| `veilgate_persist_dropped_total` | `veilgate.persist.dropped.total` | Counter |
 
 ### Operational notes
 
-- All metrics are registered with `promauto`; they appear at `/metrics` from
-  the first request with no warm-up required.
-- Histograms use Prometheus default buckets unless overridden in
-  `internal/telemetry/metrics.go`.
-- `veilgate_attacker_cost_usd_total` is a synthetic metric based on estimated
-  CPU time; treat as approximate.
+- All Prometheus metrics use `promauto` — they appear at `/metrics` from the
+  first scrape with no warm-up required.
+- OTel instruments are created in `NewOTelSink()` and pushed via
+  `DefaultBus` → `OTelSink.OnEvent()`. If the bus queue is full, events are
+  dropped rather than blocking the proxy hot path.
+- `veilgate_attacker_cost_usd_total` is synthetic (estimated LLM API spend);
+  treat as order-of-magnitude.
 
 ## Example PromQL Queries
 
@@ -135,35 +184,28 @@ All VeilGate Prometheus metrics are defined in
 # Decision distribution rate
 sum by (decision) (rate(veilgate_requests_total[5m]))
 
-# Top signal hits
+# Top signal hits over 15 min
 topk(10, sum by (signal) (rate(veilgate_signal_hits_total[15m])))
 
 # 95th-percentile score
 histogram_quantile(0.95, sum by (le) (rate(veilgate_score_bucket[15m])))
 
+# Score p99 for real traffic (use to set challenge threshold)
+histogram_quantile(0.99,
+  sum by (le) (rate(veilgate_score_by_decision_bucket{decision="real"}[1h])))
+
 # Tarpit throughput bytes/s
 rate(veilgate_tarpit_bytes_served_total[1m])
 
-# Persistence queue utilization
-veilgate_persist_queue_depth / <configured queue_size>
-
 # ML fit health
-rate(veilgate_ml_fits_total{result="error"}[5m])
+rate(veilgate_ml_fits_total{status="ok"}[5m])
+
+# Bayes cap pressure
+increase(veilgate_ml_bayes_evictions_total[1h])
+
+# Verifier accepted rate
+sum by (verifier_type) (rate(veilgate_verifier_result_total{result="accepted"}[5m]))
 ```
-
-## Grafana Dashboard
-
-VeilGate ships a pre-built Grafana dashboard at
-[`deployments/grafana/muraena-dashboard.json`](../../deployments/grafana/muraena-dashboard.json).
-Import it via `Dashboards → Import → Upload JSON file`.
-
-The dashboard panels include:
-- Decision distribution time series
-- Score percentile trends
-- Top-10 signals heat map
-- Fleet and UA rotation event log
-- Persistence queue depth gauge
-- ML fit status log
 
 ## Troubleshooting
 

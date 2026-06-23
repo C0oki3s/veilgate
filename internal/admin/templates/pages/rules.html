@@ -1,0 +1,53 @@
+{{define "page"}}
+{{$d := .Data}}
+
+{{if not $d.Exists}}
+<div class="flash flash-warn">
+  Rules directory not found: <code class="mono">{{$d.Root}}</code>
+  — run <code class="mono">veilgate update-rules</code> or configure <code>rules_dir</code> in Settings.
+</div>
+{{end}}
+
+<div class="row between mb-5">
+  <div>
+    <div class="dim text-xs mono">{{$d.Root}}</div>
+  </div>
+  <div class="row gap-2">
+    <a href="/rules/signals.yaml" class="btn btn-sm">signals.yaml</a>
+    <a href="/rules/detector/config.yaml" class="btn btn-sm">detector config</a>
+    <a href="/rules/ml.yaml" class="btn btn-sm">ml.yaml</a>
+  </div>
+</div>
+
+{{if $d.Files}}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{{len $d.Files}} rule files</span>
+    <span class="dim text-xs">click to edit</span>
+  </div>
+  <div class="file-list" style="border:none">
+    {{range $d.Files}}
+    <a href="/rules/{{.Path}}" class="file-item" style="text-decoration:none">
+      <div class="file-item-name">
+        <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+          <polyline points="13 2 13 9 20 9"/>
+        </svg>
+        {{.Path}}
+      </div>
+      <div class="file-item-meta row gap-3">
+        <span>{{.Size}} B</span>
+        <span>{{.ModTime.Format "Jan 2, 15:04"}}</span>
+      </div>
+    </a>
+    {{end}}
+  </div>
+</div>
+{{else}}
+<div class="empty-state">
+  <div class="empty-state-icon">📂</div>
+  <div class="empty-state-title">No rule files found</div>
+  <p class="dim text-sm mt-2">Run <code>veilgate update-rules</code> to fetch community rules.</p>
+</div>
+{{end}}
+{{end}}

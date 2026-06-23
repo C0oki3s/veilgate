@@ -12,6 +12,7 @@ operator hits during install or day-2 ops.
 | [JA3/JA4 fingerprinting](ja3-ja4-fingerprinting.md) | Enable TLS fingerprinting signals, extend the fingerprint database, tune false positives |
 | [Cloudflare + VeilGate setup](cloudflare-setup.md) | SSL modes, Origin CA, trusted proxies, Authenticated Origin Pulls, JA3/JA4 trade-offs |
 | [Install on Linux](install-on-linux.md) | First-time install on a fresh host |
+| [Use the admin dashboard](use-admin-dashboard.md) | Start, sign in, edit settings, tune signals, manage decoys, and inspect logs |
 | [Observe-mode rollout & threshold tuning](observe-and-tune.md) | Before flipping to `challenge` or `tarpit` |
 | [Protect an SPA + API on different subdomains](protect-multi-origin.md) | Frontend on `app.example.com`, API on `api.example.com` behind veilgate |
 | [Authenticate server-to-server callers with HMAC](server-to-server-hmac.md) | Internal services, mobile apps, webhooks — anything without a JS runtime |
@@ -21,7 +22,7 @@ operator hits during install or day-2 ops.
 | [Install community rules](install-community-rules.md) | Pull the latest community-maintained detection rules from veilgate-rules |
 | [ShopStorm API: server-to-server](shopstorm-api-server-to-server.md) | Call the ShopStorm demo API from a backend service using HMAC signing |
 | [API blueprinting](api-blueprint.md) | Provide your OpenAPI / route list so VeilGate can detect undocumented-path probing |
-| [OpenTelemetry tracing](opentelemetry.md) | Ship request traces to Jaeger, Tempo, or SigNoz for per-request signal inspection |
+| [OpenTelemetry observability](opentelemetry.md) | Ship traces, structured logs, and metrics to SigNoz, Grafana, Jaeger, or any OTLP backend — includes decision-based severity and threat_level attribute |
 | [Endpoint correlation](endpoint-correlation.md) | Use Prometheus endpoint-correlation metrics to identify attacked routes and attack families |
 
 If you don't see your task here, the [configuration reference](../config/README.md)

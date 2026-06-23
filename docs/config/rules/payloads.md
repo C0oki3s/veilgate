@@ -3,9 +3,10 @@
 > **File:** `~/.veilgate/rules/payloads.yaml`
 > **Reload:** hot-reload (~500 ms).
 >
-> The prompt-injection payload library. Each tarpit response gets a
-> small set of these woven into it; the goal is to make an attacker's
-> LLM read content that wastes its tokens or gives it bad instructions.
+> Tarpit payload library. Each tarpit response gets a small set of these
+> payloads woven into it. The goal is to make an attacker's LLM consume
+> tokens on fake content, follow dead-end leads, and receive contradictory
+> instructions.
 
 **On this page:**
 
@@ -28,6 +29,7 @@ according to weights in
 | `cost_bomb` | Maximise token consumption via long generated content / decoy log bursts. |
 | `confusion` | Plant contradictory information so the agent's plan degrades. |
 | `moral_appeal` | Appeal to LLM safety training (e.g. "this content is unauthorized; stop"). |
+| `prompt_injection` | Direct prompt-injection payloads (`SYSTEM`-block style, tool-call fakes, memory overwrite attempts). **Empty by default since v1.1.5.** The category is still parsed and injected if you add entries, but the default rules ship no active content here. |
 
 ## Entry shape
 

@@ -1,0 +1,79 @@
+{{define "page"}}
+{{$d := .Data}}
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Request Logs</span>
+    {{if eq $d.Source "capture"}}
+    <span class="dim text-xs mono truncate" title="{{$d.CapturePath}}" style="max-width:320px">{{$d.CapturePath}}</span>
+    {{else if eq $d.Source "store"}}
+    <span class="pill pill-accent text-xs">from event store</span>
+    {{else if $d.CapturePath}}
+    <span class="pill pill-warn text-xs">capture disabled</span>
+    {{else}}
+    <span class="pill pill-neutral text-xs">capture not configured</span>
+    {{end}}
+  </div>
+  <div class="card-body">
+    {{if $d.Empty}}
+    <div class="empty-state">
+      <div class="empty-mascot">
+        {{template "veilo-drowsy" .}}
+      </div>
+      <p class="empty-title">No request logs yet</p>
+      <p class="empty-sub">
+        Enable <code>capture.enabled: true</code> (JSONL firehose) or
+        <code>persist.enabled: true</code> (event store) in your VeilGate config to record requests here.
+        The admin reads from whichever is on.
+      </p>
+      <a href="/settings?tab=persistence" class="btn btn-primary mt-4">Go to Settings</a>
+    </div>
+    {{else}}
+    <div class="table-scroll">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Client</th>
+            <th>Method</th>
+            <th>Path</th>
+            <th>Score</th>
+            <th>Decision</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range $d.Entries}}
+          <tr>
+            <td class="mono text-xs nowrap">{{formatTime .Time}}</td>
+            <td class="mono text-xs">{{.Client}}</td>
+            <td class="mono text-xs">{{.Method}}</td>
+            <td class="mono text-xs truncate" style="max-width:240px" title="{{.Path}}">{{.Path}}</td>
+            <td>
+              <span class="pill pill-{{scoreTier .Score}} mono text-xs">{{.Score}}</span>
+            </td>
+            <td>
+              {{if eq .Decision "tarpit"}}
+              <div class="row gap-2 align-center">
+                <div style="width:16px; height:16px; flex-shrink:0">{{template "veilo-sneaky" .}}</div>
+                <span class="pill pill-danger text-xs">tarpit</span>
+              </div>
+              {{else if eq .Decision "challenge"}}
+              <div class="row gap-2 align-center">
+                <div style="width:16px; height:16px; flex-shrink:0">{{template "veilo-sneaky-laugh" .}}</div>
+                <span class="pill pill-warn text-xs">challenge</span>
+              </div>
+              {{else if eq .Decision "block"}}
+              <span class="pill pill-danger text-xs">block</span>
+              {{else}}
+              <span class="pill pill-success text-xs">{{if .Decision}}{{.Decision}}{{else}}pass{{end}}</span>
+              {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

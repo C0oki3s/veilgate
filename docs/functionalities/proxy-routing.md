@@ -118,12 +118,18 @@ Context: top-level
 Controls how VeilGate applies detector scores to traffic. The detector runs in
 all modes. The mode only decides whether the score changes routing.
 
-| Mode | Behavior |
-| --- | --- |
-| `observe` | Score, log, and record traffic, but proxy everything upstream. |
-| `challenge` | Requests at or above `detector.score_challenge_threshold` receive the challenge handler. |
-| `tarpit` | Requests at or above `detector.score_tarpit_threshold` receive the tarpit handler; the middle band receives challenge. |
-| `auto` | Below challenge threshold proxies upstream; middle band challenges; high band tarpits. |
+| Mode | Behavior | Log level |
+| --- | --- | --- |
+| `observe` | Score, log, and record traffic, but proxy everything upstream. | `info` |
+| `challenge` | Requests at or above `detector.score_challenge_threshold` receive the challenge handler. | `warn` (challenged), `info` (passed) |
+| `tarpit` | Requests at or above `detector.score_tarpit_threshold` receive the tarpit handler; the middle band receives challenge. | `error` (tarpitted), `warn` (challenged) |
+| `auto` | Below challenge threshold proxies upstream; middle band challenges; high band tarpits. | `error` / `warn` / `info` by decision |
+
+Request log lines use a zerolog level that matches the routing decision —
+`tarpit → error`, `challenge → warn`, `real / observe → info`. This maps to
+red / yellow / blue in SigNoz and Grafana without extra configuration.
+Every request log line also carries a `threat_level` field
+(`low` / `medium` / `high` / `critical`) derived from the score range.
 
 ### Code path
 

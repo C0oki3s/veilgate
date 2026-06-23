@@ -1,0 +1,121 @@
+{{define "page"}}
+{{$d := .Data}}
+
+<div class="grid-2 mb-6">
+  <!-- Status card -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Blueprint Status</span>
+      {{if $d.Exists}}
+      <span class="pill pill-success">Loaded</span>
+      {{else}}
+      <span class="pill pill-neutral">Not configured</span>
+      {{end}}
+    </div>
+    <div class="card-body">
+      {{if $d.Exists}}
+      <div class="row gap-3 mb-3">
+        <span class="stat-value">{{$d.PathCount}}</span>
+        <span class="dim text-sm" style="align-self:flex-end; margin-bottom:4px">paths in blueprint</span>
+      </div>
+      <div class="text-xs mono muted" style="word-break:break-all">{{$d.FilePath}}</div>
+      <p class="text-xs muted mt-3">The <code>api_blueprint_miss</code> signal fires when an agent requests a path absent from this spec. VeilGate can then serve a crafted honeypot response calibrated to the agent's belief about your API.</p>
+      {{else}}
+      <p class="text-xs muted mb-3">No OpenAPI blueprint found at <code class="mono">{{$d.FilePath}}</code></p>
+      <p class="text-xs muted">Import your API spec below. VeilGate uses it to detect agents mapping your attack surface — any path they request that isn't in the spec triggers the <code>api_blueprint_miss</code> signal.</p>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">How It Works</span></div>
+    <div class="card-body">
+      <ol style="padding-left:var(--size-5); display:flex; flex-direction:column; gap:var(--size-3)">
+        <li class="text-sm">Agent reads your OpenAPI spec or probes paths to map your API surface.</li>
+        <li class="text-sm">Agent requests a path not in the blueprint → <code>api_blueprint_miss</code> fires (+30 pts).</li>
+        <li class="text-sm">VeilGate <em>knows</em> the agent's intent from the mismatched path and serves a crafted honeypot response.</li>
+        <li class="text-sm">Honeypot response contains canary tokens; when the agent replays them, <code>canary_replay</code> fires (+80 pts).</li>
+        <li class="text-sm">Agent is now in tarpit — consuming time and compute, not your real API.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- Tabs: paste or upload -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Import OpenAPI Spec</span>
+    <span class="dim text-xs">YAML or JSON · OpenAPI 3.x or Swagger 2.0</span>
+  </div>
+  <div class="card-body" x-data="{tab: 'paste'}">
+    <div class="tabs" style="margin-bottom:var(--size-4)">
+      <button type="button" class="tab" :class="{active: tab==='paste'}" @click="tab='paste'">Paste</button>
+      <button type="button" class="tab" :class="{active: tab==='upload'}" @click="tab='upload'">Upload File</button>
+    </div>
+
+    <!-- paste tab -->
+    <div x-show="tab==='paste'">
+      <form method="POST" action="/openapi">
+        <div class="editor-shell" style="margin-bottom:var(--size-4)">
+          <div class="editor-toolbar">
+            <span class="editor-file-name">openapi.yaml</span>
+            <span class="dim text-xs">paste your spec here</span>
+          </div>
+          <textarea class="editor-textarea" name="content" placeholder="openapi: 3.0.0
+info:
+  title: My API
+  version: '1.0'
+paths:
+  /users:
+    get:
+      summary: List users
+  /users/{id}:
+    get:
+      summary: Get user
+..." style="min-height:380px">{{$d.Content}}</textarea>
+        </div>
+        <div class="row end gap-3">
+          {{if $d.Exists}}<a href="/rules/openapi.yaml" class="btn btn-sm">View raw file</a>{{end}}
+          <button type="submit" class="btn btn-primary">Import &amp; Save</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- upload tab -->
+    <div x-show="tab==='upload'">
+      <form method="POST" action="/openapi" enctype="multipart/form-data">
+        <label class="upload-zone"
+          @dragover.prevent="$el.classList.add('drag-over')"
+          @dragleave="$el.classList.remove('drag-over')"
+          @drop.prevent="$el.classList.remove('drag-over'); $refs.fileInput.files = $event.dataTransfer.files; $el.querySelector('.upload-zone-label').textContent = $event.dataTransfer.files[0]?.name || 'file selected'">
+          <input type="file" name="file" accept=".yaml,.yml,.json" class="hidden" x-ref="fileInput"
+            @change="$el.closest('.upload-zone').querySelector('.upload-zone-label').textContent = $refs.fileInput.files[0]?.name || 'Choose file'">
+          <div class="upload-zone-icon">⬆</div>
+          <div class="upload-zone-label">Drag &amp; drop or click to choose</div>
+          <div class="upload-zone-sub">.yaml, .yml, or .json · max 4 MB</div>
+        </label>
+        <div class="row end mt-4">
+          <button type="submit" class="btn btn-primary">Upload &amp; Import</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{{if $d.Exists}}
+<!-- Current file preview -->
+<div class="card mt-4">
+  <div class="card-header">
+    <span class="card-title">Current Blueprint</span>
+    <div class="row gap-2">
+      <span class="dim text-xs">{{$d.PathCount}} paths</span>
+      <a href="/rules/openapi.yaml" class="btn btn-sm">Edit →</a>
+    </div>
+  </div>
+  <div class="card-body" style="padding:0">
+    <pre style="margin:0; border:none; border-radius:0; max-height:300px; overflow:auto"><code>{{$d.Content}}</code></pre>
+  </div>
+</div>
+{{end}}
+{{end}}

@@ -109,7 +109,7 @@ ls -la ~/.veilgate/rules
 | `tls_fingerprints/` | JA3/JA4 exact and prefix classifications. All files merged. | `internal/tlsfp`, `internal/detector` |
 | `templates/` | Tarpit response templates. All files merged; later files override same-key entries. | `internal/tarpit/renderer.go` |
 | `injection_strategy/` | Tarpit route table and injector config. Community route files are prepended before the base routes so the `any` catch-all stays last. | `internal/tarpit/handler.go` |
-| `payloads/` | Decoy and prompt-injection payload library. `config.yaml` sets injector knobs and `generators`; other files add payload lists. | `internal/payloads` |
+| `payloads/` | Tarpit deception payload library. Categories: `termination`, `rabbit_hole`, `cost_bomb`, `confusion`, `moral_appeal`. `prompt_injection` category is present but empty by default since v1.1.5. `config.yaml` sets injector knobs and `generators`; other files add payload lists. | `internal/payloads` |
 | `fake_data/` | Fake profile value pools. All list fields merged across files. | `internal/tarpit/profile.go` |
 | `vulnerabilities/` | Fake vulnerability and honeypot path lists. All list fields merged across files. | `internal/tarpit/handler.go` |
 | `challenge.yaml` | Challenge template, cookie, token, and verify settings. | `internal/challenge` |
@@ -227,6 +227,8 @@ the corresponding directory subtree changes, the full `Load*` walk re-runs.
 | Trigger file | Hot reload | Reload action |
 |---|---|---|
 | `detector.yaml` | yes | `LoadDetector(rulesDir)` → `scorer.SetRules()` |
+| `signals.yaml` | yes (~500 ms) | `LoadSignals(rulesDir)` → `scorer.SetSignals()` — enable/disable/reweight signals, add custom signals |
+| `api_blueprint.yaml` / `openapi.yaml` | yes | `LoadBlueprint(rulesDir)` → `scorer.SetBlueprint()` — enables `api_blueprint_miss` signal |
 | `ip_reputation.yaml` | yes | `LoadIPReputation(rulesDir)` → `scorer.SetIPReputation()` |
 | `templates.yaml` | yes | `LoadTemplates(rulesDir)` → `templatesHolder.Store()` |
 | `fake_data.yaml` | yes | `LoadFakeData(rulesDir)` → `fakeDataHolder.Store()` |

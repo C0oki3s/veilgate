@@ -1,0 +1,100 @@
+{{define "page"}}
+{{$d := .Data}}
+
+<div class="row between mb-4">
+  <div class="breadcrumb">
+    <a href="/rules">Rules</a>
+    <span class="breadcrumb-sep">/</span>
+    <span class="breadcrumb-current mono">{{$d.FileName}}</span>
+  </div>
+  <div class="row gap-2">
+    {{if $d.Exists}}
+    <span class="pill pill-success">exists</span>
+    {{else}}
+    <span class="pill pill-neutral">new file</span>
+    {{end}}
+  </div>
+</div>
+
+<form method="POST" action="/rules/{{$d.FileName}}">
+  <div class="editor-shell">
+    <div class="editor-toolbar">
+      <span class="editor-file-name">{{$d.FilePath}}</span>
+      <div class="row gap-2">
+        <a href="/rules" class="btn btn-ghost btn-sm">← Back</a>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </div>
+    </div>
+
+    <div class="editor-wrap" id="editorWrap">
+      <div class="line-numbers" id="lineNumbers" aria-hidden="true"></div>
+      <textarea
+        class="editor-textarea"
+        id="editorTextarea"
+        name="content"
+        spellcheck="false"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off">{{$d.Content}}</textarea>
+    </div>
+
+    <div class="editor-status">
+      <span>Hot-reloads within 500 ms of save — no proxy restart needed.</span>
+      <span class="dim">|</span>
+      <span class="dim">Tab = 2 spaces</span>
+      <span class="dim">|</span>
+      <span id="editorLineCol" class="dim">Ln 1, Col 1</span>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  var ta = document.getElementById('editorTextarea');
+  var ln = document.getElementById('lineNumbers');
+  var lc = document.getElementById('editorLineCol');
+
+  function countLines(text) {
+    return text === '' ? 1 : (text.match(/\n/g) || []).length + 1;
+  }
+
+  function updateLineNumbers() {
+    var lines = countLines(ta.value);
+    var html = '';
+    for (var i = 1; i <= lines; i++) {
+      html += '<div>' + i + '</div>';
+    }
+    ln.innerHTML = html;
+    ln.scrollTop = ta.scrollTop;
+  }
+
+  function updateCursor() {
+    var before = ta.value.substring(0, ta.selectionStart);
+    var lines = before.split('\n');
+    lc.textContent = 'Ln ' + lines.length + ', Col ' + (lines[lines.length - 1].length + 1);
+  }
+
+  ta.addEventListener('input', updateLineNumbers);
+  ta.addEventListener('scroll', function() { ln.scrollTop = ta.scrollTop; });
+  ta.addEventListener('click', updateCursor);
+  ta.addEventListener('keyup', updateCursor);
+
+  ta.addEventListener('keydown', function(e) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var s = ta.selectionStart, end = ta.selectionEnd;
+      ta.value = ta.value.substring(0, s) + '  ' + ta.value.substring(end);
+      ta.selectionStart = ta.selectionEnd = s + 2;
+      updateLineNumbers();
+      updateCursor();
+    }
+  });
+
+  // Remove the global Tab handler from shell.html for this textarea
+  // (it still fires but our handler calls preventDefault first)
+
+  updateLineNumbers();
+  updateCursor();
+})();
+</script>
+{{end}}

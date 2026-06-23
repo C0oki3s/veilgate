@@ -141,3 +141,56 @@ func TestStoreTrim(t *testing.T) {
 		t.Fatalf("want 1 remaining, got %d", len(feats))
 	}
 }
+
+func TestAnalyticsBreakdownQueries(t *testing.T) {
+	s := newTestStore(t)
+	now := time.Now()
+	mk := func(client, ua, path, decision string, score int, sigs []string) Event {
+		return Event{
+			Time: now, ClientID: client, Method: "GET", Path: path,
+			UserAgent: ua, Score: score, Signals: sigs, Decision: decision,
+			FeaturesJSON: "{}",
+		}
+	}
+	// scanner A: heavy sqlmap, tarpitted
+	for i := 0; i < 5; i++ {
+		s.Record(mk("10.0.0.1", "sqlmap/1.7", "/admin.php", "tarpit", 90, []string{"scanner_ua", "path_php"}))
+	}
+	// scanner B: lighter
+	for i := 0; i < 2; i++ {
+		s.Record(mk("10.0.0.2", "nuclei", "/.git/config", "challenge", 55, []string{"path_git"}))
+	}
+	// clean client, no signals
+	s.Record(mk("10.0.0.3", "Mozilla/5.0", "/", "observe", 0, nil))
+	time.Sleep(80 * time.Millisecond)
+
+	since := now.Add(-time.Hour)
+
+	clients, err := s.TopClients(since, 10)
+	if err != nil {
+		t.Fatalf("TopClients: %v", err)
+	}
+	if len(clients) == 0 || clients[0].ClientID != "10.0.0.1" || clients[0].Count != 5 || clients[0].Tarpit != 5 {
+		t.Fatalf("TopClients unexpected: %+v", clients)
+	}
+
+	uas, err := s.TopUserAgents(since, 10)
+	if err != nil {
+		t.Fatalf("TopUserAgents: %v", err)
+	}
+	if len(uas) == 0 || uas[0].Label != "sqlmap/1.7" || uas[0].Count != 5 {
+		t.Fatalf("TopUserAgents unexpected: %+v", uas)
+	}
+
+	sigs, err := s.TopSignals(since, 10)
+	if err != nil {
+		t.Fatalf("TopSignals: %v", err)
+	}
+	got := map[string]int{}
+	for _, sc := range sigs {
+		got[sc.Label] = sc.Count
+	}
+	if got["scanner_ua"] != 5 || got["path_php"] != 5 || got["path_git"] != 2 {
+		t.Fatalf("TopSignals unexpected: %+v", sigs)
+	}
+}

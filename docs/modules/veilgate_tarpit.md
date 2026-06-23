@@ -323,8 +323,12 @@ Payload categories:
 
 | Category | Purpose |
 | --- | --- |
-| Decoy payloads | Fake API keys, connection strings, internal hostnames — wastes credential harvesting |
-| Prompt-injection text | Misleads LLM agents that parse HTML/JSON for instructions |
+| `rabbit_hole` | Fake findings, dead-end escalation paths, high-risk breadcrumbs |
+| `cost_bomb` | Long decoy content (log bursts) that inflates attacker token spend |
+| `termination` | Directives telling the LLM agent to stop the task |
+| `confusion` | Contradictory information that degrades the agent's plan |
+| `moral_appeal` | Safety-training appeals (unauthorized access warnings) |
+| `prompt_injection` | Direct prompt-injection payloads. **Empty by default since v1.1.5.** |
 | Canary tokens | Unique strings recorded in `persist.Store`; fire `canary_replay` when replayed |
 
 If `tarpit.PayloadInjector` is nil (no injector configured), `noopInjector`
@@ -356,7 +360,8 @@ ServeHTTP(w, r)
   6. injector.Inject(ct, body, ctx)     — insert decoy/prompt-injection/canary payloads
   7. body[:MaxBodyBytes]                — enforce size cap
   8. w.Write(body)                      — send to client
-  9. telemetry.TarpitBytesServed.Add()  — record bytes
+  9. telemetry.TarpitBytesServed.Add()  — Prometheus counter
+ 10. DefaultBus.Emit(KindTarpit)        — async fan-out to OTelSink + dashboard
 ```
 
 For the full pipeline detail, see
@@ -364,14 +369,17 @@ For the full pipeline detail, see
 
 ## Metrics
 
-| Metric | Description |
-| --- | --- |
-| `veilgate_tarpit_bytes_served_total` | Total bytes served to tarpitted clients |
-| `veilgate_tarpit_latency_ms_total` | Total artificial delay added (milliseconds) |
-| `veilgate_attacker_cost_usd_total` | Approximate bandwidth cost estimate at ~$0.003/KB |
+| Prometheus | OTel | Description |
+| --- | --- | --- |
+| `veilgate_tarpit_bytes_served_total` | `veilgate.tarpit.bytes_served.total` | Total bytes served to tarpitted clients |
+| `veilgate_tarpit_latency_ms_total` | `veilgate.tarpit.latency_ms.total` | Total artificial delay added (milliseconds) |
+| `veilgate_tarpit_active_sessions` | `veilgate.tarpit.active_sessions` | Gauge of in-flight `ServeHTTP` calls |
+| `veilgate_tarpit_template_type_total` | `veilgate.tarpit.template_type.total` | Responses by content-type (json/html/graphql/text/other) |
+| `veilgate_attacker_cost_usd_total` | `veilgate.tarpit.cost_usd.total` | Estimated attacker LLM API cost burned, USD |
 
 ```promql
 rate(veilgate_tarpit_bytes_served_total[5m])
+veilgate_tarpit_active_sessions   # gauge: in-flight tarpit connections
 ```
 
 ## Limitations
