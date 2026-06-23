@@ -1,0 +1,418 @@
+{{define "page"}}
+{{$d := .Data}}
+
+{{/* ── Stat cards ──────────────────────────────────────────────────────── */}}
+<div class="stat-grid mb-6">
+  {{range $d.StatCards}}
+  <div class="stat-card">
+    <div class="stat-label">{{.Label}}</div>
+    <div class="stat-value {{if eq .Kind "warn"}}warn{{else if eq .Kind "danger"}}danger{{else if eq .Kind "success"}}success{{end}}">{{.Value}}</div>
+    {{if .Sub}}<div class="stat-delta">{{.Sub}}</div>{{end}}
+  </div>
+  {{end}}
+</div>
+
+{{/* ── Traffic analytics (from the correlation event store) ─────────────── */}}
+{{$a := $d.Analytics}}
+<div class="card mb-6">
+  <div class="card-header">
+    <div>
+      <span class="card-title">Traffic Analytics</span>
+      <div class="card-caption">Requests by decision over the {{$a.Window}} — from the correlation event store</div>
+    </div>
+    <div class="row gap-3 items-center">
+      {{if $a.Available}}<span class="pill pill-accent text-xs">live</span>{{else}}<span class="pill pill-neutral text-xs">store off</span>{{end}}
+      <a href="/logs" class="btn btn-sm">View request logs</a>
+    </div>
+  </div>
+  <div class="card-body">
+    {{if $a.Available}}
+    <div class="analytics-grid">
+      <div class="analytics-cell">
+        <div class="analytics-value">{{$a.Total}}</div>
+        <div class="analytics-label">Total requests</div>
+      </div>
+      <div class="analytics-cell">
+        <div class="analytics-value success">{{$a.Observe}}</div>
+        <div class="analytics-label">Observed / passed</div>
+      </div>
+      <div class="analytics-cell">
+        <div class="analytics-value warn">{{$a.Challenge}}</div>
+        <div class="analytics-label">Challenged</div>
+      </div>
+      <div class="analytics-cell">
+        <div class="analytics-value danger">{{$a.Tarpit}}</div>
+        <div class="analytics-label">Tarpitted</div>
+      </div>
+      <div class="analytics-cell">
+        <div class="analytics-value">{{$a.Clean}}</div>
+        <div class="analytics-label">Clean (score 0)</div>
+      </div>
+    </div>
+
+    {{if $a.HasCharts}}
+    {{/* ── Charts (server-rendered SVG, no JS) ───────────────────────────── */}}
+    <div class="chart-row mt-6">
+      {{if $a.DonutSVG}}
+      <div class="chart-box chart-box-narrow">
+        <div class="chart-head">Decision mix</div>
+        <div class="chart-donut-wrap">{{$a.DonutSVG}}</div>
+        <div class="chart-legend">
+          <span class="chart-legend-item"><span class="chart-swatch" style="background:var(--color-success)"></span>Clean {{$a.Clean}}</span>
+          <span class="chart-legend-item"><span class="chart-swatch" style="background:var(--accent-base)"></span>Observe {{$a.Observe}}</span>
+          <span class="chart-legend-item"><span class="chart-swatch" style="background:var(--color-warn)"></span>Challenge {{$a.Challenge}}</span>
+          <span class="chart-legend-item"><span class="chart-swatch" style="background:var(--color-danger)"></span>Tarpit {{$a.Tarpit}}</span>
+        </div>
+      </div>
+      {{end}}
+      {{if $a.TimelineSVG}}
+      <div class="chart-box chart-box-wide">
+        <div class="chart-head">Requests over time <span class="dim text-xs">· hourly</span></div>
+        <div class="chart-plot">{{$a.TimelineSVG}}</div>
+      </div>
+      {{end}}
+    </div>
+
+    {{if $a.HistogramSVG}}
+    <div class="chart-box mt-5">
+      <div class="chart-head">Score distribution <span class="dim text-xs">· 0–100 in tens, coloured by zone</span></div>
+      <div class="chart-plot">{{$a.HistogramSVG}}</div>
+    </div>
+    {{end}}
+
+    {{if $a.TopPathsSVG}}
+    <div class="chart-box mt-5">
+      <div class="chart-head">Top probed paths <span class="dim text-xs">· tarpitted share in red</span></div>
+      <div class="chart-plot">{{$a.TopPathsSVG}}</div>
+    </div>
+    {{end}}
+    {{end}}
+    {{else}}
+    <div class="dim text-sm">
+      The event store (correlation DB) is not enabled, so traffic analytics are unavailable.
+      Turn on <code class="mono">persist</code> in
+      <a href="/settings?tab=persistence" class="link">Settings → Persistence</a> and restart the proxy.
+    </div>
+    {{end}}
+  </div>
+</div>
+
+{{/* ── Score Decision Map ───────────────────────────────────────────────── */}}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <span class="card-title">Score Decision Map</span>
+      <div class="card-caption">How VeilGate classifies each request based on its accumulated threat score (0–100)</div>
+    </div>
+    <div class="row gap-3 items-start">
+      <div style="width:24px; height:32px; flex-shrink:0" title="Sneaky traffic gets challenged or tarpitted">
+        {{template "veilo-sneaky-laugh" .}}
+      </div>
+      <a href="/settings?tab=detector" class="btn btn-sm">Tune thresholds</a>
+    </div>
+  </div>
+  <div class="card-body">
+    {{if $.Config}}
+    {{$ch := $.Config.Detector.ScoreChallengeThreshold}}
+    {{$tp := $.Config.Detector.ScoreTarpitThreshold}}
+    {{$gap := add $tp (negate $ch)}}
+    {{$rem := add 100 (negate $tp)}}
+
+    <div class="score-bar-wrap">
+      {{/* Coloured zone bar */}}
+      <div class="score-bar">
+        <div class="score-zone zone-observe"   style="width:{{$ch}}%"  title="Score 0–{{$ch}}: real traffic, proxied normally">
+          <span class="zone-label">Real / Observe</span>
+        </div>
+        <div class="score-zone zone-challenge" style="width:{{$gap}}%" title="Score {{$ch}}–{{$tp}}: suspicious, gets a JS/PoW challenge">
+          <span class="zone-label">Challenge</span>
+        </div>
+        <div class="score-zone zone-tarpit"    style="width:{{$rem}}%" title="Score {{$tp}}–100: bot/scanner, served the shadow app">
+          <span class="zone-label">Tarpit</span>
+        </div>
+      </div>
+
+      {{/* Tick marks */}}
+      <div class="score-bar-ticks">
+        <div class="score-tick" style="left:0">
+          <div class="tick-line"></div>
+          <div class="tick-label">0</div>
+        </div>
+        <div class="score-tick score-tick-warn" style="left:{{$ch}}%">
+          <div class="tick-line"></div>
+          <div class="tick-label">{{$ch}}</div>
+        </div>
+        <div class="score-tick score-tick-danger" style="left:{{$tp}}%">
+          <div class="tick-line"></div>
+          <div class="tick-label">{{$tp}}</div>
+        </div>
+        <div class="score-tick" style="left:100%">
+          <div class="tick-line"></div>
+          <div class="tick-label" style="transform:translateX(-100%)">100</div>
+        </div>
+      </div>
+    </div>
+
+    {{/* Legend row */}}
+    <div class="score-legend">
+      <div class="score-legend-item">
+        <span class="score-dot dot-observe"></span>
+        <div>
+          <strong>0 – {{$ch}}</strong> — Observe
+          <div class="score-legend-desc">Request is proxied to the real upstream. Score accumulates in the rolling window but no action is taken yet.</div>
+        </div>
+      </div>
+      <div class="score-legend-item">
+        <span class="score-dot dot-challenge"></span>
+        <div>
+          <strong>{{$ch}} – {{$tp}}</strong> — Challenge
+          <div class="score-legend-desc">Client receives a JavaScript proof-of-work puzzle. Solving it issues a short-lived HMAC token and forwards the request.</div>
+        </div>
+      </div>
+      <div class="score-legend-item">
+        <span class="score-dot dot-tarpit"></span>
+        <div>
+          <strong>{{$tp}} – 100</strong> — Tarpit
+          <div class="score-legend-desc">Client is silently routed to the shadow app: fake but plausible responses with artificial latency and injected misinformation.</div>
+        </div>
+      </div>
+    </div>
+    {{else}}
+    <p class="text-sm muted">No config loaded — <a href="/settings">add a veilgate.yaml</a> to see the decision map.</p>
+    {{end}}
+  </div>
+</div>
+
+{{/* ── Config + Rules row ───────────────────────────────────────────────── */}}
+<div class="grid-2 mb-5">
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Active Configuration</span>
+      {{if $d.ConfigOK}}<span class="pill pill-success">Loaded</span>{{else}}<span class="pill pill-danger">Not loaded</span>{{end}}
+    </div>
+    <div class="card-body">
+      {{if $.Config}}
+      <table class="table">
+        <tbody>
+          <tr>
+            <td class="muted text-xs nowrap">Listen</td>
+            <td class="mono text-xs">{{$.Config.Listen}}</td>
+            <td class="text-xs dim" style="padding-left:var(--size-3)">TCP address VeilGate binds to</td>
+          </tr>
+          <tr>
+            <td class="muted text-xs nowrap">Upstream</td>
+            <td class="mono text-xs">{{$.Config.Upstream}}</td>
+            <td class="text-xs dim" style="padding-left:var(--size-3)">Real application origin</td>
+          </tr>
+          <tr>
+            <td class="muted text-xs nowrap">Mode</td>
+            <td><span class="mode-pill mode-{{$.Config.Mode}}">{{$.Config.Mode}}</span></td>
+            <td class="text-xs dim" style="padding-left:var(--size-3)">
+              {{if eq $.Config.Mode "observe"}}Score only, never divert
+              {{else if eq $.Config.Mode "challenge"}}Challenge suspicious clients
+              {{else if eq $.Config.Mode "tarpit"}}All high-score traffic → shadow app
+              {{else if eq $.Config.Mode "auto"}}Challenge + tarpit by threshold
+              {{else}}Custom mode{{end}}
+            </td>
+          </tr>
+          <tr>
+            <td class="muted text-xs nowrap">Metrics</td>
+            <td class="mono text-xs">{{if $.Config.Metrics.Disabled}}<span class="dim">disabled</span>{{else}}{{$.Config.Metrics.Listen}}{{end}}</td>
+            <td class="text-xs dim" style="padding-left:var(--size-3)">Prometheus pull endpoint</td>
+          </tr>
+          <tr>
+            <td class="muted text-xs nowrap">Persist</td>
+            <td>
+              {{if $.Config.Persist.Enabled}}
+              <span class="pill pill-success">enabled</span>
+              {{else}}
+              <span class="pill pill-neutral">disabled</span>
+              {{end}}
+            </td>
+            <td class="text-xs dim" style="padding-left:var(--size-3)">
+              {{if $.Config.Persist.Enabled}}SQLite event store at {{$.Config.Persist.Path}}
+              {{else}}Enable for ML classifier and <code>veilgate forget</code>{{end}}
+            </td>
+          </tr>
+          {{if $.Config.Telemetry.OTLP.Endpoint}}
+          <tr>
+            <td class="muted text-xs nowrap">OTel</td>
+            <td class="mono text-xs truncate" style="max-width:180px" title="{{$.Config.Telemetry.OTLP.Endpoint}}">{{$.Config.Telemetry.OTLP.Endpoint}}</td>
+            <td class="text-xs dim" style="padding-left:var(--size-3)">OTLP endpoint (traces, logs, metrics)</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      {{else}}
+      <p class="text-xs muted">Config not loaded. Check <a href="/settings">Settings</a> or the path passed to <code>--config</code>.</p>
+      {{end}}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Rules Directory</span>
+      {{if $d.RulesDirOK}}<span class="pill pill-success">Found</span>{{else}}<span class="pill pill-warn">Missing</span>{{end}}
+    </div>
+    <div class="card-body">
+      {{if $d.RulesDirOK}}
+      <p class="mono text-xs muted mb-3" style="word-break:break-all">{{$d.RulesDir}}</p>
+      <p class="text-xs muted mb-4">VeilGate watches this directory for changes and hot-reloads rule files within ~500 ms — no restart needed for rule edits.</p>
+      <div class="rules-type-list">
+        <div class="rules-type-item">
+          <span class="mono text-xs">detector/config.yaml</span>
+          <span class="dim text-xs">Score weights, signal definitions</span>
+        </div>
+        <div class="rules-type-item">
+          <span class="mono text-xs">signals/overrides.yaml</span>
+          <span class="dim text-xs">Per-signal weight and status overrides</span>
+        </div>
+        <div class="rules-type-item">
+          <span class="mono text-xs">payloads/</span>
+          <span class="dim text-xs">Tarpit injection payloads and templates</span>
+        </div>
+      </div>
+      {{else}}
+      <div class="row gap-4 items-start">
+        <div style="width:52px; height:68px; flex-shrink:0; opacity:0.65">
+          {{template "veilo-drowsy" .}}
+        </div>
+        <div>
+          <p class="text-xs muted mb-3">Rules directory not found at <code class="mono">{{$d.RulesDir}}</code></p>
+          <p class="text-xs muted mb-4">Run <code>veilgate update-rules</code> or <code>make install</code> to pull the community rule set. VeilGate falls back to embedded defaults until rules are present.</p>
+          <a href="/settings" class="btn btn-primary btn-sm">Set rules_dir →</a>
+        </div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+</div>
+
+{{/* ── Admin activity ───────────────────────────────────────────────────── */}}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <span class="card-title">Admin Activity</span>
+      <div class="card-caption">Recent configuration and access events recorded by this admin UI</div>
+    </div>
+    <a href="/audit" class="btn btn-sm">Full audit log →</a>
+  </div>
+  <div class="card-body">
+    {{if eq $d.AuditStats.Total 0}}
+    <div class="row gap-4 items-start">
+      <div style="width:44px; height:58px; flex-shrink:0; opacity:0.55">
+        {{template "veilo-drowsy" .}}
+      </div>
+      <div>
+        <p class="text-xs muted mb-2">No admin events recorded yet.</p>
+        <p class="text-xs dim">Config saves, rule edits, signal changes, logins, and API calls will appear here once they happen.</p>
+      </div>
+    </div>
+    {{else}}
+    <div class="audit-stat-row">
+      <div class="audit-stat">
+        <div class="stat-label">Total events</div>
+        <div class="stat-value">{{$d.AuditStats.Total}}</div>
+        <div class="stat-delta">all time</div>
+      </div>
+      <div class="audit-stat-divider"></div>
+      <div class="audit-stat">
+        <div class="stat-label">Logins</div>
+        <div class="stat-value">{{$d.AuditStats.Logins}}</div>
+        <div class="stat-delta">authentication events</div>
+      </div>
+      <div class="audit-stat-divider"></div>
+      <div class="audit-stat">
+        <div class="stat-label">Config saves</div>
+        <div class="stat-value">{{add $d.AuditStats.ConfigSaves $d.AuditStats.RuleSaves}}</div>
+        <div class="stat-delta">veilgate.yaml + rule files</div>
+      </div>
+      <div class="audit-stat-divider"></div>
+      <div class="audit-stat">
+        <div class="stat-label">Signal saves</div>
+        <div class="stat-value">{{$d.AuditStats.SignalSaves}}</div>
+        <div class="stat-delta">signals.yaml updates</div>
+      </div>
+      <div class="audit-stat-divider"></div>
+      <div class="audit-stat">
+        <div class="stat-label">OpenAPI imports</div>
+        <div class="stat-value">{{$d.AuditStats.OpenAPISaves}}</div>
+        <div class="stat-delta">blueprint uploads</div>
+      </div>
+      {{if gt $d.AuditStats.Failures 0}}
+      <div class="audit-stat-divider"></div>
+      <div class="audit-stat">
+        <div class="stat-label">Failures</div>
+        <div class="stat-value danger">{{$d.AuditStats.Failures}}</div>
+        <div class="stat-delta">auth or save errors</div>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</div>
+
+{{/* ── Quick actions ────────────────────────────────────────────────────── */}}
+<div class="quick-actions">
+  <a href="/settings" class="quick-action-btn">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+    <div>
+      <div class="qa-label">Settings</div>
+      <div class="qa-desc">Proxy, detector, TLS, verifiers, observability</div>
+    </div>
+  </a>
+  <a href="/signals" class="quick-action-btn">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+    <div>
+      <div class="qa-label">Signals</div>
+      <div class="qa-desc">Override built-in score weights, add custom signals</div>
+    </div>
+  </a>
+  <a href="/openapi" class="quick-action-btn">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    <div>
+      <div class="qa-label">OpenAPI Blueprint</div>
+      <div class="qa-desc">Import your API spec to generate path-aware rules</div>
+    </div>
+  </a>
+  <a href="/rules" class="quick-action-btn">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>
+    <div>
+      <div class="qa-label">Rule Files</div>
+      <div class="qa-desc">Browse and edit detector, payload, template files</div>
+    </div>
+  </a>
+  <a href="/logs" class="quick-action-btn">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+      <line x1="9" y1="21" x2="9" y2="9"/>
+    </svg>
+    <div>
+      <div class="qa-label">Request Logs</div>
+      <div class="qa-desc">Live stream of scored requests with signal breakdown</div>
+    </div>
+  </a>
+  <a href="/audit" class="quick-action-btn">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+    </svg>
+    <div>
+      <div class="qa-label">Audit Log</div>
+      <div class="qa-desc">Admin actions: logins, config saves, API calls</div>
+    </div>
+  </a>
+</div>
+
+{{end}}

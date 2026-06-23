@@ -24,6 +24,7 @@ feature-oriented navigation.
 | Persistence event store | [persistence-event-store.md](persistence-event-store.md) |
 | Request capture JSONL | [request-capture.md](request-capture.md) |
 | Metrics and dashboard | [metrics-dashboard.md](metrics-dashboard.md) |
+| Admin dashboard | [admin-dashboard.md](admin-dashboard.md) |
 | Rules and hot reload | [rules-hot-reload.md](rules-hot-reload.md) |
 | Online ML and learned rules | [online-ml.md](online-ml.md) |
 | HMAC verifier | [hmac-verifier.md](hmac-verifier.md) |

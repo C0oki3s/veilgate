@@ -1,0 +1,141 @@
+{{/*
+  Veilo ghost mascot variants — use {{template "veilo-*" .}} to embed inline.
+  Each template outputs a standalone <svg> with viewBox="0 0 100 130".
+  Wrap in a <div> with width/height to size it.
+
+  Variants and where they're used:
+    veilo-classic       login page, sidebar brand, header
+    veilo-drowsy        empty states (no events, no rules, idle)
+    veilo-alert         error flashes, save-failed toasts
+    veilo-sneaky        honeypot / tarpit route events
+    veilo-sneaky-laugh  PoW challenge issued, dashboard challenge toast
+    veilo-hooded        VeilGate identity — login hero, about panel
+    veilo-decoy-squad   OpenAPI / tarpit / honeypot info sections
+*/}}
+
+{{define "veilo-classic"}}
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <!-- body -->
+  <path d="M 50 5 C 22 5, 5 22, 5 50 L 5 108 L 16 122 L 27 108 L 38 122 L 50 108 L 62 122 L 73 108 L 84 122 L 95 108 L 95 50 C 95 22, 78 5, 50 5 Z"
+    fill="#f0f9fa" stroke="#1a1a1a" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- highlight -->
+  <ellipse cx="28" cy="28" rx="6" ry="9" fill="#ffffff" opacity="0.55"/>
+  <!-- eyes: classic round -->
+  <ellipse cx="34" cy="50" rx="5" ry="8" fill="#0a0a0a"/>
+  <ellipse cx="66" cy="50" rx="5" ry="8" fill="#0a0a0a"/>
+  <!-- mouth: surprised "o" -->
+  <ellipse cx="50" cy="74" rx="4" ry="5" fill="#0a0a0a"/>
+</svg>
+{{end}}
+
+{{define "veilo-drowsy"}}
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M 50 5 C 22 5, 5 22, 5 50 L 5 108 L 16 122 L 27 108 L 38 122 L 50 108 L 62 122 L 73 108 L 84 122 L 95 108 L 95 50 C 95 22, 78 5, 50 5 Z"
+    fill="#f0f9fa" stroke="#1a1a1a" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="28" cy="28" rx="6" ry="9" fill="#ffffff" opacity="0.55"/>
+  <!-- eyes: half-moon drooping -->
+  <path d="M 27 50 Q 34 56, 41 50" stroke="#0a0a0a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M 59 50 Q 66 56, 73 50" stroke="#0a0a0a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- mouth: tiny -->
+  <ellipse cx="50" cy="74" rx="3" ry="2" fill="#0a0a0a"/>
+  <!-- zzz bubbles -->
+  <text x="76" y="24" font-family="Geist, system-ui, sans-serif" font-size="14" font-style="italic" font-weight="500" fill="#22d3ee">z</text>
+  <text x="84" y="14" font-family="Geist, system-ui, sans-serif" font-size="11" font-style="italic" font-weight="500" fill="#22d3ee">z</text>
+</svg>
+{{end}}
+
+{{define "veilo-alert"}}
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M 50 5 C 22 5, 5 22, 5 50 L 5 108 L 16 122 L 27 108 L 38 122 L 50 108 L 62 122 L 73 108 L 84 122 L 95 108 L 95 50 C 95 22, 78 5, 50 5 Z"
+    fill="#f0f9fa" stroke="#1a1a1a" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="28" cy="28" rx="6" ry="9" fill="#ffffff" opacity="0.55"/>
+  <!-- eyes: wide / alarmed -->
+  <ellipse cx="34" cy="50" rx="6" ry="9" fill="#0a0a0a"/>
+  <ellipse cx="66" cy="50" rx="6" ry="9" fill="#0a0a0a"/>
+  <circle cx="36" cy="47" r="1.8" fill="#ffffff"/>
+  <circle cx="68" cy="47" r="1.8" fill="#ffffff"/>
+  <!-- mouth: open oval -->
+  <ellipse cx="50" cy="76" rx="4.5" ry="6" fill="#0a0a0a"/>
+  <!-- exclamation mark -->
+  <rect x="79" y="10" width="4" height="14" fill="#ef4444" rx="1.5"/>
+  <circle cx="81" cy="30" r="2.2" fill="#ef4444"/>
+</svg>
+{{end}}
+
+{{define "veilo-sneaky"}}
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M 50 5 C 22 5, 5 22, 5 50 L 5 108 L 16 122 L 27 108 L 38 122 L 50 108 L 62 122 L 73 108 L 84 122 L 95 108 L 95 50 C 95 22, 78 5, 50 5 Z"
+    fill="#f0f9fa" stroke="#1a1a1a" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="28" cy="28" rx="6" ry="9" fill="#ffffff" opacity="0.55"/>
+  <!-- eyes: narrowed lines with pupils -->
+  <path d="M 26 50 L 42 50" stroke="#0a0a0a" stroke-width="3" stroke-linecap="round"/>
+  <path d="M 58 50 L 74 50" stroke="#0a0a0a" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="34" cy="48" r="1.8" fill="#0a0a0a"/>
+  <circle cx="66" cy="48" r="1.8" fill="#0a0a0a"/>
+  <!-- mouth: sly smile -->
+  <path d="M 38 70 Q 50 80, 62 70" stroke="#0a0a0a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+</svg>
+{{end}}
+
+{{define "veilo-sneaky-laugh"}}
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M 50 5 C 22 5, 5 22, 5 50 L 5 108 L 16 122 L 27 108 L 38 122 L 50 108 L 62 122 L 73 108 L 84 122 L 95 108 L 95 50 C 95 22, 78 5, 50 5 Z"
+    fill="#f0f9fa" stroke="#1a1a1a" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="28" cy="28" rx="6" ry="9" fill="#ffffff" opacity="0.55"/>
+  <!-- eyes: raised eyebrows (laughing squint) -->
+  <path d="M 25 50 Q 33 42, 41 50" stroke="#0a0a0a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M 57 50 Q 65 42, 73 50" stroke="#0a0a0a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- whisker lines -->
+  <line x1="22" y1="47" x2="19" y2="44" stroke="#0a0a0a" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="22" y1="52" x2="19" y2="54" stroke="#0a0a0a" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="76" y1="47" x2="79" y2="44" stroke="#0a0a0a" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="76" y1="52" x2="79" y2="54" stroke="#0a0a0a" stroke-width="1.3" stroke-linecap="round"/>
+  <!-- mouth: big grin -->
+  <path d="M 38 66 Q 50 82, 62 66 Z" fill="#0a0a0a" stroke="#0a0a0a" stroke-width="1" stroke-linejoin="round"/>
+  <!-- heh bubbles -->
+  <text x="66" y="26" font-family="Geist, system-ui, sans-serif" font-size="12" font-style="italic" font-weight="500" fill="#22d3ee">heh</text>
+  <text x="72" y="38" font-family="Geist, system-ui, sans-serif" font-size="10" font-style="italic" font-weight="500" fill="#22d3ee" opacity="0.75">heh</text>
+</svg>
+{{end}}
+
+{{define "veilo-hooded"}}
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M 50 5 C 22 5, 5 22, 5 50 L 5 108 L 16 122 L 27 108 L 38 122 L 50 108 L 62 122 L 73 108 L 84 122 L 95 108 L 95 50 C 95 22, 78 5, 50 5 Z"
+    fill="#f0f9fa" stroke="#1a1a1a" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="28" cy="28" rx="6" ry="9" fill="#ffffff" opacity="0.55"/>
+  <!-- cyan hood / veil -->
+  <path d="M 5 38 C 5 12, 95 12, 95 38 L 92 52 L 80 44 L 68 54 L 56 44 L 44 54 L 32 44 L 20 54 L 8 44 Z"
+    fill="#22d3ee" stroke="#0a4a5c" stroke-width="2" stroke-linejoin="round"/>
+  <!-- eyes peeking below hood -->
+  <ellipse cx="34" cy="64" rx="5" ry="7" fill="#0a0a0a"/>
+  <ellipse cx="66" cy="64" rx="5" ry="7" fill="#0a0a0a"/>
+  <!-- mouth -->
+  <ellipse cx="50" cy="87" rx="3.5" ry="4" fill="#0a0a0a"/>
+</svg>
+{{end}}
+
+{{define "veilo-decoy-squad"}}
+<svg viewBox="-30 0 160 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <!-- phantom left -->
+  <g transform="translate(-22 20) scale(0.55)" opacity="0.3">
+    <path d="M 50 5 C 22 5, 5 22, 5 50 L 5 108 L 16 122 L 27 108 L 38 122 L 50 108 L 62 122 L 73 108 L 84 122 L 95 108 L 95 50 C 95 22, 78 5, 50 5 Z"
+      fill="#f0f9fa" stroke="#1a1a1a" stroke-width="4" stroke-linejoin="round"/>
+    <ellipse cx="34" cy="50" rx="5" ry="7" fill="#0a0a0a"/>
+    <ellipse cx="66" cy="50" rx="5" ry="7" fill="#0a0a0a"/>
+  </g>
+  <!-- phantom right -->
+  <g transform="translate(72 20) scale(0.55)" opacity="0.3">
+    <path d="M 50 5 C 22 5, 5 22, 5 50 L 5 108 L 16 122 L 27 108 L 38 122 L 50 108 L 62 122 L 73 108 L 84 122 L 95 108 L 95 50 C 95 22, 78 5, 50 5 Z"
+      fill="#f0f9fa" stroke="#1a1a1a" stroke-width="4" stroke-linejoin="round"/>
+    <ellipse cx="34" cy="50" rx="5" ry="7" fill="#0a0a0a"/>
+    <ellipse cx="66" cy="50" rx="5" ry="7" fill="#0a0a0a"/>
+  </g>
+  <!-- main ghost — classic -->
+  <path d="M 50 5 C 22 5, 5 22, 5 50 L 5 108 L 16 122 L 27 108 L 38 122 L 50 108 L 62 122 L 73 108 L 84 122 L 95 108 L 95 50 C 95 22, 78 5, 50 5 Z"
+    fill="#f0f9fa" stroke="#1a1a1a" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="28" cy="28" rx="6" ry="9" fill="#ffffff" opacity="0.55"/>
+  <ellipse cx="34" cy="50" rx="5" ry="8" fill="#0a0a0a"/>
+  <ellipse cx="66" cy="50" rx="5" ry="8" fill="#0a0a0a"/>
+  <ellipse cx="50" cy="74" rx="4" ry="5" fill="#0a0a0a"/>
+</svg>
+{{end}}

@@ -1,0 +1,78 @@
+{{define "page"}}
+{{$d := .Data}}
+
+<!-- Stats row -->
+<div class="grid-4 mb-6">
+  <div class="stat-card">
+    <div class="stat-label">Total Events</div>
+    <div class="stat-value">{{$d.Stats.Total}}</div>
+    <div class="stat-delta">all time</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Failed Actions</div>
+    <div class="stat-value {{if gt $d.Stats.Failures 0}}danger{{end}}">{{$d.Stats.Failures}}</div>
+    <div class="stat-delta">errors + auth failures</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Config Saves</div>
+    <div class="stat-value">{{add $d.Stats.ConfigSaves $d.Stats.RuleSaves}}</div>
+    <div class="stat-delta">config + rule files</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Logins</div>
+    <div class="stat-value">{{$d.Stats.Logins}}</div>
+    <div class="stat-delta">successful sessions</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Audit Events</span>
+    {{if $d.Path}}<span class="dim text-xs mono truncate" title="{{$d.Path}}" style="max-width:320px">{{$d.Path}}</span>{{end}}
+  </div>
+  <div class="card-body p-0">
+    {{if $d.Empty}}
+    <div class="empty-state">
+      <div class="empty-mascot">
+        {{template "veilo-drowsy" .}}
+      </div>
+      <p class="empty-title">No audit events yet</p>
+      <p class="empty-sub">Actions in the admin panel will appear here — config saves, rule edits, logins, and more.</p>
+    </div>
+    {{else}}
+    <div class="table-scroll">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>User</th>
+            <th>IP</th>
+            <th>Action</th>
+            <th>Detail</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range $d.Entries}}
+          <tr class="{{if not .OK}}row-danger{{end}}">
+            <td class="mono text-xs nowrap">{{formatDateTime .Time}}</td>
+            <td class="text-xs">{{.User}}</td>
+            <td class="mono text-xs">{{.IP}}</td>
+            <td><span class="pill pill-neutral mono text-xs">{{.Action}}</span></td>
+            <td class="text-xs muted">{{.Detail}}</td>
+            <td>
+              {{if .OK}}
+              <span class="pill pill-success">ok</span>
+              {{else}}
+              <span class="pill pill-danger">fail</span>
+              {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

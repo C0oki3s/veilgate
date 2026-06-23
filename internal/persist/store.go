@@ -545,6 +545,368 @@ func (s *Store) CountEventsByDecision(since time.Time, tarpitThreshold int) (tar
 	return tarpitCount, cleanCount, nil
 }
 
+// DecisionCounts aggregates events by their decision column, with a total.
+type DecisionCounts struct {
+	Total      int
+	ByDecision map[string]int
+}
+
+// CountDecisions returns the number of events per decision value since the
+// given time, plus the total. Read-only; safe for a second process (the admin
+// UI) to call against a store the proxy is writing to under WAL.
+func (s *Store) CountDecisions(since time.Time) (DecisionCounts, error) {
+	out := DecisionCounts{ByDecision: map[string]int{}}
+	rows, err := s.db.Query(
+		`SELECT decision, COUNT(*) FROM events WHERE ts >= ? GROUP BY decision`,
+		since.UTC().Format(time.RFC3339),
+	)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var dec string
+		var n int
+		if err := rows.Scan(&dec, &n); err != nil {
+			return out, err
+		}
+		if dec == "" {
+			dec = "unknown"
+		}
+		out.ByDecision[dec] = n
+		out.Total += n
+	}
+	return out, rows.Err()
+}
+
+// TimeBucket is one time-bucketed slice of the decision timeline, with events
+// split by decision class. Used by the dashboard's requests-over-time chart.
+type TimeBucket struct {
+	Start     time.Time
+	Observe   int
+	Challenge int
+	Tarpit    int
+	Clean     int
+	Other     int
+	Total     int
+}
+
+// timelineLayouts maps an RFC3339 prefix length to the time layout that parses
+// the truncated bucket key and the step that separates adjacent buckets.
+//   - 13 → hourly  ("2006-01-02T15")
+//   - 10 → daily   ("2006-01-02")
+//   - 16 → minutely("2006-01-02T15:04")
+var timelineLayouts = map[int]struct {
+	layout string
+	step   time.Duration
+}{
+	16: {"2006-01-02T15:04", time.Minute},
+	13: {"2006-01-02T15", time.Hour},
+	10: {"2006-01-02", 24 * time.Hour},
+}
+
+// DecisionTimeSeries returns event counts grouped into time buckets since the
+// given time, split by decision class. bucketLen is the number of leading
+// characters of the stored RFC3339 timestamp to group on (see timelineLayouts);
+// defaults to hourly when unrecognised. Empty buckets between the first event
+// and now are filled with zeroes so the x-axis is continuous. Read-only; safe
+// for the admin to call against a store the proxy is writing under WAL.
+func (s *Store) DecisionTimeSeries(since time.Time, bucketLen int) ([]TimeBucket, error) {
+	meta, ok := timelineLayouts[bucketLen]
+	if !ok {
+		bucketLen, meta = 13, timelineLayouts[13]
+	}
+	rows, err := s.db.Query(
+		`SELECT substr(ts,1,?) AS bkt, decision, COUNT(*)
+		 FROM events WHERE ts >= ?
+		 GROUP BY bkt, decision ORDER BY bkt ASC`,
+		bucketLen, since.UTC().Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	byKey := map[string]*TimeBucket{}
+	for rows.Next() {
+		var key, dec string
+		var n int
+		if err := rows.Scan(&key, &dec, &n); err != nil {
+			return nil, err
+		}
+		b := byKey[key]
+		if b == nil {
+			t, _ := time.Parse(meta.layout, key)
+			b = &TimeBucket{Start: t.UTC()}
+			byKey[key] = b
+		}
+		switch dec {
+		case "observe", "allow", "pass":
+			b.Observe += n
+		case "challenge":
+			b.Challenge += n
+		case "tarpit":
+			b.Tarpit += n
+		case "clean":
+			b.Clean += n
+		default:
+			b.Other += n
+		}
+		b.Total += n
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(byKey) == 0 {
+		return nil, nil
+	}
+
+	// Walk from the first bucket to now at the step, filling gaps so the
+	// timeline has no holes.
+	first := time.Now().UTC()
+	for _, b := range byKey {
+		if b.Start.Before(first) {
+			first = b.Start
+		}
+	}
+	first = first.Truncate(meta.step)
+	end := time.Now().UTC()
+	var out []TimeBucket
+	for t := first; !t.After(end); t = t.Add(meta.step) {
+		key := t.Format(meta.layout)
+		if b := byKey[key]; b != nil {
+			out = append(out, *b)
+		} else {
+			out = append(out, TimeBucket{Start: t})
+		}
+	}
+	return out, nil
+}
+
+// HistBin is one bucket of the score-distribution histogram.
+type HistBin struct {
+	Lo    int
+	Hi    int
+	Count int
+}
+
+// ScoreHistogram returns the score distribution since the given time, bucketed
+// into [0,binSize) ranges across 0–100. A score of exactly 100 folds into the
+// top bin. Read-only.
+func (s *Store) ScoreHistogram(since time.Time, binSize int) ([]HistBin, error) {
+	if binSize <= 0 {
+		binSize = 10
+	}
+	rows, err := s.db.Query(
+		`SELECT (score/?) AS b, COUNT(*) FROM events WHERE ts >= ? GROUP BY b`,
+		binSize, since.UTC().Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := map[int]int{}
+	for rows.Next() {
+		var b, n int
+		if err := rows.Scan(&b, &n); err != nil {
+			return nil, err
+		}
+		counts[b] += n // fold score==100 (b==100/binSize) into the last bin below
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	nBins := 100 / binSize
+	out := make([]HistBin, nBins)
+	for i := 0; i < nBins; i++ {
+		out[i] = HistBin{Lo: i * binSize, Hi: (i + 1) * binSize, Count: counts[i]}
+	}
+	// Fold any overflow bins (score==100 → bucket index nBins) into the top bin.
+	for b, n := range counts {
+		if b >= nBins {
+			out[nBins-1].Count += n
+		}
+	}
+	return out, nil
+}
+
+// PathCount is one row of the top-probed-paths breakdown.
+type PathCount struct {
+	Path   string
+	Count  int
+	Tarpit int // how many of those requests were tarpitted
+}
+
+// TopPaths returns the most-requested paths since the given time, with the
+// tarpit share for each, ordered by total count descending. Read-only.
+func (s *Store) TopPaths(since time.Time, limit int) ([]PathCount, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+	rows, err := s.db.Query(
+		`SELECT path, COUNT(*) AS c,
+		        SUM(CASE WHEN decision = 'tarpit' THEN 1 ELSE 0 END)
+		 FROM events WHERE ts >= ?
+		 GROUP BY path ORDER BY c DESC LIMIT ?`,
+		since.UTC().Format(time.RFC3339), limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PathCount
+	for rows.Next() {
+		var p PathCount
+		if err := rows.Scan(&p.Path, &p.Count, &p.Tarpit); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// ClientStat is one row of the top-clients breakdown.
+type ClientStat struct {
+	ClientID string
+	Count    int
+	MaxScore int
+	Tarpit   int // how many of this client's requests were tarpitted
+}
+
+// TopClients returns the busiest clients since the given time, with each
+// client's peak score and tarpit count, ordered by request volume. Read-only.
+func (s *Store) TopClients(since time.Time, limit int) ([]ClientStat, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+	rows, err := s.db.Query(
+		`SELECT client_id, COUNT(*) AS c, MAX(score),
+		        SUM(CASE WHEN decision = 'tarpit' THEN 1 ELSE 0 END)
+		 FROM events WHERE ts >= ? AND client_id != ''
+		 GROUP BY client_id ORDER BY c DESC LIMIT ?`,
+		since.UTC().Format(time.RFC3339), limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ClientStat
+	for rows.Next() {
+		var c ClientStat
+		if err := rows.Scan(&c.ClientID, &c.Count, &c.MaxScore, &c.Tarpit); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// LabelCount is a generic label→count(+tarpit) row used by the user-agent and
+// signal-frequency breakdowns.
+type LabelCount struct {
+	Label  string
+	Count  int
+	Tarpit int // tarpitted share (0 when not applicable)
+}
+
+// TopUserAgents returns the most common user-agent strings since the given
+// time, with the tarpit share for each, ordered by count descending. Read-only.
+func (s *Store) TopUserAgents(since time.Time, limit int) ([]LabelCount, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+	rows, err := s.db.Query(
+		`SELECT user_agent, COUNT(*) AS c,
+		        SUM(CASE WHEN decision = 'tarpit' THEN 1 ELSE 0 END)
+		 FROM events WHERE ts >= ? AND user_agent != ''
+		 GROUP BY user_agent ORDER BY c DESC LIMIT ?`,
+		since.UTC().Format(time.RFC3339), limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LabelCount
+	for rows.Next() {
+		var lc LabelCount
+		if err := rows.Scan(&lc.Label, &lc.Count, &lc.Tarpit); err != nil {
+			return nil, err
+		}
+		out = append(out, lc)
+	}
+	return out, rows.Err()
+}
+
+// TopSignals returns the most frequently fired detection signals since the
+// given time. signals_json holds a JSON array of signal names per event; we
+// unnest it with json_each and tally. Rows with no signals are skipped via the
+// json_valid guard. Read-only.
+func (s *Store) TopSignals(since time.Time, limit int) ([]LabelCount, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.db.Query(
+		`SELECT je.value AS sig, COUNT(*) AS c
+		 FROM events, json_each(events.signals_json) je
+		 WHERE events.ts >= ?
+		   AND json_valid(events.signals_json)
+		   AND events.signals_json NOT IN ('', 'null', '[]')
+		 GROUP BY sig ORDER BY c DESC LIMIT ?`,
+		since.UTC().Format(time.RFC3339), limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LabelCount
+	for rows.Next() {
+		var lc LabelCount
+		if err := rows.Scan(&lc.Label, &lc.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, lc)
+	}
+	return out, rows.Err()
+}
+
+// EventRow is a single recent request for the admin request-log view.
+type EventRow struct {
+	Time      time.Time
+	ClientID  string
+	Method    string
+	Path      string
+	UserAgent string
+	Score     int
+	Decision  string
+}
+
+// RecentEvents returns the most recent events (newest first), up to limit.
+func (s *Store) RecentEvents(limit int) ([]EventRow, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := s.db.Query(
+		`SELECT ts, client_id, method, path, user_agent, score, decision
+		 FROM events ORDER BY id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []EventRow
+	for rows.Next() {
+		var e EventRow
+		var ts string
+		if err := rows.Scan(&ts, &e.ClientID, &e.Method, &e.Path, &e.UserAgent, &e.Score, &e.Decision); err != nil {
+			return nil, err
+		}
+		e.Time, _ = time.Parse(time.RFC3339, ts)
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
 // Trim deletes events older than cutoff. Runs inside a single transaction.
 // Returns number of rows removed.
 func (s *Store) Trim(cutoff time.Time) (int64, error) {

@@ -12,6 +12,7 @@ operator hits during install or day-2 ops.
 | [JA3/JA4 fingerprinting](ja3-ja4-fingerprinting.md) | Enable TLS fingerprinting signals, extend the fingerprint database, tune false positives |
 | [Cloudflare + VeilGate setup](cloudflare-setup.md) | SSL modes, Origin CA, trusted proxies, Authenticated Origin Pulls, JA3/JA4 trade-offs |
 | [Install on Linux](install-on-linux.md) | First-time install on a fresh host |
+| [Use the admin dashboard](use-admin-dashboard.md) | Start, sign in, edit settings, tune signals, manage decoys, and inspect logs |
 | [Observe-mode rollout & threshold tuning](observe-and-tune.md) | Before flipping to `challenge` or `tarpit` |
 | [Protect an SPA + API on different subdomains](protect-multi-origin.md) | Frontend on `app.example.com`, API on `api.example.com` behind veilgate |
 | [Authenticate server-to-server callers with HMAC](server-to-server-hmac.md) | Internal services, mobile apps, webhooks — anything without a JS runtime |

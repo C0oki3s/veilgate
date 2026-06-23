@@ -1,0 +1,134 @@
+{{define "page"}}
+{{$d := .Data}}
+
+<p class="dim text-sm mb-5" style="max-width:760px">
+  The recommender fits detection signals from observed traffic. It runs Bayesian analyzers over the
+  <strong>correlation event store</strong> (path extension, path prefix, UA substring, method, and UA×path combos),
+  scores each candidate by precision against the tarpit decision, and emits ready-to-paste
+  <code class="mono">signals.yaml</code> entries — all suggestions land disabled so you review before enabling.
+</p>
+
+{{if not $d.Available}}
+<div class="empty-state card">
+  <div class="empty-title">Event store not enabled</div>
+  <div class="empty-sub">
+    The recommender needs the SQLite event store (the correlation DB). Enable it in
+    <a href="/settings?tab=persistence" class="link">Settings → Persistence</a>, set a database path, then
+    restart the VeilGate proxy so requests start accumulating. The admin reads the same database.
+  </div>
+</div>
+{{else}}
+
+{{if $d.Err}}
+<div class="flash flash-error mb-5">Analysis error: {{$d.Err}}</div>
+{{end}}
+
+{{/* ── Recommendations ───────────────────────────────────────────────── */}}
+<div class="row between mb-3">
+  <div class="section-heading">Signal Recommendations <span class="dim text-xs">({{len $d.Recs}})</span></div>
+</div>
+
+{{if $d.Recs}}
+<div class="card mb-6" style="overflow:hidden">
+  <div class="table-scroll">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Signal</th>
+          <th>Confidence</th>
+          <th>Support</th>
+          <th>FP rate</th>
+          <th>Source</th>
+          <th>Rationale</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range $d.Recs}}
+        <tr>
+          <td class="mono text-sm">{{.Name}}</td>
+          <td><span class="pill pill-success">{{pct .Confidence}}</span></td>
+          <td class="mono text-xs">{{.Support}}</td>
+          <td class="mono text-xs">{{pct .FalsePositiveRate}}</td>
+          <td class="text-xs dim">{{.Source}}</td>
+          <td class="text-xs muted">{{.Rationale}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{{/* ── Rendered YAML report ──────────────────────────────────────────── */}}
+<div class="row between mb-3">
+  <div class="section-heading">Suggested <code class="mono">signals.yaml</code></div>
+  <a href="/rules/signals.yaml" class="btn btn-sm">Open signals.yaml</a>
+</div>
+<div class="card mb-6">
+  <div class="editor-shell">
+    <div class="editor-toolbar">
+      <span class="editor-file-name">recommendations.yaml</span>
+      <span class="text-xs dim">All suggestions start <code class="mono">enabled: false</code></span>
+    </div>
+    <pre class="recommender-yaml mono">{{$d.YAML}}</pre>
+  </div>
+</div>
+{{else}}
+<div class="empty-state card mb-6">
+  <div class="empty-title">No recommendations yet</div>
+  <div class="empty-sub">
+    Not enough high-confidence patterns in the event store. The recommender needs sustained traffic
+    (default: ≥30 supporting events at ≥85% precision per pattern). Keep the proxy running and check back.
+  </div>
+</div>
+{{end}}
+
+{{/* ── ML rule candidates (correlation fitting) ──────────────────────── */}}
+<div class="row between mb-3">
+  <div class="section-heading">ML Rule Candidates <span class="dim text-xs">({{len $d.Candidates}})</span></div>
+</div>
+<p class="dim text-xs mb-3" style="max-width:680px">
+  Raw feature→label correlations mined from the rollup table. Posterior is the probability a request is an
+  agent given the feature bucket; support is the number of observations.
+</p>
+{{if $d.Candidates}}
+<div class="card" style="overflow:hidden">
+  <div class="table-scroll">
+    <table class="table">
+      <thead>
+        <tr><th>Feature</th><th>Bucket</th><th>Posterior</th><th>Support</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {{range $d.Candidates}}
+        <tr>
+          <td class="mono text-xs">{{.Feature}}</td>
+          <td class="mono text-xs">{{.Bucket}}</td>
+          <td><span class="pill {{if ge .Posterior 0.8}}pill-success{{else}}pill-neutral{{end}}">{{pct .Posterior}}</span></td>
+          <td class="mono text-xs">{{.Support}}</td>
+          <td>{{if .Active}}<span class="pill pill-accent">active</span>{{else}}<span class="pill">pending</span>{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{else}}
+<div class="empty-state card">
+  <div class="empty-sub">No rule candidates mined yet.</div>
+</div>
+{{end}}
+
+<style>
+.recommender-yaml {
+  margin: 0;
+  padding: var(--size-4) var(--size-5);
+  background: var(--surface-0);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: var(--leading-loose);
+  white-space: pre;
+  overflow-x: auto;
+  max-height: 460px;
+}
+</style>
+{{end}}
+{{end}}

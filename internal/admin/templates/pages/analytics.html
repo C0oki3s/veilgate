@@ -1,0 +1,137 @@
+{{define "page"}}
+{{$d := .Data}}
+
+<div class="card mb-5">
+  <div class="card-header">
+    <div class="page-header-left">
+      <span class="card-title">Analytics</span>
+      <div class="card-caption">Traffic, decisions and detector activity from the correlation event store — auto-refreshing.</div>
+    </div>
+    <div class="range-tabs" role="tablist" aria-label="Time range">
+      {{range $d.Ranges}}
+      <a class="range-tab{{if eq $d.Range .Key}} active{{end}}" href="/analytics?range={{.Key}}">{{.Label}}</a>
+      {{end}}
+    </div>
+  </div>
+
+  <div class="card-body">
+    {{if not $d.Available}}
+    <div class="empty-state">
+      <div class="empty-mascot">{{template "veilo-drowsy" .}}</div>
+      <p class="empty-title">No analytics yet</p>
+      <p class="empty-sub">
+        Charts read from the SQLite event store (the correlation DB). Enable
+        <code>persist.enabled: true</code> with a database path in your VeilGate config and restart the proxy so
+        requests start accumulating. The admin reads the same database.
+      </p>
+      <a href="/settings?tab=persistence" class="btn btn-primary mt-4">Go to Settings</a>
+    </div>
+    {{else}}
+    {{template "analytics-fragment" .}}
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+
+{{/* ── Live region: swapped in place by htmx every 15s (CSP-safe, no eval) ── */}}
+{{define "analytics-fragment"}}
+{{$d := .Data}}
+<div id="analytics-live"
+     hx-get="/analytics?range={{$d.Range}}&partial=1"
+     hx-trigger="every 15s"
+     hx-swap="outerHTML">
+
+  {{/* Decision summary cells */}}
+  <div class="analytics-grid">
+    <div class="analytics-cell">
+      <div class="analytics-value">{{$d.Total}}</div>
+      <div class="analytics-label">Total requests</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-value success">{{$d.Observe}}</div>
+      <div class="analytics-label">Observed / passed</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-value warn">{{$d.Challenge}}</div>
+      <div class="analytics-label">Challenged</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-value danger">{{$d.Tarpit}}</div>
+      <div class="analytics-label">Tarpitted</div>
+    </div>
+    <div class="analytics-cell">
+      <div class="analytics-value">{{$d.Clean}}</div>
+      <div class="analytics-label">Clean (score 0)</div>
+    </div>
+  </div>
+
+  {{if $d.HasCharts}}
+  {{/* Donut + timeline */}}
+  <div class="chart-row mt-6">
+    {{if $d.DonutSVG}}
+    <div class="chart-box chart-box-narrow">
+      <div class="chart-head">Decision mix</div>
+      <div class="chart-donut-wrap">{{$d.DonutSVG}}</div>
+      <div class="chart-legend">
+        <span class="chart-legend-item"><span class="chart-swatch" style="background:var(--color-success)"></span>Clean {{$d.Clean}}</span>
+        <span class="chart-legend-item"><span class="chart-swatch" style="background:var(--accent-base)"></span>Observe {{$d.Observe}}</span>
+        <span class="chart-legend-item"><span class="chart-swatch" style="background:var(--color-warn)"></span>Challenge {{$d.Challenge}}</span>
+        <span class="chart-legend-item"><span class="chart-swatch" style="background:var(--color-danger)"></span>Tarpit {{$d.Tarpit}}</span>
+      </div>
+    </div>
+    {{end}}
+    {{if $d.TimelineSVG}}
+    <div class="chart-box chart-box-wide">
+      <div class="chart-head">Requests over time <span class="dim text-xs">· {{$d.RangeLabel}}, stacked by decision</span></div>
+      <div class="chart-plot">{{$d.TimelineSVG}}</div>
+    </div>
+    {{end}}
+  </div>
+
+  {{if $d.HistogramSVG}}
+  <div class="chart-box mt-5">
+    <div class="chart-head">Score distribution <span class="dim text-xs">· 0–100 in tens, coloured by zone</span></div>
+    <div class="chart-plot">{{$d.HistogramSVG}}</div>
+  </div>
+  {{end}}
+
+  {{/* Breakdown bars, two-up */}}
+  <div class="chart-grid-2 mt-5">
+    {{if $d.TopPathsSVG}}
+    <div class="chart-box">
+      <div class="chart-head">Top probed paths <span class="dim text-xs">· tarpit share in red</span></div>
+      <div class="chart-plot">{{$d.TopPathsSVG}}</div>
+    </div>
+    {{end}}
+    {{if $d.TopClientsSVG}}
+    <div class="chart-box">
+      <div class="chart-head">Top clients <span class="dim text-xs">· by volume, tarpit share in red</span></div>
+      <div class="chart-plot">{{$d.TopClientsSVG}}</div>
+    </div>
+    {{end}}
+    {{if $d.TopUASVG}}
+    <div class="chart-box">
+      <div class="chart-head">Top user-agents <span class="dim text-xs">· tarpit share in red</span></div>
+      <div class="chart-plot">{{$d.TopUASVG}}</div>
+    </div>
+    {{end}}
+    {{if $d.TopSignalsSVG}}
+    <div class="chart-box">
+      <div class="chart-head">Top fired signals <span class="dim text-xs">· detector activity</span></div>
+      <div class="chart-plot">{{$d.TopSignalsSVG}}</div>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="empty-state mt-5">
+    <p class="empty-title">No requests in this window</p>
+    <p class="empty-sub">Nothing recorded in the {{$d.RangeLabel}} window yet. Try a wider range, or keep the proxy running.</p>
+  </div>
+  {{end}}
+
+  <div class="text-xs dim mt-5">
+    <span class="live-dot"></span>Auto-refreshing every 15s · updated {{$d.Updated}}
+  </div>
+</div>
+{{end}}

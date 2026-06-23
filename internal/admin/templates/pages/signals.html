@@ -1,0 +1,282 @@
+{{define "page"}}
+{{$d := .Data}}
+
+<div class="row between mb-5">
+  <div>
+    <p class="dim text-sm">Enable, disable, or reweight detection signals. Changes are written to <code class="mono">signals.yaml</code> and hot-reloaded within 500 ms — no restart needed.</p>
+  </div>
+  <div class="row gap-2">
+    <a href="/rules/signals.yaml" class="btn btn-sm">Edit raw YAML</a>
+  </div>
+</div>
+
+{{/* ── Built-in Signals ─────────────────────────────────────────────── */}}
+<form method="POST" action="/signals">
+
+  <div class="section-heading mb-3">Built-in Signals</div>
+  <div class="card" style="overflow:visible; margin-bottom: var(--size-6)">
+
+    {{range $d.Groups}}
+    <div class="signal-group-header">
+      {{.Name}}
+      <span class="dim text-xs">({{len .Signals}} signals)</span>
+    </div>
+
+    {{range .Signals}}
+    <div class="signal-row{{if not .Enabled}} disabled{{end}}">
+      <div>
+        <div class="signal-name">{{.Name}}</div>
+        <div class="signal-desc">{{.Desc}}</div>
+      </div>
+
+      <div class="text-xs dim" style="padding-left:var(--size-2)">
+        default: <span class="mono">{{.Default}}</span> pts
+        {{if .Override}}<span class="pill pill-accent" style="margin-left:4px">overridden</span>{{end}}
+      </div>
+
+      <div>
+        <input
+          class="signal-pts-input"
+          type="number"
+          name="pts_{{.Name}}"
+          value="{{.Points}}"
+          min="0"
+          max="200"
+          title="Points for {{.Name}}">
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:flex-end">
+        <label class="field-toggle" title="{{if .Enabled}}Disable{{else}}Enable{{end}} {{.Name}}">
+          <input
+            class="toggle-input"
+            type="checkbox"
+            name="enabled_{{.Name}}"
+            {{if .Enabled}}checked{{end}}
+            onchange="this.closest('.signal-row').classList.toggle('disabled', !this.checked)">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+    {{end}}
+    {{end}}
+
+  </div>
+
+  <div class="row end gap-3 mb-6">
+    <span class="dim text-xs">Only changed signals are written to <code class="mono">rules/signals.yaml</code></span>
+    <button type="submit" class="btn btn-primary">Save Built-in Overrides</button>
+  </div>
+</form>
+
+{{/* ── Custom Signals ───────────────────────────────────────────────── */}}
+<div x-data="customSignals">
+
+  <div class="row between mb-3">
+    <div class="section-heading">Custom Signals</div>
+    <button type="button" class="btn btn-sm btn-primary" @click="openNew()">+ Add Custom Signal</button>
+  </div>
+
+  {{if $d.CustomSignals}}
+  <div class="card" style="padding: 0; overflow: hidden; margin-bottom: var(--size-6)">
+    {{range $i, $cs := $d.CustomSignals}}
+    <div class="custom-signal-row" x-bind:class="{'editing': editingIdx === {{$i}}}">
+      <div class="custom-signal-meta">
+        <div class="row gap-2 align-center">
+          <span class="signal-name">{{$cs.Name}}</span>
+          {{if $cs.Enabled}}
+          <span class="pill pill-success">enabled</span>
+          {{else}}
+          <span class="pill">disabled</span>
+          {{end}}
+          <span class="pill">{{$cs.Points}} pts</span>
+        </div>
+        {{if $cs.Description}}<div class="signal-desc mt-1">{{$cs.Description}}</div>{{end}}
+        <div class="custom-signal-conditions mt-2">
+          {{range $cs.Conditions}}
+          <span class="condition-chip"><span class="mono">{{.Type}}</span>{{if .Value}}: <em>{{.Value}}</em>{{end}}</span>
+          {{end}}
+        </div>
+      </div>
+      <div class="row gap-2 align-center">
+        <button type="button" class="btn btn-sm" @click="editSignal({{$i}}, '{{$cs.Name}}')">Edit</button>
+        <button type="button" class="btn btn-sm btn-danger" @click="deleteSignal({{$i}})">Delete</button>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="empty-state card mb-6">
+    <div class="empty-mascot">{{template "veilo-drowsy" .}}</div>
+    <div class="empty-title">No custom signals yet</div>
+    <div class="empty-sub">Click <strong>+ Add Custom Signal</strong> to define your own detection rules with conditions.</div>
+  </div>
+  {{end}}
+
+  {{/* ── Custom Signal Modal ──────────────────────────────────────── */}}
+  <div class="modal-backdrop" x-show="showModal" x-cloak @click.self="closeModal()">
+    <div class="modal-card">
+      <div class="modal-header row between align-center">
+        <span class="modal-title" x-text="modalTitle"></span>
+        <button type="button" class="btn-icon" @click="closeModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="field-group">
+          <label class="field-label">Name <span class="required">*</span></label>
+          <input class="field-input" type="text" x-model="form.name" placeholder="my_custom_signal" required>
+          <span class="field-hint">Lowercase letters, numbers, and underscores only</span>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Description</label>
+          <input class="field-input" type="text" x-model="form.description" placeholder="Describe what this signal detects">
+        </div>
+        <div class="row gap-4">
+          <div class="field-group" style="flex:1">
+            <label class="field-label">Points</label>
+            <input class="field-input" type="number" x-model.number="form.points" min="1" max="200" value="30">
+          </div>
+          <div class="field-group" style="display:flex; align-items:flex-end; padding-bottom:2px">
+            <label class="field-toggle">
+              <input class="toggle-input" type="checkbox" x-model="form.enabled">
+              <span class="toggle-track"></span>
+            </label>
+            <span class="field-label" style="margin-left:8px; margin-bottom:0">Enabled</span>
+          </div>
+        </div>
+
+        <div class="field-label mt-4">Conditions</div>
+        <div class="conditions-list">
+          <template x-for="(cond, ci) in form.conditions" :key="ci">
+            <div class="condition-editor row gap-2 align-center">
+              <select class="field-select" x-model="cond.type" style="flex:0 0 160px">
+                <option value="header_present">header_present</option>
+                <option value="header_absent">header_absent</option>
+                <option value="header_value">header_value</option>
+                <option value="path_prefix">path_prefix</option>
+                <option value="path_contains">path_contains</option>
+                <option value="path_regex">path_regex</option>
+                <option value="query_param">query_param</option>
+                <option value="method">method</option>
+                <option value="body_contains">body_contains</option>
+                <option value="body_regex">body_regex</option>
+              </select>
+              <input class="field-input" type="text" x-model="cond.value" placeholder="value" style="flex:1">
+              <input class="field-input" type="text" x-model="cond.name" placeholder="name (opt)" style="flex:0 0 120px">
+              <button type="button" class="btn-icon btn-danger-icon" @click="removeCond(ci)">&times;</button>
+            </div>
+          </template>
+        </div>
+        <button type="button" class="btn btn-sm mt-2" @click="addCond()">+ Add Condition</button>
+
+        <div class="field-hint mt-3 dim">All conditions in a custom signal must match for the signal to fire.</div>
+      </div>
+
+      <div class="modal-footer row end gap-3">
+        <button type="button" class="btn" @click="closeModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" @click="save()" :disabled="formNameMissing">Save Signal</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener('alpine:init', function() {
+  Alpine.data('customSignals', function() {
+    return {
+      showModal: false,
+      editingIdx: -1,
+      form: { name: '', description: '', points: 30, enabled: true, conditions: [] },
+
+      get modalTitle() { return this.editingIdx === -1 ? 'New Custom Signal' : 'Edit Custom Signal'; },
+      get formNameMissing() { return !this.form.name; },
+
+      init() {},
+
+      closeModal() { this.showModal = false; },
+
+      openNew() {
+        this.editingIdx = -1;
+        this.form = { name: '', description: '', points: 30, enabled: true, conditions: [] };
+        this.showModal = true;
+      },
+
+      editSignal(idx, name) {
+        this.editingIdx = idx;
+        fetch('/api/v1/signals')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            const cs = (data.custom_signals || []).find(function(s) { return s.name === name; });
+            if (cs) {
+              this.form = {
+                name: cs.name,
+                description: cs.description || '',
+                points: cs.points,
+                enabled: cs.enabled,
+                conditions: (cs.conditions || []).map(function(c) { return Object.assign({}, c); })
+              };
+              this.showModal = true;
+            }
+          }.bind(this));
+      },
+
+      deleteSignal(idx) {
+        if (!confirm('Delete this custom signal?')) return;
+        fetch('/api/v1/signals')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            const cs = data.custom_signals || [];
+            cs.splice(idx, 1);
+            return fetch('/api/v1/signals', {
+              method: 'PUT',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ signals: data.overrides || {}, custom_signals: cs })
+            });
+          })
+          .then(function() { location.reload(); });
+      },
+
+      addCond() {
+        this.form.conditions.push({ type: 'path_contains', value: '', name: '' });
+      },
+
+      removeCond(i) {
+        this.form.conditions.splice(i, 1);
+      },
+
+      save() {
+        const payload = {
+          name: this.form.name,
+          description: this.form.description,
+          points: this.form.points,
+          enabled: this.form.enabled,
+          conditions: this.form.conditions.filter(function(c) { return c.type; })
+        };
+
+        fetch('/api/v1/signals')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            const cs = data.custom_signals || [];
+            if (this.editingIdx >= 0) {
+              cs[this.editingIdx] = payload;
+            } else {
+              cs.push(payload);
+            }
+            return fetch('/api/v1/signals', {
+              method: 'PUT',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ signals: data.overrides || {}, custom_signals: cs })
+            });
+          }.bind(this))
+          .then(function(r) {
+            if (!r.ok) return r.json().then(function(e) { throw new Error(e.error); });
+            this.showModal = false;
+            location.reload();
+          }.bind(this))
+          .catch(function(e) { alert('Error: ' + e.message); });
+      }
+    };
+  });
+});
+</script>
+{{end}}

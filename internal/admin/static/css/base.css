@@ -1,0 +1,60 @@
+/* ─── Body defaults ──────────────────────────────────────────────────────── */
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  background: var(--surface-0);
+  color: var(--text-primary);
+  line-height: var(--leading-normal);
+}
+
+/* ─── Monospace elements ─────────────────────────────────────────────────── */
+code, kbd, pre, samp, .mono { font-family: var(--font-mono); }
+
+code {
+  font-size: var(--text-sm);
+  background: var(--surface-2);
+  border: var(--border-subtle);
+  border-radius: var(--radius-1);
+  padding: 1px 5px;
+}
+
+pre {
+  background: var(--surface-1);
+  border: var(--border-default);
+  border-radius: var(--radius-3);
+  padding: var(--size-4);
+  overflow-x: auto;
+  font-size: var(--text-sm);
+  line-height: var(--leading-loose);
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* ─── Typography ─────────────────────────────────────────────────────────── */
+h1, h2, h3, h4 { font-weight: var(--weight-semibold); line-height: var(--leading-tight); }
+h1 { font-size: var(--text-xl); }
+h2 { font-size: var(--text-lg); }
+h3 { font-size: var(--text-md); }
+h4 { font-size: var(--text-base); }
+
+a { transition: color var(--transition-fast); }
+a:hover { color: var(--text-accent); }
+
+small { font-size: var(--text-xs); color: var(--text-secondary); }
+
+hr {
+  border: none;
+  border-top: var(--border-default);
+  margin: var(--size-6) 0;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gray-600); }
