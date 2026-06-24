@@ -96,7 +96,8 @@ func (s *Server) loadAnalytics() Analytics {
 	}
 	since := time.Now().Add(-24 * time.Hour)
 
-	dc, err := s.store.CountDecisions(since)
+	challengeT, tarpitT := s.scoreThresholds()
+	dc, err := s.store.CountDecisions(since, challengeT, tarpitT)
 	if err != nil {
 		log.Printf("admin: analytics query failed: %v", err)
 		return a
@@ -115,16 +116,15 @@ func (s *Server) loadAnalytics() Analytics {
 	}, a.Total)
 
 	// Requests-over-time stacked bars (hourly buckets across the window).
-	if buckets, bErr := s.store.DecisionTimeSeries(since, 13); bErr == nil {
+	if buckets, bErr := s.store.DecisionTimeSeries(since, 13, challengeT, tarpitT); bErr == nil {
 		a.TimelineSVG = timelineSVG(buckets)
 	} else {
 		log.Printf("admin: timeline query failed: %v", bErr)
 	}
 
 	// Score-distribution histogram, coloured by the configured thresholds.
-	challenge, tarpit := s.scoreThresholds()
 	if bins, hErr := s.store.ScoreHistogram(since, 10); hErr == nil {
-		a.HistogramSVG = histogramSVG(bins, challenge, tarpit)
+		a.HistogramSVG = histogramSVG(bins, challengeT, tarpitT)
 	} else {
 		log.Printf("admin: histogram query failed: %v", hErr)
 	}
@@ -205,7 +205,8 @@ func (s *Server) buildAnalyticsPage(rng analyticsRange) *AnalyticsPage {
 	}
 	since := time.Now().Add(-rng.Dur)
 
-	dc, err := s.store.CountDecisions(since)
+	challengeT, tarpitT := s.scoreThresholds()
+	dc, err := s.store.CountDecisions(since, challengeT, tarpitT)
 	if err != nil {
 		log.Printf("admin: analytics page query failed: %v", err)
 		return p
@@ -222,15 +223,14 @@ func (s *Server) buildAnalyticsPage(rng analyticsRange) *AnalyticsPage {
 		{p.Other, colOther, "Other"},
 	}, p.Total)
 
-	if buckets, bErr := s.store.DecisionTimeSeries(since, rng.Bucket); bErr == nil {
+	if buckets, bErr := s.store.DecisionTimeSeries(since, rng.Bucket, challengeT, tarpitT); bErr == nil {
 		p.TimelineSVG = timelineSVG(buckets)
 	} else {
 		log.Printf("admin: timeline query failed: %v", bErr)
 	}
 
-	challenge, tarpit := s.scoreThresholds()
 	if bins, hErr := s.store.ScoreHistogram(since, 10); hErr == nil {
-		p.HistogramSVG = histogramSVG(bins, challenge, tarpit)
+		p.HistogramSVG = histogramSVG(bins, challengeT, tarpitT)
 	} else {
 		log.Printf("admin: histogram query failed: %v", hErr)
 	}
