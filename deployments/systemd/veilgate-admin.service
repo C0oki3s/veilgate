@@ -14,6 +14,8 @@ Group=veilgate
 
 ExecStart=/usr/local/bin/veilgate-admin \
   --config /etc/veilgate/veilgate.yaml \
+  --db /var/lib/veilgate/admin.db \
+  --audit-log /var/lib/veilgate/admin-audit.log \
   --addr ADMIN_LISTEN_PLACEHOLDER
 
 Restart=on-failure
@@ -21,9 +23,9 @@ RestartSec=5s
 TimeoutStopSec=15s
 KillSignal=SIGTERM
 
-# Sandboxing — slightly relaxed vs the proxy because the admin reads and
-# writes /etc/veilgate (config + admin.db + audit.log + decoys.yaml) and
-# reads /var/lib/veilgate (events.db + SQLite WAL files).
+# Sandboxing — slightly relaxed vs the proxy because the admin writes
+# /etc/veilgate/veilgate.yaml and rule files, and reads/writes admin state plus
+# the proxy event store under /var/lib/veilgate.
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

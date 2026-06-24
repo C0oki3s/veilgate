@@ -454,6 +454,8 @@ Group=${SERVICE_GROUP}
 
 ExecStart=/usr/local/bin/veilgate-admin \
   --config /etc/veilgate/veilgate.yaml \
+  --db ${DATA_DIR}/admin.db \
+  --audit-log ${DATA_DIR}/admin-audit.log \
   --addr ${ADMIN_LISTEN}
 
 Restart=on-failure
@@ -584,6 +586,9 @@ ensure_service_user
 install -d -o root -g "$SERVICE_GROUP" -m 0750 "$CONFIG_DIR"
 install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 0700 "$DATA_DIR" "${DATA_DIR}/dumps" /var/log/veilgate
 install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 0750 "${DATA_DIR}/.veilgate" "$RULES_DIR"
+touch "${DATA_DIR}/admin.db" "${DATA_DIR}/admin-audit.log"
+chown "$SERVICE_USER:$SERVICE_GROUP" "${DATA_DIR}/admin.db" "${DATA_DIR}/admin-audit.log"
+chmod 0600 "${DATA_DIR}/admin.db" "${DATA_DIR}/admin-audit.log"
 
 # Community rules
 if [[ "$NO_RULES" == false ]]; then
@@ -639,7 +644,7 @@ if [[ "$NO_ADMIN" == false ]] && [[ "$NO_SERVICE" == false ]] && command -v syst
   info "veilgate-admin.service enabled and started."
 elif [[ "$NO_ADMIN" == false ]]; then
   warn "Skipping admin systemd service (--no-service or systemctl not found)."
-  info "Start manually: ${INSTALL_DIR}/${ADMIN_BINARY} --config ${CONFIG_DIR}/veilgate.yaml --addr ${ADMIN_LISTEN}"
+  info "Start manually: ${INSTALL_DIR}/${ADMIN_BINARY} --config ${CONFIG_DIR}/veilgate.yaml --db ${DATA_DIR}/admin.db --audit-log ${DATA_DIR}/admin-audit.log --addr ${ADMIN_LISTEN}"
 fi
 
 INSTALLED_VERSION="$("${INSTALL_DIR}/${BINARY}" -version 2>/dev/null || echo "$VERSION")"

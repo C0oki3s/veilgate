@@ -13,9 +13,9 @@ operator browser
         v
 veilgate-admin  --->  /etc/veilgate/veilgate.yaml
         |
-        +--------->  /etc/veilgate/admin.db
-        +--------->  /etc/veilgate/audit.log
-        +--------->  /etc/veilgate/decoys.yaml
+        +--------->  /var/lib/veilgate/admin.db
+        +--------->  /var/lib/veilgate/admin-audit.log
+        +--------->  /var/lib/veilgate/decoys.yaml
         +--------->  /var/lib/veilgate/events.db (read-side analytics)
 ```
 
@@ -36,6 +36,8 @@ The installer generates a unit with:
 ```ini
 ExecStart=/usr/local/bin/veilgate-admin \
   --config /etc/veilgate/veilgate.yaml \
+  --db /var/lib/veilgate/admin.db \
+  --audit-log /var/lib/veilgate/admin-audit.log \
   --addr 127.0.0.1:8888
 ```
 
@@ -95,9 +97,10 @@ sudo chown -R veilgate:veilgate /var/lib/veilgate
 sudo chmod 0700 /var/lib/veilgate
 ```
 
-The admin service needs write permission for `admin.db`, `audit.log`, and
-`decoys.yaml`. It needs rule directory write permission if operators will edit
-signals, OpenAPI, or rule YAML from the dashboard.
+The admin service needs write permission for `/var/lib/veilgate/admin.db`,
+`/var/lib/veilgate/admin-audit.log`, and `/var/lib/veilgate/decoys.yaml`. It
+needs rule directory write permission if operators will edit signals, OpenAPI,
+or rule YAML from the dashboard.
 
 ## Backups
 
@@ -106,9 +109,9 @@ Back up these files before major edits or upgrades:
 ```bash
 sudo tar -czf veilgate-admin-backup.tgz \
   /etc/veilgate/veilgate.yaml \
-  /etc/veilgate/admin.db \
-  /etc/veilgate/audit.log \
-  /etc/veilgate/decoys.yaml \
+  /var/lib/veilgate/admin.db \
+  /var/lib/veilgate/admin-audit.log \
+  /var/lib/veilgate/decoys.yaml \
   /var/lib/veilgate/.veilgate/rules
 ```
 

@@ -551,14 +551,29 @@ type DecisionCounts struct {
 	ByDecision map[string]int
 }
 
-// CountDecisions returns the number of events per decision value since the
-// given time, plus the total. Read-only; safe for a second process (the admin
-// UI) to call against a store the proxy is writing to under WAL.
-func (s *Store) CountDecisions(since time.Time) (DecisionCounts, error) {
+// CountDecisions returns the number of events per decision class since the
+// given time, plus the total. When challengeThreshold and tarpitThreshold are
+// > 0, events stored as observe/allow/pass are reclassified by their score so
+// the breakdown reflects what would have happened in challenge/tarpit mode.
+// Read-only; safe for a second process (the admin UI) to call against a store
+// the proxy is writing to under WAL.
+func (s *Store) CountDecisions(since time.Time, challengeThreshold, tarpitThreshold int) (DecisionCounts, error) {
 	out := DecisionCounts{ByDecision: map[string]int{}}
 	rows, err := s.db.Query(
-		`SELECT decision, COUNT(*) FROM events WHERE ts >= ? GROUP BY decision`,
+		`SELECT
+		   CASE
+		     WHEN decision NOT IN ('observe','allow','pass') THEN decision
+		     WHEN score >= ?2 THEN 'tarpit'
+		     WHEN score >= ?3 THEN 'challenge'
+		     WHEN score  > 0  THEN 'observe'
+		     ELSE 'clean'
+		   END AS cls,
+		   COUNT(*)
+		 FROM events WHERE ts >= ?1
+		 GROUP BY cls`,
 		since.UTC().Format(time.RFC3339),
+		tarpitThreshold,
+		challengeThreshold,
 	)
 	if err != nil {
 		return out, err
@@ -608,19 +623,30 @@ var timelineLayouts = map[int]struct {
 // DecisionTimeSeries returns event counts grouped into time buckets since the
 // given time, split by decision class. bucketLen is the number of leading
 // characters of the stored RFC3339 timestamp to group on (see timelineLayouts);
-// defaults to hourly when unrecognised. Empty buckets between the first event
-// and now are filled with zeroes so the x-axis is continuous. Read-only; safe
-// for the admin to call against a store the proxy is writing under WAL.
-func (s *Store) DecisionTimeSeries(since time.Time, bucketLen int) ([]TimeBucket, error) {
+// defaults to hourly when unrecognised. challengeThreshold and tarpitThreshold
+// reclassify observe-mode events by score (same logic as CountDecisions).
+// Empty buckets between the first event and now are filled with zeroes so the
+// x-axis is continuous. Read-only; safe for the admin to call against a store
+// the proxy is writing under WAL.
+func (s *Store) DecisionTimeSeries(since time.Time, bucketLen, challengeThreshold, tarpitThreshold int) ([]TimeBucket, error) {
 	meta, ok := timelineLayouts[bucketLen]
 	if !ok {
 		bucketLen, meta = 13, timelineLayouts[13]
 	}
 	rows, err := s.db.Query(
-		`SELECT substr(ts,1,?) AS bkt, decision, COUNT(*)
-		 FROM events WHERE ts >= ?
-		 GROUP BY bkt, decision ORDER BY bkt ASC`,
+		`SELECT substr(ts,1,?1) AS bkt,
+		        CASE
+		          WHEN decision NOT IN ('observe','allow','pass') THEN decision
+		          WHEN score >= ?3 THEN 'tarpit'
+		          WHEN score >= ?4 THEN 'challenge'
+		          WHEN score  > 0  THEN 'observe'
+		          ELSE 'clean'
+		        END AS cls,
+		        COUNT(*)
+		 FROM events WHERE ts >= ?2
+		 GROUP BY bkt, cls ORDER BY bkt ASC`,
 		bucketLen, since.UTC().Format(time.RFC3339),
+		tarpitThreshold, challengeThreshold,
 	)
 	if err != nil {
 		return nil, err

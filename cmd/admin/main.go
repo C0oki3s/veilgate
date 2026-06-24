@@ -16,7 +16,7 @@ import (
 	"github.com/C0oki3s/veilgate/internal/admin"
 )
 
-const version = "v1.1.6"
+const version = "v1.1.8"
 
 func main() {
 	// Parse config path first so the data-file defaults can be derived from it.

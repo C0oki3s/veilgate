@@ -158,7 +158,7 @@ Examples:
 Decoy edits write to:
 
 ```text
-<config-dir>/decoys.yaml
+/var/lib/veilgate/decoys.yaml
 ```
 
 They take effect immediately inside the admin process. No proxy restart is

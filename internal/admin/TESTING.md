@@ -1,7 +1,7 @@
 # VeilGate Admin UI — End-to-End Testing Report
 
 **Date:** 2026-06-23  
-**Binary:** `/tmp/vg-e2e/admin` (built from `cmd/admin`, version `v1.1.6`)  
+**Binary:** `/tmp/vg-e2e/admin` (built from `cmd/admin`, version `v1.1.7`)  
 **Config:** `/tmp/vg-e2e/vg.yaml` with `persist.enabled=true`, `persist.path=/tmp/vg-e2e/events.db`  
 **Seeded events:** 300 events via `cmd/seedtmp` (varied clients, paths, decisions, signals), then removed  
 **Admin DB:** `/tmp/vg-e2e/admin.db`, flags `--user admin --pass test` (must_change=1)  
@@ -320,9 +320,9 @@ POST /api/v1/auth/login (wrong)        → 401  {"error": "invalid username or p
 GET  /api/v1/config (with session)     → 200  {"config": {...}, "pending_restart": ...}
 GET  /api/v1/config (no session)       → 401  {"error": "authentication required", "code": "UNAUTHENTICATED"}
 GET  /api/v1/config (after logout)     → 401
-GET  /api/v1/health                    → 200  {"status": "ok", "version": "v1.1.6"}
+GET  /api/v1/health                    → 200  {"status": "ok", "version": "v1.1.7"}
 GET  /api/v1/audit/stats               → 200  {"Total": 28, "Failures": 9, "Logins": 11, ...}
-GET  /api/v1/status                    → 200  {"version": "v1.1.6", "auth_enabled": true}
+GET  /api/v1/status                    → 200  {"version": "v1.1.7", "auth_enabled": true}
 GET  /api/v1/rules                     → 200  {"files": [...56 files...]}
 ```
 
