@@ -29,7 +29,7 @@ access layer sits in front of it.
 | Strong operator identity | Use Tailscale, corporate VPN, SSO proxy, or bastion authentication before the dashboard login. |
 | Least privilege network access | Allow only operator devices or VPN CIDRs to reach TCP 8888. |
 | Credential safety | Change the seeded `admin` / `veilgate` password immediately; rotate after incidents. |
-| Auditability | Keep `/audit`, `audit.log`, and systemd journal logs. |
+| Auditability | Keep `/audit`, `/var/lib/veilgate/admin-audit.log`, and systemd journal logs. |
 | Blast-radius reduction | Keep config, DB, audit, and rule paths owned by the service account with narrow write access. |
 
 ## Recommended Deployment
@@ -305,7 +305,7 @@ If the admin dashboard was reachable from the internet:
 2. Deny TCP 8888 from `0.0.0.0/0` and `::/0` in NSG/security-group rules.
 3. Restart `veilgate-admin`.
 4. Rotate the admin password.
-5. Review `/audit`, `<config-dir>/audit.log`, and `journalctl -u veilgate-admin`.
+5. Review `/audit`, `/var/lib/veilgate/admin-audit.log`, and `journalctl -u veilgate-admin`.
 6. Review `veilgate.yaml`, `signals.yaml`, `openapi.yaml`, decoys, and recently
    edited rule files.
 7. Rotate any secrets stored in `veilgate.yaml`.

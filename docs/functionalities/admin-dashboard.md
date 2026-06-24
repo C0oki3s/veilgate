@@ -26,13 +26,17 @@ The admin binary accepts:
 | `--addr` | `:8888` | HTTP listen address for the admin UI. |
 | `--user` | empty | Optional username to seed or update in the admin DB. |
 | `--pass` | empty | Optional password for `--user`. |
-| `--db` | `<config-dir>/admin.db` | SQLite DB for admin users, sessions, reset tokens, and audit rows. |
-| `--audit-log` | `<config-dir>/audit.log` | JSONL audit backup written alongside DB audit rows. |
+| `--db` | `<config-dir>/admin.db` | SQLite DB for admin users, sessions, reset tokens, and audit rows. Linux installs override this to `/var/lib/veilgate/admin.db`. |
+| `--audit-log` | `<config-dir>/audit.log` | JSONL audit backup. Linux installs override this to `/var/lib/veilgate/admin-audit.log`. |
 
 When installed through `scripts/install.sh`, the installer writes a systemd unit
 for `veilgate-admin` and defaults the dashboard bind address to
 `127.0.0.1:8888`. Pass `--admin-listen 0.0.0.0:8888` only when the host is
 protected by a trusted network boundary or reverse proxy.
+
+The installed service stores admin state under `/var/lib/veilgate`: `admin.db`,
+`admin-audit.log`, and `decoys.yaml`. The main config remains
+`/etc/veilgate/veilgate.yaml`.
 
 ## Default Port
 
@@ -62,6 +66,7 @@ http://localhost:8888
    or unreadable, it starts with an empty config object so the UI can still
    render.
 3. The admin DB opens at `<config-dir>/admin.db` unless `--db` is provided.
+   The Linux service provides `--db /var/lib/veilgate/admin.db`.
    If the DB has no users, it seeds `admin` / `veilgate` and requires a password
    change on first login.
 4. `decoys.yaml` is loaded next to `admin.db`. If it does not exist, the server
@@ -108,7 +113,7 @@ The admin UI can:
 - Import an OpenAPI blueprint into `<rules_dir>/openapi.yaml`.
 - Override detection signal weights and disabled/enabled state in
   `<rules_dir>/signals.yaml`.
-- Manage decoy endpoints live in `<config-dir>/decoys.yaml`.
+- Manage decoy endpoints live in `decoys.yaml` beside the admin DB.
 - View audit events, request logs, event-store analytics, and recommender output.
 - Change the active admin user's password.
 - Issue password reset tokens through the server log when no SMTP integration is
@@ -139,9 +144,10 @@ The dashboard also exposes a session-cookie-authenticated JSON API:
 
 | Path | Purpose |
 | --- | --- |
-| `<config-dir>/admin.db` | Admin users, sessions, reset tokens, and DB-backed audit events. |
-| `<config-dir>/audit.log` | JSONL audit backup. |
-| `<config-dir>/decoys.yaml` | Live editable admin-port decoy routes. |
+| `/var/lib/veilgate/admin.db` | Admin users, sessions, reset tokens, and DB-backed audit events on Linux installs. |
+| `/var/lib/veilgate/admin-audit.log` | JSONL audit backup on Linux installs. |
+| `/var/lib/veilgate/decoys.yaml` | Live editable admin-port decoy routes on Linux installs. |
+| `<config-dir>/admin.db` | Binary default when `--db` is omitted outside the installer. |
 | `<rules_dir>/signals.yaml` | Signal overrides and custom signals. |
 | `<rules_dir>/openapi.yaml` | Imported OpenAPI blueprint. |
 | `<rules_dir>/**/*.yaml` | Rule files edited through `/rules`. |

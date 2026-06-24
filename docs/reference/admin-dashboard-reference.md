@@ -23,8 +23,8 @@ veilgate-admin --config /etc/veilgate/veilgate.yaml --addr 127.0.0.1:8888
 | `--addr` | `:8888` | Listen address passed to `http.ListenAndServe`. |
 | `--user` | empty | Seeds a first user or updates an existing user's password when used with `--pass`. |
 | `--pass` | empty | Password for `--user`. |
-| `--db` | `<config-dir>/admin.db` | SQLite DB for users, sessions, reset tokens, and audit rows. |
-| `--audit-log` | `<config-dir>/audit.log` | JSONL audit backup. |
+| `--db` | `<config-dir>/admin.db` | SQLite DB for users, sessions, reset tokens, and audit rows. Linux installs pass `/var/lib/veilgate/admin.db`. |
+| `--audit-log` | `<config-dir>/audit.log` | JSONL audit backup. Linux installs pass `/var/lib/veilgate/admin-audit.log`. |
 
 Installer default:
 
@@ -135,9 +135,10 @@ curl -b admin.cookies http://127.0.0.1:8888/api/v1/config/raw
 
 | File | Owner | Written by | Purpose |
 | --- | --- | --- | --- |
-| `<config-dir>/admin.db` | admin service | DB layer | Users, sessions, reset tokens, and audit rows. |
-| `<config-dir>/audit.log` | admin service | audit logger | JSONL audit backup. |
-| `<config-dir>/decoys.yaml` | admin service | decoy store | Live editable admin-port decoy list. |
+| `/var/lib/veilgate/admin.db` | admin service | DB layer | Users, sessions, reset tokens, and audit rows on Linux installs. |
+| `/var/lib/veilgate/admin-audit.log` | admin service | audit logger | JSONL audit backup on Linux installs. |
+| `/var/lib/veilgate/decoys.yaml` | admin service | decoy store | Live editable admin-port decoy list on Linux installs. |
+| `<config-dir>/admin.db` | admin service | DB layer | Binary default when `--db` is omitted outside the installer. |
 | `<config-dir>/veilgate.yaml` | admin service | settings page/API | Main proxy config. |
 | `<rules_dir>/signals.yaml` | admin service | signals page/API | Signal overrides and custom signals. |
 | `<rules_dir>/openapi.yaml` | admin service | OpenAPI page/API | Expected API blueprint. |
