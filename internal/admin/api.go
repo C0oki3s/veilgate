@@ -57,6 +57,12 @@ func (s *Server) registerAPI() {
 	api("GET", "/api/v1/audit/stats", s.apiAuditStats)
 
 	api("GET", "/api/v1/logs", s.apiLogsGet)
+
+	api("GET", "/api/v1/analytics", s.apiAnalyticsGet)
+	api("GET", "/api/v1/dashboard", s.apiDashboardGet)
+
+	apiAny("/api/v1/decoys", s.apiDecoys)
+	apiAny("/api/v1/decoys/", s.apiDecoys)
 }
 
 // apiAuth wraps a handler with auth check, returning 401 JSON (not redirect).
@@ -274,6 +280,7 @@ func (s *Server) apiConfigPut(w http.ResponseWriter, r *http.Request) {
 		addInt([]string{"detector", "score_challenge_threshold"}, det, "score_challenge_threshold")
 		addInt([]string{"detector", "score_tarpit_threshold"}, det, "score_tarpit_threshold")
 		addInt([]string{"detector", "window_seconds"}, det, "window_seconds")
+		addStr([]string{"detector", "cdn_mode"}, det, "cdn_mode")
 		if ss, ok := strSlice(det, "probe_paths"); ok {
 			patches = append(patches, PatchStrings([]string{"detector", "probe_paths"}, ss))
 		}
@@ -743,6 +750,199 @@ func (s *Server) apiLogsGet(w http.ResponseWriter, r *http.Request) {
 		"capture_path": capturePath,
 		"enabled":      s.cfg != nil && s.cfg.Capture.Enabled,
 	})
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────
+
+func (s *Server) apiAnalyticsGet(w http.ResponseWriter, r *http.Request) {
+	rangeKey := r.URL.Query().Get("range")
+	rng := rangeByKey(rangeKey)
+	since := time.Now().Add(-rng.Dur)
+	challengeT, tarpitT := s.scoreThresholds()
+
+	if s.store == nil {
+		apiJSON(w, http.StatusOK, map[string]any{
+			"available": false,
+			"range":     rng.Key,
+			"range_label": rng.Label,
+		})
+		return
+	}
+
+	dc, err := s.store.CountDecisions(since, challengeT, tarpitT)
+	if err != nil {
+		apiErr(w, "query failed: "+err.Error(), "INTERNAL", http.StatusInternalServerError)
+		return
+	}
+
+	observe, challenge, tarpit, clean, other := splitDecisions(dc.ByDecision)
+
+	buckets, _ := s.store.DecisionTimeSeries(since, rng.Bucket, challengeT, tarpitT)
+	bins, _ := s.store.ScoreHistogram(since, 10)
+	paths, _ := s.store.TopPaths(since, 10)
+	clients, _ := s.store.TopClients(since, 10)
+
+	apiJSON(w, http.StatusOK, map[string]any{
+		"available":   true,
+		"range":       rng.Key,
+		"range_label": rng.Label,
+		"since":       since.UTC().Format(time.RFC3339),
+		"totals": map[string]int{
+			"total":     dc.Total,
+			"observe":   observe,
+			"challenge": challenge,
+			"tarpit":    tarpit,
+			"clean":     clean,
+			"other":     other,
+		},
+		"timeline":   buckets,
+		"histogram":  bins,
+		"top_paths":  paths,
+		"top_clients": clients,
+	})
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+
+func (s *Server) apiDashboardGet(w http.ResponseWriter, r *http.Request) {
+	challengeT, tarpitT := s.scoreThresholds()
+	since := time.Now().Add(-24 * time.Hour)
+
+	out := map[string]any{
+		"version":                s.version,
+		"uptime":                 time.Since(s.startedAt).Truncate(time.Second).String(),
+		"mode":                   s.cfg.Mode,
+		"config_pending_restart": s.configPending,
+		"auth_enabled":           s.auth != nil,
+	}
+
+	if s.store != nil {
+		dc, err := s.store.CountDecisions(since, challengeT, tarpitT)
+		if err == nil {
+			observe, challenge, tarpit, clean, other := splitDecisions(dc.ByDecision)
+			out["analytics"] = map[string]any{
+				"available": true,
+				"window":    "last 24h",
+				"total":     dc.Total,
+				"observe":   observe,
+				"challenge": challenge,
+				"tarpit":    tarpit,
+				"clean":     clean,
+				"other":     other,
+			}
+		} else {
+			out["analytics"] = map[string]any{"available": false}
+		}
+
+		if paths, err := s.store.TopPaths(since, 5); err == nil {
+			out["top_paths"] = paths
+		}
+	} else {
+		out["analytics"] = map[string]any{"available": false}
+	}
+
+	apiJSON(w, http.StatusOK, out)
+}
+
+// ── Decoys ────────────────────────────────────────────────────────────────
+
+func (s *Server) apiDecoys(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		routes := s.decoys.all()
+		type decoyView struct {
+			Path   string `json:"path"`
+			Prefix bool   `json:"prefix"`
+			Kind   string `json:"kind"`
+		}
+		out := make([]decoyView, len(routes))
+		for i, d := range routes {
+			out[i] = decoyView{Path: d.Path, Prefix: d.Prefix, Kind: string(d.Kind)}
+		}
+		apiJSON(w, http.StatusOK, map[string]any{
+			"decoys": out,
+			"count":  len(out),
+			"path":   s.decoys.path,
+		})
+
+	case http.MethodPost:
+		var body struct {
+			Path   string `json:"path"`
+			Kind   string `json:"kind"`
+			Prefix bool   `json:"prefix"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			apiErr(w, "invalid JSON", "BAD_REQUEST", http.StatusBadRequest)
+			return
+		}
+		if body.Path == "" || !strings.HasPrefix(body.Path, "/") {
+			apiErr(w, "path must start with /", "BAD_REQUEST", http.StatusBadRequest)
+			return
+		}
+		kind := decoyKind(body.Kind)
+		if !validDecoyKind(kind) {
+			kind = decoyNotFound
+		}
+		path := body.Path
+		if body.Prefix && !strings.HasSuffix(path, "/") {
+			path += "/"
+		}
+		if err := s.decoys.add(decoyRoute{Path: path, Prefix: body.Prefix, Kind: kind}); err != nil {
+			s.logAudit(r, "decoy.add", path+": "+err.Error(), false)
+			apiErr(w, "add failed: "+err.Error(), "INTERNAL", http.StatusInternalServerError)
+			return
+		}
+		s.logAudit(r, "decoy.add", path, true)
+		apiJSON(w, http.StatusCreated, map[string]any{
+			"ok":      true,
+			"path":    path,
+			"kind":    string(kind),
+			"message": "Decoy added — live immediately, no restart needed.",
+		})
+
+	case http.MethodDelete:
+		// DELETE /api/v1/decoys?path=/foo or body {"path":"/foo"} or {"reset":true}
+		var body struct {
+			Path  string `json:"path"`
+			Reset bool   `json:"reset"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Path == "" {
+			body.Path = r.URL.Query().Get("path")
+		}
+
+		if body.Reset {
+			if err := s.decoys.resetDefaults(); err != nil {
+				apiErr(w, "reset failed: "+err.Error(), "INTERNAL", http.StatusInternalServerError)
+				return
+			}
+			s.logAudit(r, "decoy.reset", "restored default decoy set", true)
+			apiJSON(w, http.StatusOK, map[string]any{
+				"ok":      true,
+				"message": "Restored the default decoy set.",
+			})
+			return
+		}
+
+		// Extract path from URL pattern /api/v1/decoys/{path}
+		if body.Path == "" {
+			suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/decoys")
+			if suffix != "" && suffix != "/" {
+				body.Path = suffix
+			}
+		}
+
+		if body.Path == "" {
+			apiErr(w, "path required (query param or JSON body)", "BAD_REQUEST", http.StatusBadRequest)
+			return
+		}
+		_ = s.decoys.remove(body.Path)
+		s.logAudit(r, "decoy.delete", body.Path, true)
+		apiJSON(w, http.StatusOK, map[string]any{"ok": true, "path": body.Path})
+
+	default:
+		apiErr(w, "GET, POST, or DELETE", "METHOD_NOT_ALLOWED", http.StatusMethodNotAllowed)
+	}
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
