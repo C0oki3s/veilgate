@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS events (
 	client_id       TEXT    NOT NULL,
 	method          TEXT    NOT NULL,
 	path            TEXT    NOT NULL,
+	query           TEXT    NOT NULL DEFAULT '',
 	user_agent      TEXT    NOT NULL,
 	header_bitmap   INTEGER NOT NULL,
 	ja3             TEXT,
@@ -105,4 +106,4 @@ CREATE INDEX IF NOT EXISTS idx_suggestions_confidence ON signal_suggestions(conf
 
 // v4 adds signal_suggestions on top of v3. Purely additive — IF NOT EXISTS
 // DDL handles existing databases without any ALTER TABLE.
-const schemaVersion = 4
+const schemaVersion = 5

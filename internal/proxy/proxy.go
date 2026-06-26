@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -98,7 +99,15 @@ type Server struct {
 	persist          *persist.Store
 	mlExtractor      *ml.Extractor
 	trustedProxies   []*net.IPNet
+	cdnMode          string
 	log              zerolog.Logger
+
+	// stickyTarpit holds clients that have been tarpitted at least once.
+	// Once sticky, the client is always routed to tarpit regardless of score.
+	// This prevents the oscillation that occurs when time-window signals decay
+	// (e.g. cache_miss_anomaly resets every ~3 min, dropping score below threshold).
+	stickyMu      sync.RWMutex
+	stickyClients map[string]struct{}
 }
 
 // SetVerifiers installs the verifier chain. Nil is safe — the server
@@ -245,8 +254,33 @@ func NewServer(cfg *config.Config, scorer *detector.Scorer, tarpit http.Handler,
 		upstreamURL:      upstream,
 		dashboard:        dash,
 		trustedProxies:   ParseTrustedProxies(cfg.Detector.TrustedProxies),
+		cdnMode:          cfg.Detector.CDNMode,
 		log:              log,
+		stickyClients:    make(map[string]struct{}),
 	}, nil
+}
+
+// markTarpitSticky records that a client has been tarpitted. Once marked,
+// the client is always routed to tarpit on future requests, regardless of
+// current score. This prevents oscillation when time-window signals decay.
+func (s *Server) markTarpitSticky(clientID string) {
+	s.stickyMu.RLock()
+	_, already := s.stickyClients[clientID]
+	s.stickyMu.RUnlock()
+	if already {
+		return
+	}
+	s.stickyMu.Lock()
+	s.stickyClients[clientID] = struct{}{}
+	s.stickyMu.Unlock()
+}
+
+// isTarpitSticky reports whether the client has previously been tarpitted.
+func (s *Server) isTarpitSticky(clientID string) bool {
+	s.stickyMu.RLock()
+	_, ok := s.stickyClients[clientID]
+	s.stickyMu.RUnlock()
+	return ok
 }
 
 func (s *Server) Handler() http.Handler {
@@ -383,7 +417,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	r = r.WithContext(ctx)
 
-	clientID := resolveClientIP(r, s.trustedProxies)
+	clientID := resolveClientIP(r, s.trustedProxies, s.cdnMode)
 	score := s.scorer.Score(clientID, r)
 	telemetry.ScoreHistogram.Observe(float64(score.Total))
 
@@ -423,6 +457,15 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	decision := s.decide(score.Total)
+	// Once a client has been tarpitted, keep them in the tarpit permanently —
+	// prevents oscillation when time-window signals (e.g. cache_miss_anomaly)
+	// decay and temporarily drop the score below the tarpit threshold.
+	if decision != DecisionTarpit && s.isTarpitSticky(clientID) {
+		decision = DecisionTarpit
+	}
+	if decision == DecisionTarpit {
+		s.markTarpitSticky(clientID)
+	}
 	telemetry.ScoreByDecision.WithLabelValues(decision.String()).Observe(float64(score.Total))
 
 	// Public-IP rotation cross-signal: track whether this client is a
@@ -580,6 +623,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			ClientID:     clientID,
 			Method:       r.Method,
 			Path:         r.URL.Path,
+			Query:        r.URL.RawQuery,
 			UserAgent:    r.UserAgent(),
 			JA4:          r.Header.Get("X-Veilgate-JA4"),
 			Score:        score.Total,
@@ -717,7 +761,7 @@ func (s *Server) decide(score int) Decision {
 }
 
 func clientIP(r *http.Request) string {
-	return resolveClientIP(r, nil)
+	return resolveClientIP(r, nil, "")
 }
 
 // resolveClientIP returns the effective client identifier.
@@ -730,7 +774,11 @@ func clientIP(r *http.Request) string {
 // the header. So we only honor XFF when the direct RemoteAddr is inside
 // the operator-declared trusted_proxies CIDR list, and we pick the
 // right-most untrusted hop (standards-compliant RFC 7239 behaviour).
-func resolveClientIP(r *http.Request, trustedProxies []*net.IPNet) string {
+//
+// When cdn_mode is set, CDN-specific real-IP headers (CF-Connecting-IP,
+// X-Azure-ClientIP, etc.) are checked first — they are more reliable than
+// XFF because the CDN owns the header name and overwrites any client value.
+func resolveClientIP(r *http.Request, trustedProxies []*net.IPNet, cdnMode string) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr
@@ -741,6 +789,12 @@ func resolveClientIP(r *http.Request, trustedProxies []*net.IPNet) string {
 	ip := net.ParseIP(strings.TrimSpace(host))
 	if ip == nil || !ipInAny(ip, trustedProxies) {
 		return host
+	}
+	// CDN-specific header takes precedence over XFF when cdn_mode is set.
+	if cdnMode != "" {
+		if cdnIP := ResolveCDNClientIP(r, cdnMode, trustedProxies); cdnIP != "" {
+			return cdnIP
+		}
 	}
 	xff := r.Header.Get("X-Forwarded-For")
 	if xff == "" {

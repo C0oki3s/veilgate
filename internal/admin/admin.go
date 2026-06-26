@@ -124,6 +124,7 @@ func New(adminCfg AdminConfig) (*Server, error) {
 	// configured. SQLite WAL lets the admin read while the proxy writes. This
 	// powers dashboard analytics, request logs, and the recommender.
 	s.openEventStore()
+	s.startBackgroundRecommender()
 
 	if err := s.parseTemplates(); err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)

@@ -312,28 +312,53 @@ sudo firewall-cmd --reload
 
 ---
 
-## JA3/JA4 fingerprinting trade-off
+## JA3/JA4 fingerprinting with Cloudflare
 
-Because Cloudflare terminates TLS at the edge, VeilGate never sees the real
-browser's ClientHello. It sees Cloudflare's own TLS fingerprint instead. This
-means:
+Because Cloudflare terminates TLS at the edge, VeilGate never sees the raw
+browser ClientHello directly. However, Cloudflare can forward the client's JA4
+fingerprint as an HTTP header, and VeilGate reads it securely via `cdn_mode`.
 
-- `tls_agent`, `tls_bot`, and `tls_non_browser` signals are not available.
-- `h2_agent`, `h2_bot`, and `h2_non_browser` are not available.
-- All HTTP-layer signals (User-Agent, path, headers, request shape) remain
-  fully effective.
-- IP reputation signals work provided `trusted_proxies` is configured
-  correctly so the real client IP is recovered from `CF-Connecting-IP`.
+### Enable CDN mode
 
-If TLS fingerprinting is critical for your threat model, the only supported
-topology is to expose VeilGate directly — without a TLS-terminating proxy in
-front. In that case, do not use Cloudflare's proxy mode (orange cloud). You
-can still use Cloudflare DNS (grey cloud) for name resolution and DDoS
-protection at the IP layer.
+Add `cdn_mode: cloudflare` to the `detector:` block (the `trusted_proxies` list
+from Step 5 is the required security gate — it gates header trust to Cloudflare
+IPs only):
 
-For most deployments the HTTP-layer + IP reputation + ML signals provide
-sufficient coverage, and Cloudflare's DDoS protection and global CDN are worth
-the fingerprinting trade-off.
+```yaml
+detector:
+  trusted_proxies:
+    - 173.245.48.0/20
+    # ... full list from cloudflare.com/ips
+  cdn_mode: cloudflare
+```
+
+Restart VeilGate. After this:
+
+- `X-Veilgate-JA4` is injected from `cf-ja4` before every request reaches the
+  scorer.
+- `tls_agent`, `tls_bot`, `tls_non_browser`, and `ja4_prefix` custom signals
+  become active for traffic where Cloudflare forwards the fingerprint.
+- Real client IP is recovered from `CF-Connecting-IP`.
+
+### Enterprise Bot Management requirement
+
+`cf-ja4` is only forwarded when **Cloudflare Enterprise Bot Management** is
+enabled on your zone. Without it, `cdn_mode: cloudflare` still recovers the
+real client IP, and all HTTP-layer and IP reputation signals remain effective.
+
+If you do not have Enterprise Bot Management, the HTTP-layer + IP reputation +
+ML signals are sufficient for most deployments, and Cloudflare's DDoS
+protection is worth that trade-off.
+
+### Direct-bypass topology
+
+If JA4 fingerprint quality is the top priority and Enterprise Bot Management is
+not available, the alternative is to disable Cloudflare proxy mode (grey cloud)
+and let VeilGate terminate TLS directly. In this topology fingerprints are
+computed from the raw ClientHello and are unforgeable.
+
+See [CDN fingerprinting how-to](cdn-fingerprinting.md) for the full provider
+matrix and security model.
 
 ---
 
@@ -419,10 +444,13 @@ in VeilGate so it requires the client cert, and add the firewall rules.
 
 **"JA3/JA4 metrics stay at zero"**
 
-Expected when behind Cloudflare's proxy. VeilGate is seeing Cloudflare's
-ClientHello, which may not match any entry in the fingerprint database, or may
-be classified as `browser` (Cloudflare uses a browser-like TLS stack). This is
-not an error — it reflects the topology.
+If `cdn_mode` is not set: expected — VeilGate sees Cloudflare's ClientHello,
+not the real client's. Set `cdn_mode: cloudflare` and ensure `trusted_proxies`
+includes all Cloudflare CIDRs (see Step 5).
+
+If `cdn_mode: cloudflare` is set: `cf-ja4` requires Cloudflare Enterprise Bot
+Management. Without that add-on the header is not forwarded and JA4 signals
+will not fire. HTTP and IP signals are unaffected.
 
 ---
 
@@ -430,6 +458,7 @@ not an error — it reflects the topology.
 
 - [TLS setup](tls-setup.md) — cert creation, enterprise CA, permissions
 - [JA3/JA4 fingerprinting setup](ja3-ja4-fingerprinting.md) — what the signals mean, how to extend the database
+- [CDN fingerprinting how-to](cdn-fingerprinting.md) — full provider matrix, security model, Fastly VCL
 - [Setup: SPA on CDN](setup-spa-cdn.md) — Vercel/Netlify/CloudFront deployment
 - [Configuration reference: `tls:`](../config/tls.md)
 - [Configuration reference: `detector:`](../config/detector.md)

@@ -24,6 +24,7 @@ type Event struct {
 	ClientID     string
 	Method       string
 	Path         string
+	Query        string
 	UserAgent    string
 	HeaderBitmap int64
 	JA3          string
@@ -152,6 +153,10 @@ func Open(cfg Config) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("persist: migrate rule_candidates: %w", err)
 	}
+	if err := ensureQueryColumn(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("persist: migrate events.query: %w", err)
+	}
 	if err := recordSchemaVersion(db); err != nil {
 		db.Close()
 		return nil, err
@@ -277,9 +282,9 @@ commit:
 	}
 	if len(evs) > 0 {
 		stmt, err := tx.Prepare(`INSERT INTO events
-			(ts, client_id, method, path, user_agent, header_bitmap, ja3, ja4,
+			(ts, client_id, method, path, query, user_agent, header_bitmap, ja3, ja4,
 			 score, signals_json, decision, features_json)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 		if err != nil {
 			tx.Rollback()
 			return
@@ -288,7 +293,7 @@ commit:
 			sigJSON, _ := json.Marshal(e.Signals)
 			if _, err := stmt.Exec(
 				e.Time.UTC().Format(time.RFC3339Nano),
-				e.ClientID, e.Method, e.Path, e.UserAgent, e.HeaderBitmap,
+				e.ClientID, e.Method, e.Path, e.Query, e.UserAgent, e.HeaderBitmap,
 				e.JA3, e.JA4, e.Score, string(sigJSON), e.Decision, e.FeaturesJSON,
 			); err != nil {
 				// keep draining — one bad row shouldn't abort the batch.
@@ -484,21 +489,49 @@ func ensureCandidateColumns(db *sql.DB) error {
 	return nil
 }
 
+// ensureQueryColumn adds the query column to the events table for databases
+// created before schema v5. The column stores the raw URL query string so the
+// recommender can surface suspicious query-param patterns.
+func ensureQueryColumn(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(events)`)
+	if err != nil {
+		return err
+	}
+	have := map[string]bool{}
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, typ string
+		var dflt interface{}
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		have[name] = true
+	}
+	rows.Close()
+	if !have["query"] {
+		_, err := db.Exec(`ALTER TABLE events ADD COLUMN query TEXT NOT NULL DEFAULT ''`)
+		return err
+	}
+	return nil
+}
+
 // PathSample is one row returned by QueryPathSamples.
 type PathSample struct {
 	Path      string
+	Query     string
 	Method    string
 	Score     int
 	Decision  string
 	UserAgent string
 }
 
-// QueryPathSamples returns up to limit recent (path, method, score, decision,
+// QueryPathSamples returns up to limit recent (path, query, method, score, decision,
 // user_agent) rows since the given time. Used by the signal recommender to
 // cluster paths and compute precision without complex SQL aggregations.
 func (s *Store) QueryPathSamples(since time.Time, limit int) ([]PathSample, error) {
 	rows, err := s.db.Query(
-		`SELECT path, method, score, decision, user_agent
+		`SELECT path, COALESCE(query,''), method, score, decision, user_agent
 		 FROM events
 		 WHERE ts >= ?
 		 ORDER BY id DESC
@@ -512,7 +545,7 @@ func (s *Store) QueryPathSamples(since time.Time, limit int) ([]PathSample, erro
 	var out []PathSample
 	for rows.Next() {
 		var p PathSample
-		if err := rows.Scan(&p.Path, &p.Method, &p.Score, &p.Decision, &p.UserAgent); err != nil {
+		if err := rows.Scan(&p.Path, &p.Query, &p.Method, &p.Score, &p.Decision, &p.UserAgent); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -890,6 +923,46 @@ func (s *Store) TopSignals(since time.Time, limit int) ([]LabelCount, error) {
 	for rows.Next() {
 		var lc LabelCount
 		if err := rows.Scan(&lc.Label, &lc.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, lc)
+	}
+	return out, rows.Err()
+}
+
+// TopJA4ByTarpit returns JA4 fingerprints strongly associated with tarpitted
+// traffic since the given time. Only fingerprints where ≥90% of traffic is
+// tarpitted and the raw tarpitted count is ≥10 are returned, ordered by
+// tarpitted count descending. tarpitThreshold is the score floor used to
+// reclassify observe-mode events in the same way as CountDecisions.
+func (s *Store) TopJA4ByTarpit(since time.Time, tarpitThreshold, limit int) ([]LabelCount, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := s.db.Query(`
+		WITH j AS (
+			SELECT ja4,
+			       COUNT(*) AS total,
+			       SUM(CASE WHEN decision = 'tarpit' OR score >= ? THEN 1 ELSE 0 END) AS tarpit_c
+			FROM events
+			WHERE ts >= ? AND ja4 != '' AND ja4 != 'unknown'
+			GROUP BY ja4
+		)
+		SELECT ja4, total, tarpit_c
+		FROM j
+		WHERE tarpit_c * 1.0 / total >= 0.90 AND tarpit_c >= 10
+		ORDER BY tarpit_c DESC
+		LIMIT ?`,
+		tarpitThreshold, since.UTC().Format(time.RFC3339), limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LabelCount
+	for rows.Next() {
+		var lc LabelCount
+		if err := rows.Scan(&lc.Label, &lc.Count, &lc.Tarpit); err != nil {
 			return nil, err
 		}
 		out = append(out, lc)

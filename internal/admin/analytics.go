@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"html/template"
 	"log"
 	"net/http"
@@ -27,6 +28,25 @@ func (s *Server) openEventStore() {
 	}
 	s.store = st
 	log.Printf("admin: event store opened (correlation DB): %s", s.cfg.Persist.Path)
+}
+
+// startBackgroundRecommender launches the signal recommender as a background
+// goroutine. It performs an immediate first analysis to warm the DB cache,
+// then falls into the configured interval loop (default 24h). A no-op when
+// the event store is not open.
+func (s *Server) startBackgroundRecommender() {
+	if s.store == nil {
+		return
+	}
+	_, tarpitT := s.scoreThresholds()
+	rec := recommender.New(s.store, nil, s.rulesDir(), tarpitT)
+	go func() {
+		ctx := context.Background()
+		if err := rec.RunOnce(ctx); err != nil {
+			log.Printf("recommender: initial pass: %v", err)
+		}
+		rec.Run(ctx, func(err error) { log.Printf("recommender: %v", err) })
+	}()
 }
 
 // splitDecisions folds a decision→count map into the five chart classes,
@@ -299,8 +319,9 @@ type RecommenderData struct {
 	Candidates []persist.Candidate // ML rule candidates (correlation fitting)
 }
 
-// handleRecommender runs the ML-based signal recommender against the event
-// store and renders both a recommendation table and the report YAML.
+// handleRecommender renders the recommender page. Results are served from the
+// DB cache written by the background recommender goroutine; on a cache miss
+// (first load before the background pass completes) an inline analysis runs.
 func (s *Server) handleRecommender(w http.ResponseWriter, r *http.Request) {
 	data := &RecommenderData{}
 	if s.store == nil {
@@ -313,25 +334,36 @@ func (s *Server) handleRecommender(w http.ResponseWriter, r *http.Request) {
 	}
 	data.Available = true
 
-	tarpit := 70
-	if s.cfg != nil && s.cfg.Detector.ScoreTarpitThreshold > 0 {
-		tarpit = s.cfg.Detector.ScoreTarpitThreshold
-	}
+	_, tarpitT := s.scoreThresholds()
 
-	// nil ML holder is safe — the recommender falls back to sane defaults.
-	rec := recommender.New(s.store, nil, s.rulesDir(), tarpit)
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	recs, err := rec.Analyze(ctx)
-	if err != nil {
-		data.Err = err.Error()
-	} else {
+	// Serve from the DB cache written by startBackgroundRecommender.
+	if cached, cErr := s.store.ListSuggestions(); cErr == nil && len(cached) > 0 {
+		var recs []recommender.SignalRecommendation
+		for _, raw := range cached {
+			var rec recommender.SignalRecommendation
+			if json.Unmarshal(raw, &rec) == nil {
+				recs = append(recs, rec)
+			}
+		}
 		data.Recs = recs
 		if y, yErr := recommender.RenderReportYAML(recs); yErr == nil {
 			data.YAML = string(y)
+		}
+	} else {
+		// Cache miss — run inline (happens on first page load before background pass).
+		rec := recommender.New(s.store, nil, s.rulesDir(), tarpitT)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		recs, err := rec.Analyze(ctx)
+		if err != nil {
+			data.Err = err.Error()
 		} else {
-			data.Err = yErr.Error()
+			data.Recs = recs
+			if y, yErr := recommender.RenderReportYAML(recs); yErr == nil {
+				data.YAML = string(y)
+			} else {
+				data.Err = yErr.Error()
+			}
 		}
 	}
 

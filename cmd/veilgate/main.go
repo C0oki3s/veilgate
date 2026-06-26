@@ -978,9 +978,19 @@ func main() {
 	metricsMux.Handle("/", dash)
 	metricsMux.HandleFunc("/api/signal-suggestions", apiKeyMiddleware(cfg.Metrics.APIKey, sigRec.Handler()))
 
+	// FingerprintMiddleware injects X-Veilgate-JA4 before every request reaches
+	// the scorer. In self-TLS mode it reads from the tlsStore (computed from the
+	// raw ClientHello, unforgeable). In CDN mode it falls back to the CDN-injected
+	// header (gated on trusted_proxies so direct-connection forgery is blocked).
+	mainHandler := proxy.FingerprintMiddleware(
+		srv.Handler(),
+		tlsStore,
+		cfg.Detector.CDNMode,
+		proxy.ParseTrustedProxies(cfg.Detector.TrustedProxies),
+	)
 	mainSrv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           srv.Handler(),
+		Handler:           mainHandler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

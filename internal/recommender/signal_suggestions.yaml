@@ -1,0 +1,54 @@
+# Auto-generated signal suggestions — do NOT paste into signals.yaml without review.
+# Generated: 2026-06-26T19:43:05Z
+# Each entry is enabled:false. Set to true only after manual review.
+# Paste reviewed entries under custom_signals: in your signals.yaml.
+
+suggestions:
+    - name: auto_ext_php
+      source: path_extension
+      confidence: 1
+      support: 50
+      false_positive_rate: 0
+      rationale: Extension .php found in 50 tarpitted requests vs 0 clean (100% precision).
+      signal:
+        name: auto_ext_php
+        description: .php extension probe (auto-suggested)
+        enabled: false
+        points: 15
+        conditions:
+            - type: path_suffix
+              name: ""
+              value: .php
+    - name: auto_pfx_shell_php
+      source: path_prefix
+      confidence: 1
+      support: 50
+      false_positive_rate: 0
+      rationale: Path prefix /shell.php/ seen in 50 tarpitted vs 0 clean requests (100% precision).
+      signal:
+        name: auto_pfx_shell_php
+        description: Requests under /shell.php/ (auto-suggested)
+        enabled: false
+        points: 20
+        conditions:
+            - type: path_prefix
+              name: ""
+              value: /shell.php/
+    - name: auto_combo_custom_shell_php
+      source: method_combo
+      confidence: 1
+      support: 50
+      false_positive_rate: 0
+      rationale: ' /shell.php/ seen in 50 tarpitted vs 0 clean requests (100% precision).'
+      signal:
+        name: auto_combo_custom_shell_php
+        description: ' to /shell.php/ (auto-suggested)'
+        enabled: false
+        points: 25
+        conditions:
+            - type: method
+              name: ""
+              value: ""
+            - type: path_prefix
+              name: ""
+              value: /shell.php/

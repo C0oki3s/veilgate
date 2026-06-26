@@ -17,6 +17,7 @@
 - [`probe_paths`](#probe_paths)
 - [`trusted_ips`](#trusted_ips)
 - [`trusted_proxies`](#trusted_proxies)
+- [`cdn_mode`](#cdn_mode)
 - [Example](#example)
 - [Related](#related)
 
@@ -153,6 +154,49 @@ CIDRs, VeilGate walks the XFF chain right-to-left and picks the first
 hop that is **not** itself a trusted proxy. That's the standards-compliant
 RFC 7239 behavior.
 
+---
+
+### `cdn_mode`
+
+| Type | Required | Default |
+| --- | --- | --- |
+| string | no | `""` (disabled) |
+
+Enables reading TLS fingerprint data and real client IPs from CDN-injected
+headers rather than computing them from the raw connection. When a CDN
+terminates TLS before VeilGate, this is the only way to recover JA3/JA4
+fingerprints.
+
+**Security gate:** CDN headers are only honoured when the TCP connection
+arrives from a CIDR declared in `trusted_proxies`. A direct attacker who
+connects without going through the CDN cannot forge these headers.
+
+| Value | JA4 header | Real-IP header |
+| --- | --- | --- |
+| `""` | — (disabled) | — |
+| `"cloudflare"` | `cf-ja4` (Enterprise Bot Management) | `CF-Connecting-IP` |
+| `"cloudfront"` | `CloudFront-Viewer-JA4-Fingerprint` | `CloudFront-Viewer-Address` |
+| `"akamai"` | — (no header forwarded) | `True-Client-IP` |
+| `"fastly"` | — (VCL config required) | — (forgeable; not trusted) |
+| `"azure"` | `X-Azure-JA4-Fingerprint` | `X-Azure-ClientIP` |
+| `"gcp"` | `X-JA4` (custom LB header) | — (use XFF) |
+| `"nginx"` | `X-JA4` / `X-JA3-Hash` | `X-Real-IP` |
+| `"haproxy"` | `X-SSL-JA3N` / `X-JA4` | `X-Real-IP` |
+| `"auto"` | all known headers, priority order | — |
+
+```yaml
+detector:
+  trusted_proxies:
+    - 173.245.48.0/20   # Cloudflare IPv4 ranges
+    # ... full list from cloudflare.com/ips
+  cdn_mode: cloudflare
+```
+
+See [CDN fingerprinting how-to](../how-to/cdn-fingerprinting.md) for
+per-provider setup and Fastly VCL configuration.
+
+---
+
 ## Score tiers and threat_level
 
 The raw score maps to a `threat_level` string that is attached to every request
@@ -200,6 +244,7 @@ detector:
     - 198.51.100.5
   trusted_proxies:
     - 10.0.0.0/8
+  cdn_mode: ""           # set to "cloudflare", "cloudfront", etc. when behind a CDN
 ```
 
 ## Related
@@ -211,6 +256,7 @@ detector:
 - [Detection Signals](../functionalities/detection-signals.md) — full signal reference (all 43 signals)
 - [Detector Score System](../functionalities/detector-score-system.md) — score tiers, threat_level, decision routing
 - [How-to: Observe-mode rollout](../how-to/observe-and-tune.md)
+- [How-to: CDN fingerprinting](../how-to/cdn-fingerprinting.md) — per-CDN JA4 setup and security model
 
 ---
 

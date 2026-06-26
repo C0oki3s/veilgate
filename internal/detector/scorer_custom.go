@@ -86,6 +86,8 @@ func (s *Scorer) matchCondition(r *http.Request, cond rules.CustomSignalConditio
 		return strings.Contains(query, val)
 	case "method":
 		return strings.EqualFold(r.Method, cond.Value)
+	case "ja4_prefix":
+		return strings.HasPrefix(strings.ToLower(extractJA4(r)), strings.ToLower(cond.Value))
 	}
 	return false
 }

@@ -138,11 +138,27 @@
               placeholder="198.51.100.5&#10;203.0.113.10">{{if $c}}{{joinLines $c.Detector.TrustedIPs}}{{end}}</textarea>
             <span class="field-help">One IP per line. These clients bypass scoring entirely. Use for CI runners, monitoring, internal services.</span>
           </div>
-          <div class="field">
+          <div class="field mb-4">
             <label class="field-label">Trusted Proxies</label>
             <textarea class="field-textarea" name="trusted_proxies" rows="4"
               placeholder="10.0.0.0/8&#10;172.16.0.0/12">{{if $c}}{{joinLines $c.Detector.TrustedProxies}}{{end}}</textarea>
             <span class="field-help">CIDRs whose <code>X-Forwarded-For</code> header is respected. Empty = always use direct RemoteAddr (stops XFF injection). Required when a reverse proxy sits in front of VeilGate.</span>
+          </div>
+          <div class="field">
+            <label class="field-label">CDN Mode</label>
+            <select class="field-input" name="cdn_mode">
+              <option value=""         {{if $c}}{{if eq $c.Detector.CDNMode ""}}selected{{end}}{{end}}>Disabled (self-TLS or no CDN)</option>
+              <option value="cloudflare" {{if $c}}{{if eq $c.Detector.CDNMode "cloudflare"}}selected{{end}}{{end}}>Cloudflare (cf-ja4 / CF-Connecting-IP)</option>
+              <option value="cloudfront" {{if $c}}{{if eq $c.Detector.CDNMode "cloudfront"}}selected{{end}}{{end}}>AWS CloudFront (CloudFront-Viewer-JA4-Fingerprint)</option>
+              <option value="akamai"     {{if $c}}{{if eq $c.Detector.CDNMode "akamai"}}selected{{end}}{{end}}>Akamai (True-Client-IP; no JA4)</option>
+              <option value="fastly"     {{if $c}}{{if eq $c.Detector.CDNMode "fastly"}}selected{{end}}{{end}}>Fastly (XFF only; JA4 requires VCL config)</option>
+              <option value="azure"      {{if $c}}{{if eq $c.Detector.CDNMode "azure"}}selected{{end}}{{end}}>Azure Front Door (X-Azure-JA4-Fingerprint)</option>
+              <option value="gcp"        {{if $c}}{{if eq $c.Detector.CDNMode "gcp"}}selected{{end}}{{end}}>Google Cloud CDN (X-JA4; requires LB custom header)</option>
+              <option value="nginx"      {{if $c}}{{if eq $c.Detector.CDNMode "nginx"}}selected{{end}}{{end}}>nginx (X-JA4 / X-Real-IP)</option>
+              <option value="haproxy"    {{if $c}}{{if eq $c.Detector.CDNMode "haproxy"}}selected{{end}}{{end}}>HAProxy (X-SSL-JA3N / X-Real-IP)</option>
+              <option value="auto"       {{if $c}}{{if eq $c.Detector.CDNMode "auto"}}selected{{end}}{{end}}>Auto (try all known CDN headers)</option>
+            </select>
+            <span class="field-help">When traffic passes through a CDN or reverse proxy, VeilGate can read the TLS fingerprint and real client IP from CDN-injected headers instead of computing them from the raw connection. Only honoured when the TCP connection arrives from a <strong>Trusted Proxy</strong> CIDR above — direct-connection forgery is blocked. <a href="https://docs.veilgate.dev/how-to/cdn-fingerprinting" target="_blank" rel="noopener">CDN fingerprinting guide →</a></span>
           </div>
         </div>
       </div>

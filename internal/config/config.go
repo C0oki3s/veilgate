@@ -207,6 +207,12 @@ type DetectorConfig struct {
 	// Empty list = never honor XFF (stops Log4Shell/XSS injection into the header).
 	TrustedProxies []string `yaml:"trusted_proxies"`
 	WindowSeconds  int      `yaml:"window_seconds"`
+	// CDNMode enables reading TLS fingerprint headers injected by an upstream CDN
+	// or reverse proxy. Only honoured when the direct connection comes from a CIDR
+	// listed in trusted_proxies. Values: "cloudflare", "cloudfront", "akamai",
+	// "fastly", "azure", "nginx", "haproxy", "auto" (tries all known headers).
+	// Empty = disabled (VeilGate computes JA4 itself in TLS mode).
+	CDNMode string `yaml:"cdn_mode"`
 }
 
 type TarpitConfig struct {

@@ -76,6 +76,8 @@ func New(store *persist.Store, mlCfg *rules.Holder[rules.ML], rulesDir string, t
 		NewUASubstringAnalyzer(store),
 		NewMethodComboAnalyzer(),
 		NewUAPathComboAnalyzer(),
+		NewJA4FingerprintAnalyzer(store),
+		NewQueryParamAnalyzer(),
 	}
 	return r
 }
@@ -83,6 +85,20 @@ func New(store *persist.Store, mlCfg *rules.Holder[rules.ML], rulesDir string, t
 // Analyze runs all analyzers, deduplicates, filters, and ranks results.
 func (r *Recommender) Analyze(ctx context.Context) ([]SignalRecommendation, error) {
 	return r.run(ctx, r.buildConfig())
+}
+
+// RunOnce performs a single analysis pass and persists the results to the DB
+// cache and YAML file. Used to warm the cache on startup before the background
+// Run loop fires.
+func (r *Recommender) RunOnce(ctx context.Context) error {
+	recs, err := r.Analyze(ctx)
+	if err != nil {
+		return err
+	}
+	if err := r.storeSuggestions(recs); err != nil {
+		return err
+	}
+	return r.WriteSuggestions(recs)
 }
 
 // Run blocks until ctx is done, firing one analysis pass per configured interval.

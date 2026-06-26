@@ -447,6 +447,7 @@ func (s *Server) settingsPOST(w http.ResponseWriter, r *http.Request) {
 	add(PatchStrings([]string{"detector", "probe_paths"}, parseLines(r.FormValue("probe_paths"))))
 	add(PatchStrings([]string{"detector", "trusted_ips"}, parseLines(r.FormValue("trusted_ips"))))
 	add(PatchStrings([]string{"detector", "trusted_proxies"}, parseLines(r.FormValue("trusted_proxies"))))
+	add(PatchString([]string{"detector", "cdn_mode"}, str("cdn_mode")))
 
 	// ── Challenge ──────────────────────────────────────────────────────────
 	add(PatchString([]string{"challenge", "secret"}, str("challenge_secret")))
