@@ -249,6 +249,9 @@ func (h *Handler) route(r *http.Request, p *ShadowProfile) Response {
 		"Body":  body,
 	}
 
+	if strat == nil {
+		return h.renderer.Render("generic_not_found", p, extra)
+	}
 	for _, rt := range strat.Routes {
 		if h.routeMatches(rt, path, query, body, vuln) {
 			return h.renderer.Render(rt.Template, p, extra)

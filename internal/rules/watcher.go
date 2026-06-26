@@ -196,7 +196,9 @@ type Holder[T any] struct {
 
 func NewHolder[T any](initial *T) *Holder[T] {
 	h := &Holder[T]{}
-	h.p.Store(initial)
+	if initial != nil {
+		h.p.Store(initial)
+	}
 	return h
 }
 

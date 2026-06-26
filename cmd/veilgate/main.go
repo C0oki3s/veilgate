@@ -397,7 +397,11 @@ func main() {
 	templatesVal, _ := rules.LoadTemplates(cfg.RulesDir)
 	fakeDataVal, _ := rules.LoadFakeData(cfg.RulesDir)
 	vulnVal, _ := rules.LoadVulnerabilities(cfg.RulesDir)
-	strategyVal, _ := rules.LoadInjectionStrategy(cfg.RulesDir)
+	strategyVal, strategyErr := rules.LoadInjectionStrategy(cfg.RulesDir)
+	if strategyErr != nil {
+		log.Warn().Err(strategyErr).Msg("load injection_strategy failed; using empty strategy")
+		strategyVal = new(rules.InjectionStrategy)
+	}
 	challengeVal, _ := rules.LoadChallenge(cfg.RulesDir)
 	decoyPathsVal, _ := rules.LoadRouteManifest(cfg.RulesDir)
 	mlVal, err := rules.LoadML(cfg.RulesDir)

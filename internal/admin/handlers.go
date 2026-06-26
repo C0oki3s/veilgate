@@ -428,134 +428,127 @@ func (s *Server) settingsPOST(w http.ResponseWriter, r *http.Request) {
 	var patches []YAMLPatch
 	add := func(p YAMLPatch) { patches = append(patches, p) }
 
-	// ── Proxy ──────────────────────────────────────────────────────────────
-	add(PatchString([]string{"listen"}, str("listen")))
-	add(PatchString([]string{"upstream"}, str("upstream")))
-	add(PatchString([]string{"mode"}, str("mode")))
-	add(PatchString([]string{"rules_dir"}, str("rules_dir")))
+	// Each section is gated on its matching tab so that saving one tab never
+	// clobbers fields from other tabs (e.g. saving "detector" must NOT set
+	// listen/upstream/mode/rules_dir to "" or flip TLS/persist booleans).
+	switch tab {
+	case "proxy":
+		add(PatchString([]string{"listen"}, str("listen")))
+		add(PatchString([]string{"upstream"}, str("upstream")))
+		add(PatchString([]string{"mode"}, str("mode")))
+		add(PatchString([]string{"rules_dir"}, str("rules_dir")))
 
-	// ── Detector ───────────────────────────────────────────────────────────
-	if n, ok := parseInt("score_challenge_threshold"); ok {
-		add(PatchInt([]string{"detector", "score_challenge_threshold"}, n))
-	}
-	if n, ok := parseInt("score_tarpit_threshold"); ok {
-		add(PatchInt([]string{"detector", "score_tarpit_threshold"}, n))
-	}
-	if n, ok := parseInt("window_seconds"); ok {
-		add(PatchInt([]string{"detector", "window_seconds"}, n))
-	}
-	add(PatchStrings([]string{"detector", "probe_paths"}, parseLines(r.FormValue("probe_paths"))))
-	add(PatchStrings([]string{"detector", "trusted_ips"}, parseLines(r.FormValue("trusted_ips"))))
-	add(PatchStrings([]string{"detector", "trusted_proxies"}, parseLines(r.FormValue("trusted_proxies"))))
-	add(PatchString([]string{"detector", "cdn_mode"}, str("cdn_mode")))
+	case "detector":
+		if n, ok := parseInt("score_challenge_threshold"); ok {
+			add(PatchInt([]string{"detector", "score_challenge_threshold"}, n))
+		}
+		if n, ok := parseInt("score_tarpit_threshold"); ok {
+			add(PatchInt([]string{"detector", "score_tarpit_threshold"}, n))
+		}
+		if n, ok := parseInt("window_seconds"); ok {
+			add(PatchInt([]string{"detector", "window_seconds"}, n))
+		}
+		add(PatchStrings([]string{"detector", "probe_paths"}, parseLines(r.FormValue("probe_paths"))))
+		add(PatchStrings([]string{"detector", "trusted_ips"}, parseLines(r.FormValue("trusted_ips"))))
+		add(PatchStrings([]string{"detector", "trusted_proxies"}, parseLines(r.FormValue("trusted_proxies"))))
+		add(PatchString([]string{"detector", "cdn_mode"}, str("cdn_mode")))
 
-	// ── Challenge ──────────────────────────────────────────────────────────
-	add(PatchString([]string{"challenge", "secret"}, str("challenge_secret")))
-	if n, ok := parseInt("challenge_difficulty"); ok {
-		add(PatchInt([]string{"challenge", "difficulty"}, n))
-	}
-	if n, ok := parseInt("challenge_ttl_minutes"); ok {
-		add(PatchInt([]string{"challenge", "ttl_minutes"}, n))
-	}
-	if n, ok := parseInt("challenge_max_ttl_minutes"); ok {
-		add(PatchInt([]string{"challenge", "max_ttl_minutes"}, n))
-	}
+	case "challenge":
+		add(PatchString([]string{"challenge", "secret"}, str("challenge_secret")))
+		if n, ok := parseInt("challenge_difficulty"); ok {
+			add(PatchInt([]string{"challenge", "difficulty"}, n))
+		}
+		if n, ok := parseInt("challenge_ttl_minutes"); ok {
+			add(PatchInt([]string{"challenge", "ttl_minutes"}, n))
+		}
+		if n, ok := parseInt("challenge_max_ttl_minutes"); ok {
+			add(PatchInt([]string{"challenge", "max_ttl_minutes"}, n))
+		}
 
-	// ── Tarpit ─────────────────────────────────────────────────────────────
-	if n, ok := parseInt("min_latency_ms"); ok {
-		add(PatchInt([]string{"tarpit", "min_latency_ms"}, n))
-	}
-	if n, ok := parseInt("max_latency_ms"); ok {
-		add(PatchInt([]string{"tarpit", "max_latency_ms"}, n))
-	}
-	if n, ok := parseInt("max_body_bytes"); ok {
-		add(PatchInt([]string{"tarpit", "max_body_bytes"}, n))
-	}
-	if n, ok := parseInt("tarpit_cache_ttl"); ok {
-		add(PatchInt([]string{"tarpit", "response_cache_ttl_minutes"}, n))
-	}
-	if n, ok := parseInt("tarpit_cache_size"); ok {
-		add(PatchInt([]string{"tarpit", "response_cache_max_size"}, n))
-	}
+	case "tarpit":
+		if n, ok := parseInt("min_latency_ms"); ok {
+			add(PatchInt([]string{"tarpit", "min_latency_ms"}, n))
+		}
+		if n, ok := parseInt("max_latency_ms"); ok {
+			add(PatchInt([]string{"tarpit", "max_latency_ms"}, n))
+		}
+		if n, ok := parseInt("max_body_bytes"); ok {
+			add(PatchInt([]string{"tarpit", "max_body_bytes"}, n))
+		}
+		if n, ok := parseInt("tarpit_cache_ttl"); ok {
+			add(PatchInt([]string{"tarpit", "response_cache_ttl_minutes"}, n))
+		}
+		if n, ok := parseInt("tarpit_cache_size"); ok {
+			add(PatchInt([]string{"tarpit", "response_cache_max_size"}, n))
+		}
 
-	// ── TLS ────────────────────────────────────────────────────────────────
-	add(PatchBool([]string{"tls", "enabled"}, chk("tls_enabled")))
-	add(PatchString([]string{"tls", "cert_file"}, str("tls_cert_file")))
-	add(PatchString([]string{"tls", "key_file"}, str("tls_key_file")))
+	case "tls":
+		add(PatchBool([]string{"tls", "enabled"}, chk("tls_enabled")))
+		add(PatchString([]string{"tls", "cert_file"}, str("tls_cert_file")))
+		add(PatchString([]string{"tls", "key_file"}, str("tls_key_file")))
 
-	// ── Persistence ────────────────────────────────────────────────────────
-	add(PatchBool([]string{"persist", "enabled"}, chk("persist_enabled")))
-	add(PatchString([]string{"persist", "path"}, str("persist_path")))
-	if n, ok := parseInt("persist_retention_days"); ok {
-		add(PatchInt([]string{"persist", "retention_days"}, n))
-	}
-	if n, ok := parseInt("persist_flush_every_ms"); ok {
-		add(PatchInt([]string{"persist", "flush_every_ms"}, n))
-	}
-	if n, ok := parseInt("persist_queue_size"); ok {
-		add(PatchInt([]string{"persist", "queue_size"}, n))
-	}
-	add(PatchString([]string{"persist", "dump_path"}, str("persist_dump_path")))
-	if n, ok := parseInt("persist_cache_size_kb"); ok {
-		add(PatchInt([]string{"persist", "cache_size_kb"}, n))
-	}
+	case "persistence":
+		add(PatchBool([]string{"persist", "enabled"}, chk("persist_enabled")))
+		add(PatchString([]string{"persist", "path"}, str("persist_path")))
+		if n, ok := parseInt("persist_retention_days"); ok {
+			add(PatchInt([]string{"persist", "retention_days"}, n))
+		}
+		if n, ok := parseInt("persist_flush_every_ms"); ok {
+			add(PatchInt([]string{"persist", "flush_every_ms"}, n))
+		}
+		if n, ok := parseInt("persist_queue_size"); ok {
+			add(PatchInt([]string{"persist", "queue_size"}, n))
+		}
+		add(PatchString([]string{"persist", "dump_path"}, str("persist_dump_path")))
+		if n, ok := parseInt("persist_cache_size_kb"); ok {
+			add(PatchInt([]string{"persist", "cache_size_kb"}, n))
+		}
 
-	// ── Capture ────────────────────────────────────────────────────────────
-	add(PatchBool([]string{"capture", "enabled"}, chk("capture_enabled")))
-	add(PatchString([]string{"capture", "path"}, str("capture_path")))
-	if n, ok := parseInt("capture_max_mb"); ok {
-		add(PatchInt([]string{"capture", "max_mb"}, n))
-	}
-	if n, ok := parseInt("capture_retention_hours"); ok {
-		add(PatchInt([]string{"capture", "retention_hours"}, n))
-	}
-	add(PatchString([]string{"capture", "janitor_every"}, str("capture_janitor_every")))
-	if n, ok := parseOctal("capture_file_mode"); ok {
-		add(PatchOctal([]string{"capture", "file_mode"}, n))
-	}
+	case "observability":
+		add(PatchBool([]string{"capture", "enabled"}, chk("capture_enabled")))
+		add(PatchString([]string{"capture", "path"}, str("capture_path")))
+		if n, ok := parseInt("capture_max_mb"); ok {
+			add(PatchInt([]string{"capture", "max_mb"}, n))
+		}
+		if n, ok := parseInt("capture_retention_hours"); ok {
+			add(PatchInt([]string{"capture", "retention_hours"}, n))
+		}
+		add(PatchString([]string{"capture", "janitor_every"}, str("capture_janitor_every")))
+		if n, ok := parseOctal("capture_file_mode"); ok {
+			add(PatchOctal([]string{"capture", "file_mode"}, n))
+		}
+		add(PatchBool([]string{"metrics", "disabled"}, chk("metrics_disabled")))
+		add(PatchString([]string{"metrics", "listen"}, str("metrics_listen")))
+		add(PatchString([]string{"metrics", "api_key"}, str("metrics_api_key")))
+		add(PatchString([]string{"telemetry", "otlp", "endpoint"}, str("otlp_endpoint")))
+		add(PatchBool([]string{"telemetry", "otlp", "insecure"}, chk("otlp_insecure")))
+		if kv := parseKVLines(r.FormValue("otlp_headers")); len(kv) > 0 {
+			add(PatchKVMap([]string{"telemetry", "otlp", "headers"}, kv))
+		}
+		add(PatchBool([]string{"telemetry", "traces", "disabled"}, chk("traces_disabled")))
+		if f, ok := parseFloat("traces_sample_rate"); ok {
+			add(PatchFloat([]string{"telemetry", "traces", "sample_rate"}, f))
+		}
+		add(PatchBool([]string{"telemetry", "logs", "enabled"}, chk("logs_enabled")))
+		add(PatchBool([]string{"telemetry", "metrics_push", "enabled"}, chk("metrics_push_enabled")))
+		add(PatchString([]string{"telemetry", "metrics_push", "interval"}, str("metrics_push_interval")))
 
-	// ── Metrics ────────────────────────────────────────────────────────────
-	add(PatchBool([]string{"metrics", "disabled"}, chk("metrics_disabled")))
-	add(PatchString([]string{"metrics", "listen"}, str("metrics_listen")))
-	add(PatchString([]string{"metrics", "api_key"}, str("metrics_api_key")))
-
-	// ── Telemetry OTLP ─────────────────────────────────────────────────────
-	add(PatchString([]string{"telemetry", "otlp", "endpoint"}, str("otlp_endpoint")))
-	add(PatchBool([]string{"telemetry", "otlp", "insecure"}, chk("otlp_insecure")))
-	if kv := parseKVLines(r.FormValue("otlp_headers")); len(kv) > 0 {
-		add(PatchKVMap([]string{"telemetry", "otlp", "headers"}, kv))
+	case "verifiers":
+		add(PatchBool([]string{"verifiers", "hmac", "enabled"}, chk("hmac_enabled")))
+		add(PatchString([]string{"verifiers", "hmac", "header_signature"}, str("hmac_header_signature")))
+		add(PatchString([]string{"verifiers", "hmac", "header_client"}, str("hmac_header_client")))
+		if n, ok := parseInt("hmac_clock_skew_sec"); ok {
+			add(PatchInt([]string{"verifiers", "hmac", "clock_skew_sec"}, n))
+		}
+		if n, ok := parseInt64("hmac_max_body_bytes"); ok {
+			add(PatchInt64([]string{"verifiers", "hmac", "max_body_bytes"}, n))
+		}
+		add(PatchString([]string{"verifiers", "hmac", "clients_dir"}, str("hmac_clients_dir")))
+		add(PatchBool([]string{"verifiers", "bearer", "enabled"}, chk("bearer_enabled")))
+		add(PatchString([]string{"verifiers", "bearer", "header"}, str("bearer_header")))
+		add(PatchString([]string{"verifiers", "bearer", "scheme"}, str("bearer_scheme")))
+		add(PatchString([]string{"verifiers", "bearer", "tokens_dir"}, str("bearer_tokens_dir")))
 	}
-
-	// ── Telemetry traces ───────────────────────────────────────────────────
-	add(PatchBool([]string{"telemetry", "traces", "disabled"}, chk("traces_disabled")))
-	if f, ok := parseFloat("traces_sample_rate"); ok {
-		add(PatchFloat([]string{"telemetry", "traces", "sample_rate"}, f))
-	}
-
-	// ── Telemetry logs ─────────────────────────────────────────────────────
-	add(PatchBool([]string{"telemetry", "logs", "enabled"}, chk("logs_enabled")))
-
-	// ── Telemetry metrics push ─────────────────────────────────────────────
-	add(PatchBool([]string{"telemetry", "metrics_push", "enabled"}, chk("metrics_push_enabled")))
-	add(PatchString([]string{"telemetry", "metrics_push", "interval"}, str("metrics_push_interval")))
-
-	// ── Verifiers: HMAC ────────────────────────────────────────────────────
-	add(PatchBool([]string{"verifiers", "hmac", "enabled"}, chk("hmac_enabled")))
-	add(PatchString([]string{"verifiers", "hmac", "header_signature"}, str("hmac_header_signature")))
-	add(PatchString([]string{"verifiers", "hmac", "header_client"}, str("hmac_header_client")))
-	if n, ok := parseInt("hmac_clock_skew_sec"); ok {
-		add(PatchInt([]string{"verifiers", "hmac", "clock_skew_sec"}, n))
-	}
-	if n, ok := parseInt64("hmac_max_body_bytes"); ok {
-		add(PatchInt64([]string{"verifiers", "hmac", "max_body_bytes"}, n))
-	}
-	add(PatchString([]string{"verifiers", "hmac", "clients_dir"}, str("hmac_clients_dir")))
-
-	// ── Verifiers: Bearer ──────────────────────────────────────────────────
-	add(PatchBool([]string{"verifiers", "bearer", "enabled"}, chk("bearer_enabled")))
-	add(PatchString([]string{"verifiers", "bearer", "header"}, str("bearer_header")))
-	add(PatchString([]string{"verifiers", "bearer", "scheme"}, str("bearer_scheme")))
-	add(PatchString([]string{"verifiers", "bearer", "tokens_dir"}, str("bearer_tokens_dir")))
 
 	// ── Apply patches ──────────────────────────────────────────────────────
 	newRaw, err := ApplyYAMLPatches(string(rawBytes), patches)
