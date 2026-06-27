@@ -12,14 +12,17 @@ import (
 
 // walkYAMLDir calls fn for every .yaml / .yml file under dir in
 // lexicographic order, recursing into subdirectories. The directory is
-// silently skipped when it does not exist.
+// silently skipped when it does not exist. Unreadable files (e.g. wrong
+// ownership) are skipped with a warning so one bad file doesn't abort the
+// entire load.
 func walkYAMLDir(dir string, fn func(path string, raw []byte) error) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return nil
 	}
 	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			// Unreadable directory entry — skip it, don't abort the walk.
+			return nil
 		}
 		if d.IsDir() {
 			return nil
@@ -30,7 +33,10 @@ func walkYAMLDir(dir string, fn func(path string, raw []byte) error) error {
 		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("read %s: %w", path, err)
+			// Log the skip so operators can diagnose permission problems,
+			// but don't abort: one bad file must not silence all others.
+			fmt.Fprintf(os.Stderr, "veilgate: skipping unreadable rule file %s: %v\n", path, err)
+			return nil
 		}
 		return fn(path, raw)
 	})
